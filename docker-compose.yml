@@ -6,11 +6,16 @@ version: '3.8'
 
 services:
   kasa-monitor:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      platforms:
-        - linux/arm64  # Raspberry Pi 5 architecture
+    # Option 1: Use pre-built image from Docker Hub (recommended)
+    image: ${DOCKER_USERNAME}/kasa-monitor:latest
+    
+    # Option 2: Build locally (uncomment if you want to build instead)
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    #   platforms:
+    #     - linux/arm64  # Raspberry Pi 5 architecture
+    
     container_name: kasa-monitor
     restart: unless-stopped
     ports:
