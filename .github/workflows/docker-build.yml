@@ -1,25 +1,10 @@
 name: Build and Push Docker Image
 
 on:
-  # Trigger on new tags
+  # Trigger on new tags or source code changes
   push:
     tags:
       - 'v*.*.*'
-  
-  # Manual trigger from GitHub UI
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Docker image tag'
-        required: false
-        default: 'latest'
-      reason:
-        description: 'Reason for manual build'
-        required: false
-        default: 'Manual build requested'
-  
-  # Automatic trigger on source code changes only
-  push:
     branches: [ main ]
     paths:
       # Docker configuration
@@ -49,6 +34,18 @@ on:
       
       # Workflow configuration
       - '.github/workflows/docker-build.yml'
+  
+  # Manual trigger from GitHub UI
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Docker image tag'
+        required: false
+        default: 'latest'
+      reason:
+        description: 'Reason for manual build'
+        required: false
+        default: 'Manual build requested'
   
   # Build on release
   release:
