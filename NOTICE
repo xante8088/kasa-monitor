@@ -1,0 +1,81 @@
+Kasa Monitor - Smart Device Monitoring Application
+Copyright (C) 2025 Kasa Monitor Contributors
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+================================================================================
+ATTRIBUTIONS AND ACKNOWLEDGMENTS
+================================================================================
+
+This application incorporates or is inspired by the following open-source projects:
+
+1. python-kasa (https://github.com/python-kasa/python-kasa)
+   Copyright (C) python-kasa contributors
+   Licensed under GNU General Public License v3.0
+   
+   This project uses python-kasa library for communication with TP-Link Kasa
+   smart devices. The python-kasa library provides the core functionality for
+   device discovery, control, and data retrieval.
+
+2. PeaNUT (https://github.com/brandawg93/peanut)
+   Copyright (C) Brandon Garcia and PeaNUT contributors
+   Licensed under Apache License 2.0
+   
+   The user interface design and monitoring dashboard concepts were inspired by
+   PeaNUT's approach to displaying UPS monitoring data. While no code was
+   directly copied, the visual layout and information presentation patterns
+   influenced the design of this application.
+
+================================================================================
+THIRD-PARTY LICENSES
+================================================================================
+
+This application also uses the following third-party libraries:
+
+Backend Dependencies:
+- FastAPI: MIT License
+- uvicorn: BSD 3-Clause License
+- aiosqlite: MIT License
+- influxdb-client: MIT License
+- apscheduler: MIT License
+- python-socketio: MIT License
+- pydantic: MIT License
+
+Frontend Dependencies:
+- Next.js: MIT License
+- React: MIT License
+- TypeScript: Apache License 2.0
+- Tailwind CSS: MIT License
+- TanStack Query: MIT License
+- Recharts: MIT License
+- Socket.IO Client: MIT License
+- Axios: MIT License
+- Lucide React: ISC License
+
+================================================================================
+COMPLIANCE NOTICE
+================================================================================
+
+Due to the use of python-kasa (GPL v3), this entire application is licensed
+under GPL v3. This means:
+
+- You are free to use, modify, and distribute this software
+- If you distribute modified versions, you must:
+  * Make the source code available
+  * License your modifications under GPL v3
+  * Include this notice and the GPL v3 license
+  * Clearly mark your modifications
+
+For the complete license terms, see the LICENSE file in this distribution.
+
+================================================================================
+NO WARRANTY
+================================================================================
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
