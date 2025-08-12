@@ -15,11 +15,16 @@ RUN npm ci --only=production --no-audit --no-fund
 
 # Copy frontend source
 COPY src/ ./src/
+
+# Copy public directory (now exists with .gitkeep)
 COPY public/ ./public/
+
+# Copy Next.js configuration files
 COPY next.config.js ./
 COPY tailwind.config.js ./
 COPY tsconfig.json ./
 COPY postcss.config.js ./
+COPY next-env.d.ts ./
 
 # Build the frontend
 RUN npm run build
