@@ -89,8 +89,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const isPublicRoute = PUBLIC_ROUTES.includes(pathname);
     const isProtectedRoute = PROTECTED_ROUTES.some(route => pathname.startsWith(route));
 
-    // Check if setup is required for public routes
-    if (isPublicRoute && pathname !== '/setup') {
+    // Check if setup is required first
+    if (pathname !== '/setup') {
       try {
         const response = await fetch('/api/auth/setup-required');
         const data = await response.json();
@@ -103,20 +103,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     }
 
-    // Redirect authenticated users away from public routes
-    if (user && isPublicRoute && pathname !== '/setup') {
-      router.push('/');
+    // Allow access to public routes without authentication
+    if (isPublicRoute) {
+      // Only redirect authenticated users away from login page
+      if (user && pathname === '/login') {
+        router.push('/');
+      }
       return;
     }
 
-    // Redirect unauthenticated users to login
-    if (!user && (isProtectedRoute || (!isPublicRoute && pathname !== '/'))) {
+    // For all other routes, require authentication
+    if (!user) {
       router.push('/login');
       return;
     }
 
     // Check admin routes specifically
-    if (user && pathname.startsWith('/admin') && user.role !== 'admin') {
+    if (pathname.startsWith('/admin') && user.role !== 'admin') {
       router.push('/');
       return;
     }
@@ -126,6 +129,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
+    router.push('/');
   };
 
   const logout = () => {
