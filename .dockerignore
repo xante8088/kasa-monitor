@@ -95,7 +95,7 @@ coverage/
 .nyc_output/
 .coverage
 
-# Package manager files
-package-lock.json
+# Package manager files  
 yarn.lock
 .pnpm-store/
+# Keep package-lock.json for npm ci
