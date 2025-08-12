@@ -1,0 +1,308 @@
+# Sample Docker Compose file for Kasa Monitor
+# Copy this file to docker-compose.yml and customize for your setup
+# 
+# Quick Start:
+#   1. Copy this file: cp docker-compose.sample.yml docker-compose.yml
+#   2. Edit the image name to use your Docker Hub username
+#   3. Run: docker-compose up -d
+
+version: '3.8'
+
+services:
+  # ============================================
+  # Kasa Monitor Application
+  # ============================================
+  kasa-monitor:
+    # Option 1: Use pre-built image from Docker Hub (recommended for users)
+    # Replace 'xante8088' with the Docker Hub username of the image creator
+    image: xante8088/kasa-monitor:latest
+    
+    # Option 2: Build locally from source (for development)
+    # Uncomment these lines and comment out the image line above
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    
+    container_name: kasa-monitor
+    hostname: kasa-monitor
+    restart: unless-stopped
+    
+    # Port mappings - change left side if ports are already in use
+    ports:
+      - "3000:3000"   # Frontend (change to 3001:3000 if 3000 is in use)
+      - "8000:8000"   # Backend API (change to 8001:8000 if 8000 is in use)
+    
+    # Volume mappings for persistent data
+    volumes:
+      # Database and application data
+      - kasa_data:/app/data
+      
+      # Logs (optional - comment out if not needed)
+      - kasa_logs:/app/logs
+      
+      # SSL certificates (optional - uncomment if using HTTPS)
+      # - kasa_ssl:/app/ssl:ro
+      
+      # Custom configuration (optional)
+      # - kasa_config:/app/config
+    
+    # Environment variables
+    environment:
+      # ========================================
+      # Basic Configuration
+      # ========================================
+      
+      # Database path (uses Docker volume)
+      - SQLITE_PATH=/app/data/kasa_monitor.db
+      
+      # Timezone (change to your timezone)
+      - TZ=America/New_York
+      
+      # ========================================
+      # Security Configuration
+      # ========================================
+      
+      # JWT Secret Key (generate a secure random key for production)
+      # Generate with: openssl rand -hex 32
+      - JWT_SECRET_KEY=change-this-to-a-secure-random-key-in-production
+      
+      # Network access control
+      - ALLOW_LOCAL_ONLY=true
+      - ALLOWED_NETWORKS=192.168.0.0/16,10.0.0.0/8,172.16.0.0/12
+      
+      # ========================================
+      # Optional: TP-Link Cloud Credentials
+      # ========================================
+      # Uncomment and fill in if you want to discover cloud-connected devices
+      # - TPLINK_USERNAME=your-tplink-email@example.com
+      # - TPLINK_PASSWORD=your-tplink-password
+      
+      # ========================================
+      # Optional: SSL/HTTPS Configuration
+      # ========================================
+      # Uncomment to enable HTTPS (requires certificates in ./ssl directory)
+      # - USE_HTTPS=true
+      # - SSL_CERT_PATH=/app/ssl/cert.pem
+      # - SSL_KEY_PATH=/app/ssl/key.pem
+      # - FORCE_HTTPS=true
+      
+      # ========================================
+      # Optional: InfluxDB Configuration
+      # ========================================
+      # Uncomment if using InfluxDB for time-series data
+      # - INFLUXDB_URL=http://influxdb:8086
+      # - INFLUXDB_TOKEN=your-influxdb-token-here
+      # - INFLUXDB_ORG=kasa-monitor
+      # - INFLUXDB_BUCKET=device-data
+      
+      # ========================================
+      # Performance Tuning
+      # ========================================
+      
+      # Node.js memory limit (MB) - adjust based on available RAM
+      - NODE_OPTIONS=--max-old-space-size=1024
+      
+      # Python settings
+      - PYTHONUNBUFFERED=1
+      
+      # Polling interval in seconds (default: 30)
+      - POLLING_INTERVAL=30
+    
+    # Network configuration
+    networks:
+      - kasa-network
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/devices"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # Resource limits (adjust based on your hardware)
+    deploy:
+      resources:
+        limits:
+          memory: 2G        # Maximum memory
+          cpus: '2.0'       # Maximum CPU cores
+        reservations:
+          memory: 512M      # Minimum memory
+          cpus: '0.5'       # Minimum CPU cores
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    
+    # Additional labels for organization
+    labels:
+      - "com.kasa-monitor.description=Smart Device Monitoring"
+      - "com.kasa-monitor.version=1.0.0"
+
+  # ============================================
+  # Optional: InfluxDB for Time-Series Data
+  # ============================================
+  # Uncomment this entire section to add InfluxDB
+  # Then run: docker-compose --profile influxdb up -d
+  
+  # influxdb:
+  #   image: influxdb:2.7-alpine
+  #   container_name: kasa-influxdb
+  #   hostname: influxdb
+  #   restart: unless-stopped
+  #   
+  #   ports:
+  #     - "8086:8086"
+  #   
+  #   volumes:
+  #     - influxdb_data:/var/lib/influxdb2
+  #     - influxdb_config:/etc/influxdb2
+  #   
+  #   environment:
+  #     - DOCKER_INFLUXDB_INIT_MODE=setup
+  #     - DOCKER_INFLUXDB_INIT_USERNAME=admin
+  #     - DOCKER_INFLUXDB_INIT_PASSWORD=SuperSecurePassword123!
+  #     - DOCKER_INFLUXDB_INIT_ORG=kasa-monitor
+  #     - DOCKER_INFLUXDB_INIT_BUCKET=device-data
+  #     - DOCKER_INFLUXDB_INIT_RETENTION=30d
+  #     - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=your-super-secret-auth-token
+  #   
+  #   networks:
+  #     - kasa-network
+  #   
+  #   profiles:
+  #     - influxdb
+  #   
+  #   healthcheck:
+  #     test: ["CMD", "influx", "ping"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #   
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 1G
+  #         cpus: '1.0'
+
+  # ============================================
+  # Optional: Nginx Reverse Proxy
+  # ============================================
+  # Uncomment to add nginx reverse proxy with SSL termination
+  # Requires SSL certificates in ./nginx/ssl/
+  
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: kasa-nginx
+  #   restart: unless-stopped
+  #   
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   
+  #   volumes:
+  #     - nginx_config:/etc/nginx:ro
+  #     - nginx_ssl:/etc/nginx/ssl:ro
+  #   
+  #   depends_on:
+  #     - kasa-monitor
+  #   
+  #   networks:
+  #     - kasa-network
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  kasa-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  # Kasa Monitor data (database, etc.)
+  kasa_data:
+    driver: local
+  
+  # Kasa Monitor logs
+  kasa_logs:
+    driver: local
+  
+  # SSL certificates
+  kasa_ssl:
+    driver: local
+  
+  # Custom configuration
+  kasa_config:
+    driver: local
+  
+  # Nginx configuration (only used if Nginx is enabled)
+  nginx_config:
+    driver: local
+  
+  nginx_ssl:
+    driver: local
+  
+  # InfluxDB volumes (only used if InfluxDB is enabled)
+  influxdb_data:
+    driver: local
+  
+  influxdb_config:
+    driver: local
+
+# ============================================
+# Usage Examples
+# ============================================
+# 
+# 1. Basic deployment:
+#    docker-compose up -d
+# 
+# 2. With InfluxDB:
+#    docker-compose --profile influxdb up -d
+# 
+# 3. View logs:
+#    docker-compose logs -f kasa-monitor
+# 
+# 4. Stop services:
+#    docker-compose down
+# 
+# 5. Stop and remove volumes (CAUTION: deletes all data):
+#    docker-compose down -v
+# 
+# 6. Update to latest image:
+#    docker-compose pull
+#    docker-compose up -d
+# 
+# 7. Volume management:
+#    # List volumes
+#    docker volume ls | grep kasa
+#    
+#    # Backup volume
+#    docker run --rm -v kasa_data:/data -v $(pwd):/backup alpine \
+#      tar czf /backup/kasa-backup.tar.gz -C /data .
+#    
+#    # Restore volume
+#    docker run --rm -v kasa_data:/data -v $(pwd):/backup alpine \
+#      tar xzf /backup/kasa-backup.tar.gz -C /data
+#    
+#    # Inspect volume
+#    docker volume inspect kasa_data
+# 
+# 8. Backup database directly:
+#    docker-compose exec kasa-monitor sqlite3 /app/data/kasa_monitor.db \
+#      ".backup /app/data/backup-$(date +%Y%m%d).db"
+# 
+# 9. Scale for high availability (requires Docker Swarm):
+#    docker stack deploy -c docker-compose.yml kasa-stack

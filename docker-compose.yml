@@ -23,10 +23,10 @@ services:
       - "8000:8000"   # Backend API
     volumes:
       # Persist database and logs
-      - ./data:/app/data
-      - ./logs:/app/logs
-      # Optional: Custom SSL certificates
-      - ./ssl:/app/ssl:ro
+      - kasa_data:/app/data
+      - kasa_logs:/app/logs
+      # Optional: Custom SSL certificates (uncomment if needed)
+      # - kasa_ssl:/app/ssl:ro
     environment:
       # Database configuration
       - SQLITE_PATH=/app/data/kasa_monitor.db
@@ -119,6 +119,14 @@ networks:
         - subnet: 172.20.0.0/16
 
 volumes:
+  # Kasa Monitor data volumes
+  kasa_data:
+    driver: local
+  kasa_logs:
+    driver: local
+  kasa_ssl:
+    driver: local
+  # InfluxDB volumes
   influxdb_data:
     driver: local
   influxdb_config:

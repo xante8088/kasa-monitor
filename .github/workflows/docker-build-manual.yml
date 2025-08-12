@@ -1,12 +1,24 @@
-name: Docker Build (All Pushes)
+name: Docker Build (Manual)
 
-# This workflow runs on EVERY push to main branch
-# Use this for testing and initial setup
+# This workflow is for manual builds only
+# Use the main docker-build.yml for automatic builds on code changes
 
 on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:  # Allow manual trigger
+  # Manual trigger only
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Docker image tag'
+        required: false
+        default: 'latest'
+      platforms:
+        description: 'Target platforms (comma-separated)'
+        required: false
+        default: 'linux/amd64,linux/arm64'
+      reason:
+        description: 'Reason for manual build'
+        required: true
+        default: 'Manual build requested'
 
 env:
   REGISTRY: docker.io
@@ -55,31 +67,43 @@ jobs:
       with:
         images: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
         tags: |
-          type=ref,event=branch
-          type=raw,value=latest,enable={{is_default_branch}}
-          type=raw,value=pi5,enable={{is_default_branch}}
-          type=sha,prefix={{branch}}-
+          type=raw,value=${{ github.event.inputs.tag || 'latest' }}
+          type=raw,value=pi5,enable=${{ github.event.inputs.tag == 'latest' || github.event.inputs.tag == '' }}
+          type=sha,prefix=manual-
+          type=raw,value={{date 'YYYYMMDD-HHmmss'}}
         labels: |
           org.opencontainers.image.title=Kasa Monitor
           org.opencontainers.image.description=Web application for monitoring Kasa smart devices - Raspberry Pi optimized
           org.opencontainers.image.vendor=Kasa Monitor Contributors
           org.opencontainers.image.licenses=GPL-3.0
+          org.opencontainers.image.source.trigger=manual
+          org.opencontainers.image.build.reason=${{ github.event.inputs.reason }}
           
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
-        platforms: linux/amd64,linux/arm64
+        platforms: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+        build-args: |
+          BUILD_DATE=${{ steps.meta.outputs.created }}
+          BUILD_VERSION=${{ github.event.inputs.tag || 'latest' }}
         
     - name: Summary
       if: success()
       run: |
         echo "## ✅ Docker Build Successful!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Build Information:" >> $GITHUB_STEP_SUMMARY
+        echo "- **Trigger**: Manual" >> $GITHUB_STEP_SUMMARY
+        echo "- **Reason**: ${{ github.event.inputs.reason }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Tag**: ${{ github.event.inputs.tag || 'latest' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Platforms**: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Triggered by**: @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Images pushed to Docker Hub:" >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
@@ -88,5 +112,5 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Pull command:" >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-        echo "docker pull ${{ secrets.DOCKER_USERNAME }}/kasa-monitor:latest" >> $GITHUB_STEP_SUMMARY
+        echo "docker pull ${{ secrets.DOCKER_USERNAME }}/kasa-monitor:${{ github.event.inputs.tag || 'latest' }}" >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

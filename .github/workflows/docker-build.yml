@@ -1,26 +1,53 @@
 name: Build and Push Docker Image
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'Dockerfile'
-      - 'docker-compose.yml'
-      - 'backend/**'
-      - 'src/**'
-      - 'package.json'
-      - 'requirements.txt'
-      - '.github/workflows/docker-build.yml'  # Trigger when workflow itself changes
-  pull_request:
-    branches: [ main ]
-  release:
-    types: [ published ]
-  workflow_dispatch:  # Allow manual trigger from GitHub UI
+  # Manual trigger from GitHub UI
+  workflow_dispatch:
     inputs:
       tag:
         description: 'Docker image tag'
         required: false
         default: 'latest'
+      reason:
+        description: 'Reason for manual build'
+        required: false
+        default: 'Manual build requested'
+  
+  # Automatic trigger on source code changes only
+  push:
+    branches: [ main ]
+    paths:
+      # Docker configuration
+      - 'Dockerfile'
+      - 'docker-entrypoint.sh'
+      - '.dockerignore'
+      
+      # Backend source code
+      - 'backend/**/*.py'
+      - 'requirements.txt'
+      
+      # Frontend source code
+      - 'src/**/*.ts'
+      - 'src/**/*.tsx'
+      - 'src/**/*.js'
+      - 'src/**/*.jsx'
+      - 'src/**/*.css'
+      - 'public/**'
+      
+      # Build configuration
+      - 'package.json'
+      - 'package-lock.json'
+      - 'next.config.js'
+      - 'tsconfig.json'
+      - 'tailwind.config.js'
+      - 'postcss.config.js'
+      
+      # Workflow configuration
+      - '.github/workflows/docker-build.yml'
+  
+  # Build on release
+  release:
+    types: [ published ]
 
 env:
   REGISTRY: docker.io

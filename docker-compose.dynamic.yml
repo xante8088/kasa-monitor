@@ -1,0 +1,84 @@
+# Dynamic Network Docker Compose for Kasa Monitor
+# This file is a template that works with docker-network-helper.sh
+# 
+# Usage:
+#   1. Run: ./docker-network-helper.sh --generate
+#   2. This will create docker-compose.yml with an available network
+#
+# Manual usage:
+#   1. Find available subnet: ./docker-network-helper.sh
+#   2. Replace SUBNET_PLACEHOLDER and GATEWAY_PLACEHOLDER below
+#   3. Run: docker-compose up -d
+
+version: '3.8'
+
+services:
+  kasa-monitor:
+    image: ${DOCKER_USERNAME:-xante8088}/kasa-monitor:latest
+    container_name: kasa-monitor
+    hostname: kasa-monitor
+    restart: unless-stopped
+    
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+      - "${API_PORT:-8000}:8000"
+    
+    volumes:
+      - kasa_data:/app/data
+      - kasa_logs:/app/logs
+    
+    environment:
+      # Basic Configuration
+      - SQLITE_PATH=/app/data/kasa_monitor.db
+      - TZ=${TZ:-America/New_York}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-this-to-a-secure-random-key}
+      
+      # Network Configuration
+      - ALLOW_LOCAL_ONLY=${ALLOW_LOCAL_ONLY:-true}
+      - ALLOWED_NETWORKS=${ALLOWED_NETWORKS:-192.168.0.0/16,10.0.0.0/8,172.16.0.0/12}
+      
+      # Performance
+      - NODE_OPTIONS=--max-old-space-size=${NODE_MEMORY:-1024}
+      - PYTHONUNBUFFERED=1
+      - POLLING_INTERVAL=${POLLING_INTERVAL:-30}
+    
+    networks:
+      - kasa-dynamic-network
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/devices"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    deploy:
+      resources:
+        limits:
+          memory: ${MEMORY_LIMIT:-2G}
+          cpus: '${CPU_LIMIT:-2.0}'
+        reservations:
+          memory: ${MEMORY_RESERVE:-512M}
+          cpus: '${CPU_RESERVE:-0.5}'
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-10m}"
+        max-file: "${LOG_MAX_FILES:-3}"
+
+networks:
+  kasa-dynamic-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        # These placeholders will be replaced by docker-network-helper.sh
+        - subnet: SUBNET_PLACEHOLDER
+          gateway: GATEWAY_PLACEHOLDER
+
+volumes:
+  kasa_data:
+    driver: local
+  kasa_logs:
+    driver: local
