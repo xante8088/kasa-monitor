@@ -52,7 +52,7 @@ export default function SetupPage() {
     }
 
     try {
-      const response = await fetch('/api/auth/setup-admin', {
+      const response = await fetch('/api/auth/setup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

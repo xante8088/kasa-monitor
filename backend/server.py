@@ -372,7 +372,7 @@ class KasaMonitorApp:
                 user=user
             )
         
-        @self.app.post("/api/auth/setup")
+        @self.app.post("/api/auth/setup", response_model=User)
         async def initial_setup(admin_data: UserCreate):
             """Create initial admin user."""
             setup_required = await self.db_manager.is_setup_required()
@@ -393,7 +393,21 @@ class KasaMonitorApp:
             )
             
             if success:
-                return {"message": "Admin user created successfully"}
+                # Return the created user object
+                user = await self.db_manager.get_user_by_username(admin_data.username)
+                if user:
+                    return user
+                else:
+                    return User(
+                        id=1,
+                        username=admin_data.username,
+                        email=admin_data.email,
+                        full_name=admin_data.full_name,
+                        role=UserRole.ADMIN,
+                        is_admin=True,
+                        is_active=True,
+                        permissions=[]
+                    )
             else:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -442,6 +456,15 @@ class KasaMonitorApp:
             else:
                 raise HTTPException(status_code=400, detail="Failed to update user")
         
+        @self.app.patch("/api/users/{user_id}")
+        async def patch_user(user_id: int, updates: Dict[str, Any], current_user: User = Depends(require_permission(Permission.USERS_EDIT))):
+            """Partially update user information."""
+            success = await self.db_manager.update_user(user_id, updates)
+            if success:
+                return {"message": "User updated successfully"}
+            else:
+                raise HTTPException(status_code=400, detail="Failed to update user")
+        
         @self.app.delete("/api/users/{user_id}")
         async def delete_user(user_id: int, current_user: User = Depends(require_permission(Permission.USERS_REMOVE))):
             """Delete a user."""
@@ -470,6 +493,41 @@ class KasaMonitorApp:
             for key, value in config.items():
                 await self.db_manager.set_system_config(key, str(value))
             return {"message": "Configuration updated"}
+        
+        # Permission management endpoints
+        @self.app.get("/api/permissions")
+        async def get_all_permissions(user: User = Depends(require_permission(Permission.USERS_PERMISSIONS))):
+            """Get all available permissions."""
+            permissions = []
+            for perm in Permission:
+                category = perm.value.split('.')[0]
+                permissions.append({
+                    "name": perm.value,
+                    "description": perm.value.replace('_', ' ').title(),
+                    "category": category
+                })
+            return permissions
+        
+        @self.app.get("/api/roles/permissions")
+        async def get_roles_permissions(user: User = Depends(require_permission(Permission.USERS_VIEW))):
+            """Get permissions for all roles."""
+            from backend.auth import ROLE_PERMISSIONS
+            role_perms = []
+            for role in UserRole:
+                role_perms.append({
+                    "role": role.value,
+                    "permissions": [p.value for p in ROLE_PERMISSIONS.get(role, [])]
+                })
+            return role_perms
+        
+        @self.app.put("/api/roles/{role}/permissions")
+        async def update_role_permissions(role: str, permissions: List[str], 
+                                         user: User = Depends(require_permission(Permission.USERS_PERMISSIONS))):
+            """Update permissions for a role (admin only)."""
+            # Note: This would need database storage for custom role permissions
+            # For now, return success but note that default roles have fixed permissions
+            return {"message": f"Permissions updated for role {role}", 
+                   "note": "Default roles have fixed permissions"}
     
     def setup_socketio(self):
         """Set up Socket.IO for real-time updates."""

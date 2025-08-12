@@ -1,6 +1,10 @@
 # Kasa Monitor
 
-A comprehensive web application for monitoring TP-Link Kasa smart devices with advanced electricity cost tracking, user management, and SSL support.
+A comprehensive web application for monitoring TP-Link Kasa smart devices with advanced electricity cost tracking, user management, and enterprise-ready deployment options.
+
+![Version](https://img.shields.io/github/v/tag/xante8088/kasa-monitor?label=version)
+![Docker Pulls](https://img.shields.io/docker/pulls/xante8088/kasa-monitor)
+![License](https://img.shields.io/badge/license-GPL%20v3-blue)
 
 ## ✨ Features
 
@@ -10,6 +14,7 @@ A comprehensive web application for monitoring TP-Link Kasa smart devices with a
 - **Device Control**: Turn devices on/off remotely
 - **Persistent Storage**: Devices remain saved between sessions
 - **IP Management**: Update device IPs when they change
+- **Custom Notes**: Add notes to track device purposes
 
 ### 💰 Advanced Cost Tracking
 - **Complex Rate Structures**: Support for 6+ electricity rate types
@@ -22,266 +27,329 @@ A comprehensive web application for monitoring TP-Link Kasa smart devices with a
 ### 👥 User Management & Security
 - **Role-Based Access**: Admin, Operator, Viewer, and Guest roles
 - **JWT Authentication**: Secure token-based authentication
-- **Granular Permissions**: Fine-grained access control
+- **Granular Permissions**: 20+ distinct permission types
 - **SSL/HTTPS Support**: Full certificate management
 - **Network Restrictions**: Local-only access options
+- **First-Time Setup Wizard**: Guided admin account creation
 
 ### 📊 Data & Visualization
 - **Interactive Charts**: Power trends, voltage stability, energy patterns
 - **Historical Data**: SQLite + optional InfluxDB support
 - **Real-time Updates**: WebSocket connections for live data
 - **Export Capabilities**: Data export and analysis tools
+- **Responsive Design**: Works on desktop, tablet, and mobile
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- **Python 3.8+** with pip
-- **Node.js 16+** with npm
-- (Optional) InfluxDB for enhanced time-series data
+### Option 1: Docker (Recommended)
 
-### One-Command Setup
 ```bash
+# Quick start with Docker Compose
+curl -o docker-compose.yml https://raw.githubusercontent.com/xante8088/kasa-monitor/main/docker-compose.sample.yml
+docker-compose up -d
+
+# Access at http://localhost:3000
+```
+
+### Option 2: Docker with Auto Network Detection
+
+```bash
+# Clone repository
+git clone https://github.com/xante8088/kasa-monitor.git
+cd kasa-monitor
+
+# Use network helper to avoid conflicts
+./docker-network-helper.sh --generate
+docker-compose up -d
+```
+
+### Option 3: Traditional Installation
+
+```bash
+# Clone and setup
+git clone https://github.com/xante8088/kasa-monitor.git
+cd kasa-monitor
+
+# One-command setup
 chmod +x start.sh && ./start.sh
 ```
 
-That's it! The script will:
-- ✅ Create Python virtual environment
-- ✅ Install all dependencies
-- ✅ Start both backend and frontend servers
-- ✅ Show you the URLs to access the application
+## 🐳 Docker Deployment
 
-### Manual Installation
-
-If you prefer manual setup:
+### Available Images
 
 ```bash
-# 1. Create Python virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Latest stable
+docker pull xante8088/kasa-monitor:latest
 
-# 2. Install Python dependencies
-pip install -r requirements.txt
+# Raspberry Pi optimized
+docker pull xante8088/kasa-monitor:pi5
 
-# 3. Install Node.js dependencies
-npm install
-
-# 4. Start backend (Terminal 1)
-cd backend && python server.py
-
-# 5. Start frontend (Terminal 2) 
-npm run dev
+# Specific version
+docker pull xante8088/kasa-monitor:1.0.0
 ```
 
-## Configuration
+### Docker Compose Configuration
 
-### Environment Variables (Optional)
+```yaml
+version: '3.8'
+services:
+  kasa-monitor:
+    image: xante8088/kasa-monitor:latest
+    ports:
+      - "3000:3000"   # Frontend
+      - "8000:8000"   # Backend API
+    volumes:
+      - kasa_data:/app/data
+      - kasa_logs:/app/logs
+    environment:
+      - JWT_SECRET_KEY=your-secret-key-here
+      - TZ=America/New_York
+    restart: unless-stopped
 
-Create a `.env` file in the root directory:
+volumes:
+  kasa_data:
+  kasa_logs:
+```
+
+### Raspberry Pi Deployment
+
+Optimized for Raspberry Pi 4B and 5:
+
+```bash
+# Use Pi-optimized image
+docker pull xante8088/kasa-monitor:pi5
+
+# Run with memory limits
+docker run -d \
+  -p 3000:3000 \
+  -p 8000:8000 \
+  --memory="1g" \
+  --name kasa-monitor \
+  xante8088/kasa-monitor:pi5
+```
+
+## 📋 First-Time Setup
+
+1. **Access the Application**
+   - Navigate to http://localhost:3000
+   - Automatically redirected to setup wizard
+
+2. **Create Admin Account**
+   - Enter admin credentials
+   - Secure password (min 8 characters)
+   - This account has full system access
+
+3. **Discover Devices**
+   - Click "Discover Devices"
+   - Devices auto-detected on network
+   - Optional: Add TP-Link Cloud credentials
+
+4. **Configure Electricity Rates**
+   - Go to Settings → Rates
+   - Choose rate structure
+   - Enter your utility rates
+
+## 🔧 Configuration
+
+### Environment Variables
+
+Create `.env` file for configuration:
 
 ```env
-# SQLite Database (default: kasa_monitor.db)
-SQLITE_PATH=kasa_monitor.db
+# Security
+JWT_SECRET_KEY=generate-with-openssl-rand-hex-32
 
-# InfluxDB Configuration (optional)
-INFLUXDB_URL=http://localhost:8086
-INFLUXDB_TOKEN=your-influxdb-token
+# Database
+SQLITE_PATH=/app/data/kasa_monitor.db
+
+# Timezone
+TZ=America/New_York
+
+# Network Security
+ALLOW_LOCAL_ONLY=true
+ALLOWED_NETWORKS=192.168.0.0/16,10.0.0.0/8
+
+# Optional: TP-Link Cloud
+TPLINK_USERNAME=your-email@example.com
+TPLINK_PASSWORD=your-password
+
+# Optional: InfluxDB
+INFLUXDB_URL=http://influxdb:8086
+INFLUXDB_TOKEN=your-token
 INFLUXDB_ORG=kasa-monitor
 INFLUXDB_BUCKET=device-data
+
+# Performance
+NODE_OPTIONS=--max-old-space-size=1024
+POLLING_INTERVAL=30
 ```
 
-## Running the Application
+## 🛠 API Reference
 
-### Start both backend and frontend:
+### Authentication Endpoints
+- `POST /api/auth/login` - User login
+- `POST /api/auth/setup` - Initial admin setup
+- `GET /api/auth/me` - Current user info
+- `GET /api/auth/setup-required` - Check setup status
+
+### Device Management
+- `GET /api/devices` - List all devices
+- `POST /api/discover` - Discover devices
+- `GET /api/device/{ip}` - Device details
+- `GET /api/device/{ip}/history` - Historical data
+- `POST /api/device/{ip}/control` - Control device
+- `PUT /api/devices/{ip}/monitoring` - Toggle monitoring
+- `DELETE /api/devices/{ip}` - Remove device
+
+### User Management
+- `GET /api/users` - List users
+- `POST /api/users` - Create user
+- `PUT /api/users/{id}` - Update user
+- `DELETE /api/users/{id}` - Delete user
+
+### Rates & Costs
+- `GET /api/rates` - Get electricity rates
+- `POST /api/rates` - Update rates
+- `GET /api/costs` - Cost analysis
+
+### Permissions
+- `GET /api/permissions` - List permissions
+- `GET /api/roles/permissions` - Role permissions
+
+## 🔐 Security Features
+
+### Authentication & Authorization
+- JWT token-based authentication
+- Role-based access control (RBAC)
+- Granular permission system
+- Secure password hashing (bcrypt)
+
+### Network Security
+- Local-only access option
+- IP whitelist support
+- SSL/HTTPS support
+- CORS protection
+
+### User Roles
+
+| Role | Description | Permissions |
+|------|-------------|-------------|
+| Admin | Full system access | All permissions |
+| Operator | Device management | Control devices, manage rates |
+| Viewer | Read-only access | View devices and costs |
+| Guest | Limited access | View devices only |
+
+## 🔄 CI/CD & Automation
+
+### GitHub Actions
+- **Auto-tagging**: Semantic versioning on every push
+- **Docker builds**: Multi-architecture images (AMD64/ARM64)
+- **PR validation**: Build checks without pushing
+
+### Version Management
+- Automatic semantic versioning
+- Commit-based version bumping:
+  - `feat:` → Minor version bump
+  - `fix:` → Patch version bump
+  - `BREAKING CHANGE:` → Major version bump
+
+## 📊 Monitoring Features
+
+### Real-time Data
+- Power consumption (W)
+- Voltage levels (V)
+- Current draw (A)
+- Energy usage (kWh)
+- Device status (on/off)
+
+### Historical Analysis
+- Daily/weekly/monthly trends
+- Peak usage identification
+- Cost projections
+- Usage patterns
+
+## 🧪 Development
+
+### Prerequisites
+- Python 3.8+
+- Node.js 16+
+- Docker (optional)
+
+### Local Development
 
 ```bash
-# Terminal 1: Start the backend server
-python backend/server.py
+# Backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cd backend && python server.py
 
-# Terminal 2: Start the frontend development server
+# Frontend (new terminal)
+npm install
 npm run dev
 ```
 
-Or use the provided startup script:
+### Testing
 
 ```bash
-./start.sh
+# Run endpoint tests
+python test-endpoints.py
+
+# Check Docker build
+docker build -t kasa-monitor-test .
 ```
 
-Access the application at `http://localhost:3000`
+## 📁 Project Structure
 
-## First-Time Setup
+```
+kasa-monitor/
+├── backend/            # Python FastAPI backend
+│   ├── server.py      # Main server file
+│   ├── database.py    # Database operations
+│   ├── auth.py        # Authentication logic
+│   └── models.py      # Data models
+├── src/               # Next.js frontend
+│   ├── app/          # App routes
+│   ├── components/   # React components
+│   └── contexts/     # React contexts
+├── docker-compose.yml # Docker configuration
+├── Dockerfile        # Multi-stage build
+└── start.sh         # Quick start script
+```
 
-After running the startup script, you'll need to complete the initial configuration:
+## 🤝 Contributing
 
-1. **Create Admin Account**:
-   - Open http://localhost:3000 in your browser
-   - You'll be prompted to create the first administrator account
-   - Enter username, email, full name, and secure password
-   - This admin can later create additional users with different roles
+Contributions are welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Commit with conventional commits
+4. Submit a pull request
 
-2. **Configure User Access** (Optional):
-   - Admin can create users with roles: Admin, Operator, Viewer, Guest
-   - Set granular permissions for rate management, device control, etc.
-   - Configure network access restrictions if needed
+## 📄 License
 
-3. **SSL Configuration** (Optional):
-   - Import SSL certificates for HTTPS access
-   - Configure secure connections for production use
+GNU General Public License v3.0
 
-## Usage
+This application is licensed under GPL v3 because it uses the python-kasa library.
+See [LICENSE](LICENSE) for details.
 
-1. **Device Discovery**:
-   - Click "Discover Devices" to find Kasa devices on your network
-   - Optionally provide TP-Link Cloud credentials for newer devices
-   - Discovered devices are automatically saved for future monitoring
+## 🙏 Acknowledgments
 
-2. **Configure Electricity Rates**:
-   - Click "Electricity Rates" to set up your pricing structure
-   - Choose from 6 rate types: Flat, Time-of-Use, Tiered, Seasonal, Combined, Seasonal+Tiered
-   - Set usage ranges for tiered pricing (e.g., 0-100 kWh, 101-1000 kWh, 1000+ kWh)
+- **python-kasa**: Core library for device communication
+- **PeaNUT**: UI design inspiration
+- **FastAPI & Next.js**: Framework foundations
 
-3. **Monitor Devices**:
-   - View real-time power consumption on the main dashboard
-   - Click on any device for detailed information and interactive charts
-   - Track voltage, current, power, and energy consumption over time
+## ⚠️ Disclaimer
 
-4. **Device Management**:
-   - Enable/disable monitoring for specific devices
-   - Update device IP addresses when they change
-   - Remove devices from monitoring if no longer needed
-
-5. **Control Devices**:
-   - Turn devices on/off from the device detail view
-   - Monitor immediate power consumption changes
-   - Control multiple devices from the main dashboard
-
-6. **Analyze Costs**:
-   - View real-time cost calculations based on your rate structure
-   - Track daily, monthly, and total electricity costs
-   - Identify top energy consumers and usage patterns
-   - Export data for further analysis
-
-## Architecture
-
-### Backend (Python/FastAPI)
-- **FastAPI**: REST API and WebSocket support
-- **python-kasa**: Communication with Kasa devices
-- **SQLite**: Device information and configuration storage
-- **InfluxDB** (optional): Time-series data for better performance
-- **Socket.IO**: Real-time updates to frontend
-- **APScheduler**: Periodic device polling
-
-### Frontend (Next.js/React)
-- **Next.js**: React framework with server-side rendering
-- **TanStack Query**: Data fetching and caching
-- **Recharts**: Interactive data visualization
-- **Socket.IO Client**: Real-time data updates
-- **Tailwind CSS**: Responsive styling
-
-## Data Storage
-
-### SQLite Tables:
-- `device_info`: Device metadata
-- `device_readings`: Historical power consumption data
-- `electricity_rates`: Rate configurations
-- `device_costs`: Calculated costs
-
-### InfluxDB (Optional):
-- Better performance for time-series queries
-- Automatic data aggregation
-- Retention policies for data management
-
-## API Endpoints
-
-- `GET /api/devices` - List all discovered devices
-- `POST /api/discover` - Trigger device discovery
-- `GET /api/device/{ip}` - Get device details
-- `GET /api/device/{ip}/history` - Get historical data
-- `GET /api/device/{ip}/stats` - Get device statistics
-- `POST /api/device/{ip}/control` - Control device (on/off)
-- `GET /api/rates` - Get electricity rates
-- `POST /api/rates` - Set electricity rates
-- `GET /api/costs` - Calculate electricity costs
-
-## WebSocket Events
-
-- `device_update` - Real-time device data updates
-- `subscribe_device` - Subscribe to specific device updates
-- `unsubscribe_device` - Unsubscribe from device updates
-
-## Troubleshooting
-
-### Devices not discovered:
-- Ensure devices are on the same network
-- Check firewall settings for ports 9999 and 20002
-- Try using TP-Link Cloud credentials for newer devices
-
-### No power data:
-- Not all Kasa devices support energy monitoring
-- Ensure device firmware is up to date
-
-### Database errors:
-- Check file permissions for SQLite database
-- Verify InfluxDB connection if configured
-
-## Contributing
-
-Contributions are welcome! Please submit pull requests or open issues for bugs and feature requests.
-
-## License
-
-Copyright (C) 2025 Kasa Monitor Contributors
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-### Important License Notice
-
-This application is licensed under GPL v3 because it uses the python-kasa library,
-which is also licensed under GPL v3. This means:
-
-- You are free to use, modify, and distribute this software
-- If you distribute modified versions, you must:
-  - Make the source code available
-  - License your modifications under GPL v3
-  - Include appropriate notices and attribution
-
-For detailed license terms, see the [LICENSE](LICENSE) file.
-
-## Acknowledgments and Attribution
-
-This application incorporates or is inspired by the following projects:
-
-### python-kasa
-- **Repository**: https://github.com/python-kasa/python-kasa
-- **License**: GNU General Public License v3.0
-- **Usage**: Core library for TP-Link Kasa device communication
-- **Copyright**: python-kasa contributors
-
-### PeaNUT
-- **Repository**: https://github.com/brandawg93/peanut
-- **License**: Apache License 2.0
-- **Usage**: UI design inspiration for monitoring dashboard
-- **Copyright**: Brandon Garcia and PeaNUT contributors
-
-### Third-Party Libraries
-- FastAPI, Next.js, React - MIT License
-- TypeScript - Apache License 2.0
-- Various npm packages - See package.json for details
-
-For complete attribution information, see the [NOTICE](NOTICE) file.
-
-## Disclaimer
-
-This project is not affiliated with, endorsed by, or sponsored by TP-Link Technologies Co., Ltd.
+This project is not affiliated with TP-Link Technologies Co., Ltd.
 Kasa is a trademark of TP-Link Technologies Co., Ltd.
+
+## 📞 Support
+
+- **Documentation**: [Full Docs](https://github.com/xante8088/kasa-monitor)
+- **Issues**: [GitHub Issues](https://github.com/xante8088/kasa-monitor/issues)
+- **Docker Hub**: [xante8088/kasa-monitor](https://hub.docker.com/r/xante8088/kasa-monitor)
+
+---
+
+Made with ❤️ for the smart home community

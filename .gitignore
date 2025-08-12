@@ -63,3 +63,71 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+
+# Test scripts and test data
+test-*.py
+test-*.js
+test-*.ts
+*-test.py
+*-test.js
+*-test.ts
+test_*.py
+test_*.js
+test_*.ts
+tests/
+__tests__/
+*.test.py
+*.test.js
+*.test.ts
+test-data/
+test-reports/
+coverage/
+.coverage
+htmlcov/
+.pytest_cache/
+.jest-cache/
+
+# Development and debugging files
+debug-*.py
+debug-*.js
+*.debug.py
+*.debug.js
+scratch/
+playground/
+experiments/
+
+# Backup files
+*.backup
+*.bak
+*.old
+*.orig
+*~
+backup/
+backups/
+src_backup/
+backend_backup/
+
+# Local development files
+local-*.py
+local-*.js
+*.local.py
+*.local.js
+dev-*.py
+dev-*.js
+
+# Documentation build files
+docs/_build/
+site/
+mkdocs_build/
+
+# Package files
+*.egg-info/
+build/
+dist/
+*.whl
+
+# Data files (for local testing)
+data/
+*.csv
+*.json.backup
+*.db.backup

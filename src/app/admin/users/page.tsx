@@ -74,7 +74,7 @@ export default function UserManagementPage() {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`/api/users/${userId}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

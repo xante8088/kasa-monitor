@@ -30,7 +30,7 @@ export function DeviceManagementModal({ isOpen, onClose }: DeviceManagementModal
   const { data: devices = [], refetch } = useQuery({
     queryKey: ['saved-devices'],
     queryFn: async () => {
-      const res = await fetch('http://localhost:8000/api/devices/saved')
+      const res = await fetch('/api/devices/saved')
       return res.json()
     },
     enabled: isOpen
@@ -38,7 +38,7 @@ export function DeviceManagementModal({ isOpen, onClose }: DeviceManagementModal
 
   const updateMonitoringMutation = useMutation({
     mutationFn: async ({ deviceIp, enabled }: { deviceIp: string; enabled: boolean }) => {
-      const res = await fetch(`http://localhost:8000/api/devices/${deviceIp}/monitoring`, {
+      const res = await fetch(`/api/devices/${deviceIp}/monitoring`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled })
@@ -54,7 +54,7 @@ export function DeviceManagementModal({ isOpen, onClose }: DeviceManagementModal
 
   const updateIpMutation = useMutation({
     mutationFn: async ({ oldIp, newIp }: { oldIp: string; newIp: string }) => {
-      const res = await fetch(`http://localhost:8000/api/devices/${oldIp}/ip`, {
+      const res = await fetch(`/api/devices/${oldIp}/ip`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ new_ip: newIp })
@@ -78,7 +78,7 @@ export function DeviceManagementModal({ isOpen, onClose }: DeviceManagementModal
 
   const updateNotesMutation = useMutation({
     mutationFn: async ({ deviceIp, notes }: { deviceIp: string; notes: string }) => {
-      const res = await fetch(`http://localhost:8000/api/devices/${deviceIp}/notes`, {
+      const res = await fetch(`/api/devices/${deviceIp}/notes`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notes })
@@ -95,7 +95,7 @@ export function DeviceManagementModal({ isOpen, onClose }: DeviceManagementModal
 
   const removeDeviceMutation = useMutation({
     mutationFn: async (deviceIp: string) => {
-      const res = await fetch(`http://localhost:8000/api/devices/${deviceIp}`, {
+      const res = await fetch(`/api/devices/${deviceIp}`, {
         method: 'DELETE'
       })
       if (!res.ok) throw new Error('Failed to remove device')

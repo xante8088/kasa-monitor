@@ -1,6 +1,11 @@
 name: Build and Push Docker Image
 
 on:
+  # Trigger on new tags
+  push:
+    tags:
+      - 'v*.*.*'
+  
   # Manual trigger from GitHub UI
   workflow_dispatch:
     inputs:
@@ -94,8 +99,10 @@ jobs:
         tags: |
           type=ref,event=branch
           type=ref,event=pr
+          type=ref,event=tag
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
           type=raw,value=latest,enable={{is_default_branch}}
           type=raw,value=pi5,enable={{is_default_branch}}
           type=sha,prefix={{branch}}-
@@ -104,6 +111,7 @@ jobs:
           org.opencontainers.image.description=Web application for monitoring Kasa smart devices - Raspberry Pi optimized
           org.opencontainers.image.vendor=Kasa Monitor Contributors
           org.opencontainers.image.licenses=GPL-3.0
+          org.opencontainers.image.version=${{ github.ref_name }}
           
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
