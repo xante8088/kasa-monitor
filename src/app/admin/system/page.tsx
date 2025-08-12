@@ -104,13 +104,27 @@ export default function SystemConfigPage() {
   };
 
   const handleInputChange = (section: string, field: string, value: any) => {
-    setConfig(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section as keyof SystemConfig],
-        [field]: value
+    setConfig(prev => {
+      const sectionKey = section as keyof SystemConfig;
+      const currentSection = prev[sectionKey];
+      
+      // Handle nested objects (ssl and network)
+      if (typeof currentSection === 'object' && currentSection !== null) {
+        return {
+          ...prev,
+          [section]: {
+            ...currentSection,
+            [field]: value
+          }
+        };
       }
-    }));
+      
+      // Handle primitive values
+      return {
+        ...prev,
+        [section]: value
+      };
+    });
   };
 
   const handleArrayInputChange = (section: string, field: string, value: string) => {
