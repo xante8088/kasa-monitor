@@ -359,6 +359,34 @@ class DatabaseManager:
         
         await self.sqlite_conn.commit()
     
+    async def mark_device_inactive(self, device_ip: str):
+        """Mark a device as inactive in the database."""
+        async with self.sqlite_conn.execute(
+            """UPDATE devices SET is_active = 0, last_seen = CURRENT_TIMESTAMP 
+               WHERE device_ip = ?""",
+            (device_ip,)
+        ) as cursor:
+            await self.sqlite_conn.commit()
+    
+    async def get_saved_devices(self) -> List[Dict[str, Any]]:
+        """Get list of all saved devices from database."""
+        async with self.sqlite_conn.execute(
+            """SELECT device_ip, device_name, device_type, is_active, last_seen 
+               FROM devices ORDER BY last_seen DESC"""
+        ) as cursor:
+            rows = await cursor.fetchall()
+            
+        devices = []
+        for row in rows:
+            devices.append({
+                'ip': row[0],
+                'name': row[1],
+                'type': row[2],
+                'is_active': bool(row[3]),
+                'last_seen': row[4]
+            })
+        return devices
+    
     async def calculate_costs(
         self,
         start_date: Optional[datetime] = None,

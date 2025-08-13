@@ -1,0 +1,80 @@
+# Docker Compose - HOST NETWORK MODE
+# Best for: Device discovery, simple setup
+# Limitation: Less isolation, Linux only (not Docker Desktop Mac/Windows)
+# 
+# Usage: docker-compose -f docker-compose.host.yml up
+
+version: '3.8'
+
+services:
+  kasa-monitor:
+    image: ${DOCKER_USERNAME:-xante8088}/kasa-monitor:latest
+    
+    # Build locally if needed
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    #   platforms:
+    #     - linux/arm64
+    
+    container_name: kasa-monitor
+    restart: unless-stopped
+    
+    # HOST NETWORK MODE - Full access to host network
+    network_mode: host
+    
+    volumes:
+      - kasa_data:/app/data
+      - kasa_logs:/app/logs
+      
+    environment:
+      # Database
+      - SQLITE_PATH=/app/data/kasa_monitor.db
+      
+      # Network Mode Indicator
+      - NETWORK_MODE=host
+      - DISCOVERY_ENABLED=true
+      - MANUAL_DEVICES_ENABLED=true
+      
+      # Optional: InfluxDB
+      # - INFLUXDB_URL=http://localhost:8086
+      # - INFLUXDB_TOKEN=your-token-here
+      # - INFLUXDB_ORG=kasa-monitor
+      # - INFLUXDB_BUCKET=device-data
+      
+      # Optional: TP-Link Cloud
+      # - TPLINK_USERNAME=user@example.com
+      # - TPLINK_PASSWORD=your-password
+      
+      # Security
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-auto-generated}
+      
+      # Performance (Raspberry Pi)
+      - NODE_OPTIONS=--max-old-space-size=1024
+      - PYTHONUNBUFFERED=1
+    
+    # Resource limits for Raspberry Pi 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/devices"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  kasa_data:
+    driver: local
+  kasa_logs:
+    driver: local

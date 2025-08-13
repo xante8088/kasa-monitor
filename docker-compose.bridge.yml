@@ -1,76 +1,73 @@
-# Docker Compose for Kasa Monitor - Raspberry Pi 5 Optimized
-# Copyright (C) 2025 Kasa Monitor Contributors
-# Licensed under GPL v3
+# Docker Compose - BRIDGE NETWORK MODE (Default)
+# Best for: Security, isolation, manual device configuration
+# Limitation: No automatic device discovery (use manual IP entry)
 #
-# NETWORK CONFIGURATION OPTIONS:
-# This is the default BRIDGE mode configuration.
-# Device discovery will NOT work in this mode - use manual IP entry.
-#
-# For automatic device discovery, use one of these instead:
-#   - docker-compose.host.yml     (Simplest, Linux only)
-#   - docker-compose.macvlan.yml  (Advanced, full isolation)
-#
-# See DOCKER_NETWORK_GUIDE.md for detailed setup instructions.
+# Usage: docker-compose -f docker-compose.bridge.yml up
+# This is essentially the same as the default docker-compose.yml
 
 version: '3.8'
 
 services:
   kasa-monitor:
-    # Option 1: Use pre-built image from Docker Hub (recommended)
-    image: ${DOCKER_USERNAME}/kasa-monitor:latest
+    image: ${DOCKER_USERNAME:-xante8088}/kasa-monitor:latest
     
-    # Option 2: Build locally (uncomment if you want to build instead)
+    # Build locally if needed
     # build:
     #   context: .
     #   dockerfile: Dockerfile
     #   platforms:
-    #     - linux/arm64  # Raspberry Pi 5 architecture
+    #     - linux/arm64
     
     container_name: kasa-monitor
     restart: unless-stopped
+    
     ports:
       - "3000:3000"   # Frontend
       - "8000:8000"   # Backend API
-    volumes:
-      # Persist database and logs
-      - kasa_data:/app/data
-      - kasa_logs:/app/logs
-      # Optional: Custom SSL certificates (uncomment if needed)
-      # - kasa_ssl:/app/ssl:ro
-    environment:
-      # Database configuration
-      - SQLITE_PATH=/app/data/kasa_monitor.db
-      
-      # Optional: InfluxDB configuration
-      # - INFLUXDB_URL=http://localhost:8086
-      # - INFLUXDB_TOKEN=your-token-here
-      # - INFLUXDB_ORG=kasa-monitor
-      # - INFLUXDB_BUCKET=device-data
-      
-      # Optional: TP-Link Cloud credentials for device discovery
-      # - TPLINK_USERNAME=user@example.com
-      # - TPLINK_PASSWORD=your-password
-      
-      # JWT Secret (will auto-generate if not provided)
-      # - JWT_SECRET_KEY=your-secret-key-here
-      
-      # Network security settings
-      - ALLOW_LOCAL_ONLY=true
-      - ALLOWED_NETWORKS=192.168.0.0/16,10.0.0.0/8,172.16.0.0/12
-      
-      # SSL/HTTPS configuration (optional)
-      # - USE_HTTPS=false
-      # - SSL_CERT_PATH=/app/ssl/cert.pem
-      # - SSL_KEY_PATH=/app/ssl/key.pem
-      
-      # Performance tuning for Raspberry Pi
-      - NODE_OPTIONS=--max-old-space-size=1024
-      - PYTHONUNBUFFERED=1
     
     networks:
       - kasa-network
     
-    # Resource limits optimized for Raspberry Pi 5
+    volumes:
+      - kasa_data:/app/data
+      - kasa_logs:/app/logs
+      
+    environment:
+      # Database
+      - SQLITE_PATH=/app/data/kasa_monitor.db
+      
+      # Network Mode Indicator
+      - NETWORK_MODE=bridge
+      - DISCOVERY_ENABLED=false  # Discovery won't work in bridge mode
+      - MANUAL_DEVICES_ENABLED=true  # Manual IP entry is required
+      
+      # Bridge mode specific - allow host network access
+      - DOCKER_HOST_IP=host.docker.internal
+      
+      # Optional: InfluxDB
+      # - INFLUXDB_URL=http://influxdb:8086
+      # - INFLUXDB_TOKEN=your-token-here
+      # - INFLUXDB_ORG=kasa-monitor
+      # - INFLUXDB_BUCKET=device-data
+      
+      # Optional: TP-Link Cloud (can still work for cloud-based devices)
+      # - TPLINK_USERNAME=user@example.com
+      # - TPLINK_PASSWORD=your-password
+      
+      # Security
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-auto-generated}
+      - ALLOW_LOCAL_ONLY=true
+      - ALLOWED_NETWORKS=192.168.0.0/16,10.0.0.0/8,172.16.0.0/12
+      
+      # Performance (Raspberry Pi)
+      - NODE_OPTIONS=--max-old-space-size=1024
+      - PYTHONUNBUFFERED=1
+    
+    # Add host gateway for potential device access
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    
+    # Resource limits for Raspberry Pi 5
     deploy:
       resources:
         limits:
@@ -80,7 +77,6 @@ services:
           memory: 512M
           cpus: '0.5'
     
-    # Health check
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/devices"]
       interval: 30s
@@ -88,14 +84,14 @@ services:
       retries: 3
       start_period: 60s
     
-    # Security settings
     security_opt:
       - no-new-privileges:true
-    read_only: false
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=100m
+    
+    # For bridge mode, we can still connect to host services
+    depends_on:
+      - influxdb
 
-  # Optional: InfluxDB for advanced time-series data
+  # Optional: InfluxDB for time-series data
   influxdb:
     image: influxdb:2.7-alpine
     container_name: kasa-influxdb
@@ -129,14 +125,10 @@ networks:
         - subnet: 172.20.0.0/16
 
 volumes:
-  # Kasa Monitor data volumes
   kasa_data:
     driver: local
   kasa_logs:
     driver: local
-  kasa_ssl:
-    driver: local
-  # InfluxDB volumes
   influxdb_data:
     driver: local
   influxdb_config:

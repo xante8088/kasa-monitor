@@ -70,6 +70,20 @@ class DeviceManager:
             logger.error(f"Error discovering devices: {e}")
             raise
     
+    async def connect_to_device(self, ip: str) -> Optional[Device]:
+        """Connect to a specific device by IP address."""
+        try:
+            # Try to discover single device
+            device = await Discover.discover_single(ip, credentials=self.credentials)
+            if device:
+                await device.update()
+                self.devices[ip] = device
+                logger.info(f"Connected to device at {ip}: {device.alias}")
+                return device
+        except Exception as e:
+            logger.error(f"Error connecting to device at {ip}: {e}")
+        return None
+    
     async def get_device_data(self, device_ip: str) -> Optional[DeviceData]:
         """Get current data from a specific device."""
         device = self.devices.get(device_ip)
@@ -218,6 +232,64 @@ class KasaMonitorApp:
                     logger.error(f"Error saving device {ip}: {e}")
             
             return {'discovered': len(devices)}
+        
+        @self.app.post("/api/devices/manual")
+        async def add_manual_device(device_config: dict):
+            """Manually add a device by IP address."""
+            ip = device_config.get('ip')
+            alias = device_config.get('alias', f'Device at {ip}')
+            
+            if not ip:
+                raise HTTPException(status_code=400, detail="IP address required")
+            
+            try:
+                # Try to connect to the device
+                device = await self.device_manager.connect_to_device(ip)
+                if device:
+                    # Store in database
+                    device_data = await self.device_manager.get_device_data(ip)
+                    if device_data:
+                        await self.db_manager.store_device_reading(device_data)
+                        logger.info(f"Manually added device {alias} ({ip})")
+                        return {"status": "success", "device": device_data.dict()}
+                else:
+                    raise HTTPException(status_code=404, detail=f"Cannot connect to device at {ip}")
+            except Exception as e:
+                logger.error(f"Error adding manual device {ip}: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.delete("/api/devices/{device_ip}")
+        async def remove_device(device_ip: str):
+            """Remove a device from monitoring."""
+            try:
+                # Remove from device manager
+                if device_ip in self.device_manager.devices:
+                    del self.device_manager.devices[device_ip]
+                
+                # Mark as inactive in database (don't delete history)
+                await self.db_manager.mark_device_inactive(device_ip)
+                
+                logger.info(f"Removed device {device_ip}")
+                return {"status": "success", "message": f"Device {device_ip} removed"}
+            except Exception as e:
+                logger.error(f"Error removing device {device_ip}: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.get("/api/devices/saved")
+        async def get_saved_devices():
+            """Get list of saved device IPs from database."""
+            saved_devices = await self.db_manager.get_saved_devices()
+            return saved_devices
+        
+        @self.app.get("/api/settings/network")
+        async def get_network_settings():
+            """Get network configuration settings."""
+            return {
+                "network_mode": os.getenv("NETWORK_MODE", "bridge"),
+                "discovery_enabled": os.getenv("DISCOVERY_ENABLED", "false").lower() == "true",
+                "manual_devices_enabled": os.getenv("MANUAL_DEVICES_ENABLED", "true").lower() == "true",
+                "host_ip": os.getenv("DOCKER_HOST_IP", None)
+            }
         
         @self.app.get("/api/device/{device_ip}")
         async def get_device_data(device_ip: str):
@@ -496,14 +568,33 @@ class KasaMonitorApp:
         
         # Permission management endpoints
         @self.app.get("/api/permissions")
-        async def get_all_permissions(user: User = Depends(require_permission(Permission.USERS_PERMISSIONS))):
+        async def get_all_permissions(user: User = Depends(require_permission(Permission.USERS_VIEW))):
             """Get all available permissions."""
             permissions = []
+            category_map = {
+                'devices': 'device_management',
+                'rates': 'rate_management',
+                'costs': 'rate_management',
+                'users': 'user_management',
+                'system': 'system_config'
+            }
+            
             for perm in Permission:
-                category = perm.value.split('.')[0]
+                parts = perm.value.split('.')
+                category_key = parts[0] if len(parts) > 0 else 'other'
+                category = category_map.get(category_key, 'other')
+                
+                # Create a more readable description
+                if len(parts) > 1:
+                    action = parts[1].replace('_', ' ').title()
+                    resource = parts[0].title()
+                    description = f"{action} {resource}"
+                else:
+                    description = perm.value.replace('.', ' - ').replace('_', ' ').title()
+                
                 permissions.append({
                     "name": perm.value,
-                    "description": perm.value.replace('_', ' ').title(),
+                    "description": description,
                     "category": category
                 })
             return permissions
@@ -527,6 +618,18 @@ class KasaMonitorApp:
             # Note: This would need database storage for custom role permissions
             # For now, return success but note that default roles have fixed permissions
             return {"message": f"Permissions updated for role {role}", 
+                   "note": "Default roles have fixed permissions"}
+        
+        @self.app.post("/api/roles/{role}/permissions")
+        async def toggle_role_permission(role: str, request: dict,
+                                        user: User = Depends(require_permission(Permission.USERS_PERMISSIONS))):
+            """Toggle a single permission for a role."""
+            permission = request.get("permission")
+            action = request.get("action", "toggle")
+            
+            # Note: This would need database storage for custom role permissions
+            # For now, return success but note that default roles have fixed permissions
+            return {"message": f"Permission {permission} {action} for role {role}", 
                    "note": "Default roles have fixed permissions"}
     
     def setup_socketio(self):

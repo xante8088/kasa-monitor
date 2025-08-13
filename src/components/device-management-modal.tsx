@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { X, Trash2, Edit2, ToggleLeft, ToggleRight, Save, AlertCircle } from 'lucide-react'
+import { X, Trash2, Edit2, ToggleLeft, ToggleRight, Save, AlertCircle, Plus, Wifi } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
 interface DeviceInfo {
@@ -26,6 +26,9 @@ export function DeviceManagementModal({ isOpen, onClose }: DeviceManagementModal
   const [editingDevice, setEditingDevice] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<{ [key: string]: { ip: string; notes: string } }>({})
   const [error, setError] = useState<string | null>(null)
+  const [showManualAdd, setShowManualAdd] = useState(false)
+  const [manualDevice, setManualDevice] = useState({ ip: '', alias: '' })
+  const [networkSettings, setNetworkSettings] = useState<any>(null)
 
   const { data: devices = [], refetch } = useQuery({
     queryKey: ['saved-devices'],
@@ -35,6 +38,16 @@ export function DeviceManagementModal({ isOpen, onClose }: DeviceManagementModal
     },
     enabled: isOpen
   })
+
+  // Fetch network settings on mount
+  useEffect(() => {
+    if (isOpen) {
+      fetch('/api/settings/network')
+        .then(res => res.json())
+        .then(data => setNetworkSettings(data))
+        .catch(err => console.error('Failed to fetch network settings:', err))
+    }
+  }, [isOpen])
 
   const updateMonitoringMutation = useMutation({
     mutationFn: async ({ deviceIp, enabled }: { deviceIp: string; enabled: boolean }) => {
@@ -107,6 +120,31 @@ export function DeviceManagementModal({ isOpen, onClose }: DeviceManagementModal
     }
   })
 
+  const addManualDeviceMutation = useMutation({
+    mutationFn: async ({ ip, alias }: { ip: string; alias: string }) => {
+      const res = await fetch('/api/devices/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip, alias })
+      })
+      if (!res.ok) {
+        const error = await res.text()
+        throw new Error(error || 'Failed to add device')
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      refetch()
+      queryClient.invalidateQueries({ queryKey: ['devices'] })
+      setShowManualAdd(false)
+      setManualDevice({ ip: '', alias: '' })
+      setError(null)
+    },
+    onError: (err: Error) => {
+      setError(err.message)
+    }
+  })
+
   const handleEdit = (device: DeviceInfo) => {
     setEditingDevice(device.device_ip)
     setEditValues({
@@ -159,10 +197,101 @@ export function DeviceManagementModal({ isOpen, onClose }: DeviceManagementModal
         </div>
 
         <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
+          {/* Network Status Banner */}
+          {networkSettings && (
+            <div className={`mb-4 p-4 rounded-lg border ${
+              networkSettings.network_mode === 'host' 
+                ? 'bg-green-50 border-green-200' 
+                : networkSettings.network_mode === 'macvlan'
+                ? 'bg-blue-50 border-blue-200'
+                : 'bg-yellow-50 border-yellow-200'
+            }`}>
+              <div className="flex items-center gap-2">
+                <Wifi className={`h-5 w-5 ${
+                  networkSettings.network_mode === 'host' 
+                    ? 'text-green-600' 
+                    : networkSettings.network_mode === 'macvlan'
+                    ? 'text-blue-600'
+                    : 'text-yellow-600'
+                }`} />
+                <div>
+                  <p className="font-medium">Network Mode: {networkSettings.network_mode.toUpperCase()}</p>
+                  <p className="text-sm mt-1">
+                    {networkSettings.discovery_enabled 
+                      ? '✓ Automatic discovery enabled' 
+                      : '✗ Automatic discovery disabled (use manual IP entry)'}
+                  </p>
+                  {networkSettings.manual_devices_enabled && (
+                    <p className="text-sm">✓ Manual device entry enabled</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-red-600" />
               <span className="text-red-800">{error}</span>
+            </div>
+          )}
+
+          {/* Manual Add Device Section */}
+          {networkSettings?.manual_devices_enabled && (
+            <div className="mb-6">
+              {!showManualAdd ? (
+                <button
+                  onClick={() => setShowManualAdd(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Plus className="h-5 w-5" />
+                  Add Device Manually
+                </button>
+              ) : (
+                <div className="bg-gray-50 border rounded-lg p-4">
+                  <h3 className="font-semibold mb-3">Add Device by IP Address</h3>
+                  <div className="flex gap-3">
+                    <input
+                      type="text"
+                      placeholder="Device IP (e.g., 192.168.1.100)"
+                      value={manualDevice.ip}
+                      onChange={(e) => setManualDevice({ ...manualDevice, ip: e.target.value })}
+                      className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Device Name (optional)"
+                      value={manualDevice.alias}
+                      onChange={(e) => setManualDevice({ ...manualDevice, alias: e.target.value })}
+                      className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      onClick={() => {
+                        if (manualDevice.ip) {
+                          addManualDeviceMutation.mutate(manualDevice)
+                        }
+                      }}
+                      disabled={!manualDevice.ip || addManualDeviceMutation.isPending}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {addManualDeviceMutation.isPending ? 'Adding...' : 'Add'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowManualAdd(false)
+                        setManualDevice({ ip: '', alias: '' })
+                        setError(null)
+                      }}
+                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-2">
+                    Enter the IP address of your Kasa smart device. Make sure the device is on the same network.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

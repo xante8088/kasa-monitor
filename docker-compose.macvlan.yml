@@ -1,0 +1,102 @@
+# Docker Compose - MACVLAN NETWORK MODE
+# Best for: Device discovery with network isolation
+# Requirement: Configure YOUR_NETWORK_INTERFACE and subnet settings
+#
+# Setup Steps:
+# 1. Find your network interface: ip link show (typically eth0 or wlan0)
+# 2. Update parent: YOUR_NETWORK_INTERFACE below
+# 3. Update subnet and gateway to match your network
+# 4. Run: docker-compose -f docker-compose.macvlan.yml up
+#
+# Note: Container will get its own IP address on your LAN
+
+version: '3.8'
+
+services:
+  kasa-monitor:
+    image: ${DOCKER_USERNAME:-xante8088}/kasa-monitor:latest
+    
+    # Build locally if needed
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    #   platforms:
+    #     - linux/arm64
+    
+    container_name: kasa-monitor
+    restart: unless-stopped
+    
+    # No port mapping needed - container gets its own IP
+    # Access via: http://CONTAINER_IP:3000 and http://CONTAINER_IP:8000
+    
+    networks:
+      macvlan_net:
+        # Optional: Set a specific IP for the container
+        # ipv4_address: 192.168.1.100
+    
+    volumes:
+      - kasa_data:/app/data
+      - kasa_logs:/app/logs
+      
+    environment:
+      # Database
+      - SQLITE_PATH=/app/data/kasa_monitor.db
+      
+      # Network Mode Indicator
+      - NETWORK_MODE=macvlan
+      - DISCOVERY_ENABLED=true
+      - MANUAL_DEVICES_ENABLED=true
+      
+      # Optional: InfluxDB
+      # - INFLUXDB_URL=http://YOUR_HOST_IP:8086
+      # - INFLUXDB_TOKEN=your-token-here
+      # - INFLUXDB_ORG=kasa-monitor
+      # - INFLUXDB_BUCKET=device-data
+      
+      # Optional: TP-Link Cloud
+      # - TPLINK_USERNAME=user@example.com
+      # - TPLINK_PASSWORD=your-password
+      
+      # Security
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-auto-generated}
+      
+      # Performance (Raspberry Pi)
+      - NODE_OPTIONS=--max-old-space-size=1024
+      - PYTHONUNBUFFERED=1
+    
+    # Resource limits for Raspberry Pi 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/devices"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  macvlan_net:
+    driver: macvlan
+    driver_opts:
+      parent: eth0  # CHANGE THIS to your network interface (eth0, wlan0, etc.)
+    ipam:
+      config:
+        - subnet: 192.168.1.0/24    # CHANGE THIS to your network subnet
+          gateway: 192.168.1.1       # CHANGE THIS to your router IP
+          ip_range: 192.168.1.128/25 # Optional: Restrict IP range for containers
+
+volumes:
+  kasa_data:
+    driver: local
+  kasa_logs:
+    driver: local
