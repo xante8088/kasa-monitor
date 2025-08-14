@@ -21,9 +21,11 @@ along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+import os
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
 from contextlib import asynccontextmanager
+import io
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,6 +42,16 @@ from influxdb_client.client.write_api import SYNCHRONOUS
 from database import DatabaseManager
 from models import DeviceData, DeviceReading, ElectricityRate, User, UserCreate, UserRole, UserLogin, Token, Permission
 from auth import AuthManager, get_current_user, require_auth, require_permission, require_admin, is_local_network_ip, get_network_access_config
+
+# Import data management modules
+try:
+    from data_export import DataExporter, BulkOperations
+    from data_aggregation import DataAggregator
+    from cache_manager import CacheManager
+    data_management_available = True
+except ImportError:
+    logger.warning("Data management modules not available. Some features will be disabled.")
+    data_management_available = False
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -156,8 +168,21 @@ class KasaMonitorApp:
             cors_allowed_origins='*'
         )
         self.app = FastAPI(lifespan=self.lifespan)
+        
+        # Initialize data management services if available
+        self.data_exporter = None
+        self.data_aggregator = None
+        self.cache_manager = None
+        if data_management_available:
+            self.data_exporter = DataExporter(self.db_manager)
+            self.data_aggregator = DataAggregator(self.db_manager)
+            redis_url = os.getenv("REDIS_URL")
+            if redis_url:
+                self.cache_manager = CacheManager(redis_url=redis_url)
+        
         self.setup_middleware()
         self.setup_routes()
+        self.setup_data_management_routes()
         self.setup_socketio()
         
     @asynccontextmanager
@@ -179,9 +204,19 @@ class KasaMonitorApp:
             replace_existing=True
         )
         
+        # Start data aggregation service if available
+        if self.data_aggregator:
+            await self.data_aggregator.start()
+            logger.info("Data aggregation service started")
+        
         yield
         
         # Shutdown
+        if self.data_aggregator:
+            await self.data_aggregator.stop()
+        if self.cache_manager:
+            await self.cache_manager.close()
+        
         self.scheduler.shutdown()
         await self.db_manager.close()
     
@@ -556,7 +591,59 @@ class KasaMonitorApp:
         @self.app.get("/api/system/config")
         async def get_system_config(user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
             """Get system configuration."""
-            config = get_network_access_config()
+            # Get configuration from database or use defaults
+            config = {
+                "ssl": {
+                    "enabled": False,
+                    "cert_path": "",
+                    "key_path": "",
+                    "force_https": False
+                },
+                "network": {
+                    "host": "0.0.0.0",
+                    "port": 8000,
+                    "allowed_hosts": [],
+                    "local_only": False,
+                    "cors_origins": []
+                },
+                "database_path": "kasa_monitor.db",
+                "influxdb_enabled": False,
+                "polling_interval": 30
+            }
+            
+            # Try to load saved config from database
+            try:
+                saved_config = await self.db_manager.get_all_system_config()
+                for key, value in saved_config.items():
+                    if "." in key:
+                        # Handle nested keys like "ssl.enabled"
+                        parts = key.split(".", 1)
+                        if parts[0] in config and isinstance(config[parts[0]], dict):
+                            # Convert string values to appropriate types
+                            if value.lower() in ["true", "false"]:
+                                config[parts[0]][parts[1]] = value.lower() == "true"
+                            elif value.isdigit():
+                                config[parts[0]][parts[1]] = int(value)
+                            elif value.startswith("[") and value.endswith("]"):
+                                # Handle array values
+                                try:
+                                    import json
+                                    config[parts[0]][parts[1]] = json.loads(value)
+                                except:
+                                    config[parts[0]][parts[1]] = []
+                            else:
+                                config[parts[0]][parts[1]] = value
+                    else:
+                        # Handle top-level keys
+                        if value.lower() in ["true", "false"]:
+                            config[key] = value.lower() == "true"
+                        elif value.isdigit():
+                            config[key] = int(value)
+                        else:
+                            config[key] = value
+            except Exception as e:
+                logger.warning(f"Could not load saved config: {e}")
+            
             return config
         
         @self.app.post("/api/system/config")
@@ -565,6 +652,19 @@ class KasaMonitorApp:
             for key, value in config.items():
                 await self.db_manager.set_system_config(key, str(value))
             return {"message": "Configuration updated"}
+        
+        @self.app.put("/api/system/config")
+        async def update_system_config_put(config: Dict[str, Any], user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
+            """Update system configuration (PUT method)."""
+            # Store configuration in database
+            for key, value in config.items():
+                if isinstance(value, dict):
+                    # Handle nested configs like ssl, network
+                    for sub_key, sub_value in value.items():
+                        await self.db_manager.set_system_config(f"{key}.{sub_key}", str(sub_value))
+                else:
+                    await self.db_manager.set_system_config(key, str(value))
+            return {"message": "Configuration updated successfully"}
         
         # Permission management endpoints
         @self.app.get("/api/permissions")
@@ -579,7 +679,12 @@ class KasaMonitorApp:
                 'system': 'system_config'
             }
             
-            for perm in Permission:
+            # Import Permission enum to iterate through it
+            from models import Permission
+            
+            # Get all permission values
+            for perm_name in Permission.__members__:
+                perm = Permission[perm_name]
                 parts = perm.value.split('.')
                 category_key = parts[0] if len(parts) > 0 else 'other'
                 category = category_map.get(category_key, 'other')
@@ -602,7 +707,8 @@ class KasaMonitorApp:
         @self.app.get("/api/roles/permissions")
         async def get_roles_permissions(user: User = Depends(require_permission(Permission.USERS_VIEW))):
             """Get permissions for all roles."""
-            from backend.auth import ROLE_PERMISSIONS
+            from auth import ROLE_PERMISSIONS
+            from models import UserRole
             role_perms = []
             for role in UserRole:
                 role_perms.append({
@@ -658,6 +764,181 @@ class KasaMonitorApp:
         
         # Mount Socket.IO app
         self.app = socketio.ASGIApp(self.sio, self.app)
+    
+    def setup_data_management_routes(self):
+        """Set up data management routes if available."""
+        if not data_management_available:
+            return
+        
+        from fastapi.responses import StreamingResponse
+        
+        # Export endpoints
+        @self.app.post("/api/export/devices")
+        async def export_devices(format: str = "csv", include_energy: bool = True):
+            """Export device data in various formats."""
+            if not self.data_exporter:
+                raise HTTPException(status_code=503, detail="Export service not available")
+            
+            try:
+                if format == "csv":
+                    content = await self.data_exporter.export_devices_csv()
+                    return StreamingResponse(
+                        io.BytesIO(content),
+                        media_type="text/csv",
+                        headers={"Content-Disposition": "attachment; filename=devices.csv"}
+                    )
+                elif format == "excel":
+                    content = await self.data_exporter.export_devices_excel(include_energy=include_energy)
+                    return StreamingResponse(
+                        io.BytesIO(content),
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": "attachment; filename=devices.xlsx"}
+                    )
+                else:
+                    raise HTTPException(status_code=400, detail="Unsupported format")
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.post("/api/export/energy")
+        async def export_energy(
+            device_ip: Optional[str] = None,
+            start_date: Optional[datetime] = None,
+            end_date: Optional[datetime] = None,
+            format: str = "csv"
+        ):
+            """Export energy consumption data."""
+            if not self.data_exporter:
+                raise HTTPException(status_code=503, detail="Export service not available")
+            
+            try:
+                if format == "csv":
+                    content = await self.data_exporter.export_energy_data_csv(
+                        device_ip=device_ip,
+                        start_date=start_date,
+                        end_date=end_date
+                    )
+                    return StreamingResponse(
+                        io.BytesIO(content),
+                        media_type="text/csv",
+                        headers={"Content-Disposition": "attachment; filename=energy_data.csv"}
+                    )
+                else:
+                    raise HTTPException(status_code=400, detail="Unsupported format")
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.post("/api/export/report")
+        async def generate_report(
+            report_type: str = "monthly",
+            start_date: Optional[datetime] = None,
+            end_date: Optional[datetime] = None
+        ):
+            """Generate PDF report."""
+            if not self.data_exporter:
+                raise HTTPException(status_code=503, detail="Export service not available")
+            
+            try:
+                content = await self.data_exporter.generate_pdf_report(
+                    report_type=report_type,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+                return StreamingResponse(
+                    io.BytesIO(content),
+                    media_type="application/pdf",
+                    headers={"Content-Disposition": f"attachment; filename={report_type}_report.pdf"}
+                )
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        # Aggregation endpoints
+        @self.app.get("/api/aggregation")
+        async def get_aggregated_data(
+            period: str = "day",
+            device_ip: Optional[str] = None,
+            start_date: Optional[datetime] = None,
+            end_date: Optional[datetime] = None
+        ):
+            """Get aggregated data for specified period."""
+            if not self.data_aggregator:
+                raise HTTPException(status_code=503, detail="Aggregation service not available")
+            
+            try:
+                from data_aggregation import AggregationPeriod
+                period_enum = AggregationPeriod(period.lower())
+                data = await self.data_aggregator.get_aggregated_data(
+                    device_ip=device_ip,
+                    period=period_enum,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+                return data
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid aggregation period")
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.get("/api/statistics/{device_ip}")
+        async def get_device_statistics(
+            device_ip: str,
+            start_date: Optional[datetime] = None,
+            end_date: Optional[datetime] = None
+        ):
+            """Get statistical analysis for a device."""
+            if not self.data_aggregator:
+                raise HTTPException(status_code=503, detail="Aggregation service not available")
+            
+            try:
+                stats = await self.data_aggregator.calculate_statistics(
+                    device_ip=device_ip,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+                return {
+                    "device_ip": device_ip,
+                    "statistics": stats,
+                    "start_date": start_date or datetime.now() - timedelta(days=30),
+                    "end_date": end_date or datetime.now()
+                }
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.get("/api/trends/{device_ip}")
+        async def get_trend_analysis(
+            device_ip: str,
+            period: str = "day",
+            lookback: int = 30
+        ):
+            """Get trend analysis for a device."""
+            if not self.data_aggregator:
+                raise HTTPException(status_code=503, detail="Aggregation service not available")
+            
+            try:
+                from data_aggregation import AggregationPeriod
+                period_enum = AggregationPeriod(period.lower())
+                analysis = await self.data_aggregator.get_trend_analysis(
+                    device_ip=device_ip,
+                    period=period_enum,
+                    lookback_periods=lookback
+                )
+                return {"device_ip": device_ip, **analysis}
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid period")
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        # Cache management (if Redis available)
+        if self.cache_manager:
+            @self.app.get("/api/cache/stats")
+            async def get_cache_stats():
+                """Get cache statistics."""
+                return self.cache_manager.get_stats()
+            
+            @self.app.post("/api/cache/clear")
+            async def clear_cache(pattern: Optional[str] = None):
+                """Clear cache entries."""
+                count = await self.cache_manager.clear(pattern)
+                return {"status": "success", "cleared": count}
     
     async def load_saved_devices(self):
         """Load saved devices from database on startup."""
