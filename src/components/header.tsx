@@ -1,6 +1,6 @@
 'use client'
 
-import { Zap, Search, DollarSign, Settings, Users, Shield, LogOut, ChevronDown } from 'lucide-react'
+import { Zap, Search, DollarSign, Settings, Users, Shield, LogOut, ChevronDown, Bell, Folder, Database, FileText, Download } from 'lucide-react'
 import { useAuth } from '../contexts/auth-context'
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
@@ -142,6 +142,38 @@ export function Header({ onDiscoverClick, onRatesClick, onDeviceManagementClick 
                         >
                           <Settings className="h-4 w-4 mr-3" />
                           System Config
+                        </Link>
+                        <Link
+                          href="/admin/alerts"
+                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          onClick={() => setShowUserMenu(false)}
+                        >
+                          <Bell className="h-4 w-4 mr-3" />
+                          Alert Management
+                        </Link>
+                        <Link
+                          href="/admin/device-groups"
+                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          onClick={() => setShowUserMenu(false)}
+                        >
+                          <Folder className="h-4 w-4 mr-3" />
+                          Device Groups
+                        </Link>
+                        <Link
+                          href="/admin/backup"
+                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          onClick={() => setShowUserMenu(false)}
+                        >
+                          <Database className="h-4 w-4 mr-3" />
+                          Backup & Restore
+                        </Link>
+                        <Link
+                          href="/admin/audit-logs"
+                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          onClick={() => setShowUserMenu(false)}
+                        >
+                          <FileText className="h-4 w-4 mr-3" />
+                          Audit Logs
                         </Link>
                         <hr className="my-2" />
                       </>

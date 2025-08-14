@@ -17,7 +17,8 @@ from typing import Optional, Dict, Any, List
 import py7zr
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.backends import default_backend
 import base64
 import aiofiles
 import aiofiles.os
@@ -66,11 +67,12 @@ class BackupManager:
     def _setup_encryption(self, password: str) -> Fernet:
         """Setup encryption cipher from password"""
         # Derive a key from password
-        kdf = PBKDF2(
+        kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
             salt=b'kasa-monitor-backup-salt',  # In production, use random salt
             iterations=100000,
+            backend=default_backend()
         )
         key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
         return Fernet(key)

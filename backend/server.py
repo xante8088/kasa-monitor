@@ -27,7 +27,8 @@ from typing import Dict, List, Optional, Any
 from contextlib import asynccontextmanager
 import io
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, status
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, status, Response, UploadFile
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import socketio
@@ -55,6 +56,19 @@ try:
 except ImportError:
     logger.warning("Data management modules not available. Some features will be disabled.")
     data_management_available = False
+
+# Import additional modules
+try:
+    from health_monitor import HealthMonitor
+    from prometheus_metrics import MetricsCollector as PrometheusMetrics
+    from alert_management import AlertManager
+    from device_groups import DeviceGroupManager
+    from backup_manager import BackupManager
+    from audit_logging import AuditLogger
+    monitoring_available = True
+except ImportError as e:
+    logger.warning(f"Monitoring modules not available: {e}")
+    monitoring_available = False
 
 
 class DeviceManager:
@@ -180,9 +194,25 @@ class KasaMonitorApp:
             if redis_url:
                 self.cache_manager = CacheManager(redis_url=redis_url)
         
+        # Initialize monitoring services if available
+        self.health_monitor = None
+        self.prometheus_metrics = None
+        self.alert_manager = None
+        self.device_group_manager = None
+        self.backup_manager = None
+        self.audit_logger = None
+        if monitoring_available:
+            self.health_monitor = HealthMonitor()
+            self.prometheus_metrics = PrometheusMetrics()
+            self.alert_manager = AlertManager(db_path="kasa_monitor.db")
+            self.device_group_manager = DeviceGroupManager(db_path="kasa_monitor.db")
+            self.backup_manager = BackupManager(db_path="kasa_monitor.db", backup_dir="./backups")
+            self.audit_logger = AuditLogger(db_path="kasa_monitor.db", log_dir="./logs/audit")
+        
         self.setup_middleware()
         self.setup_routes()
         self.setup_data_management_routes()
+        self.setup_monitoring_routes()
         self.setup_socketio()
         
     @asynccontextmanager
@@ -939,6 +969,268 @@ class KasaMonitorApp:
                 """Clear cache entries."""
                 count = await self.cache_manager.clear(pattern)
                 return {"status": "success", "cleared": count}
+    
+    def setup_monitoring_routes(self):
+        """Setup monitoring-related API routes."""
+        
+        # Health check endpoints
+        if self.health_monitor:
+            @self.app.get("/api/health")
+            async def health_check():
+                """Basic health check endpoint."""
+                return await self.health_monitor.get_liveness()
+            
+            @self.app.get("/api/ready")
+            async def readiness_check():
+                """Readiness check endpoint."""
+                return await self.health_monitor.get_readiness()
+            
+            @self.app.get("/api/health/detailed")
+            async def detailed_health(current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
+                """Detailed health status with all components."""
+                return await self.health_monitor.perform_health_check()
+        
+        # Prometheus metrics endpoint
+        if self.prometheus_metrics:
+            @self.app.get("/api/metrics")
+            async def get_metrics():
+                """Prometheus metrics endpoint."""
+                return Response(
+                    content=self.prometheus_metrics.get_metrics(),
+                    media_type="text/plain"
+                )
+        
+        # Alert management endpoints
+        if self.alert_manager:
+            @self.app.get("/api/alerts")
+            async def get_alerts(
+                severity: Optional[str] = None,
+                status: Optional[str] = None,
+                current_user: User = Depends(require_permission(Permission.DEVICES_VIEW))
+            ):
+                """Get active alerts."""
+                return await self.alert_manager.get_alerts(
+                    severity=severity,
+                    status=status
+                )
+            
+            @self.app.get("/api/alerts/rules")
+            async def get_alert_rules(current_user: User = Depends(require_permission(Permission.DEVICES_VIEW))):
+                """Get configured alert rules."""
+                return await self.alert_manager.get_rules()
+            
+            @self.app.post("/api/alerts/rules")
+            async def create_alert_rule(
+                rule: Dict[str, Any],
+                current_user: User = Depends(require_permission(Permission.DEVICES_EDIT))
+            ):
+                """Create a new alert rule."""
+                return await self.alert_manager.create_rule(rule)
+            
+            @self.app.delete("/api/alerts/rules/{rule_id}")
+            async def delete_alert_rule(
+                rule_id: int,
+                current_user: User = Depends(require_permission(Permission.DEVICES_EDIT))
+            ):
+                """Delete an alert rule."""
+                success = await self.alert_manager.delete_rule(rule_id)
+                if success:
+                    return {"status": "success"}
+                raise HTTPException(status_code=404, detail="Rule not found")
+            
+            @self.app.post("/api/alerts/{alert_id}/acknowledge")
+            async def acknowledge_alert(
+                alert_id: int,
+                current_user: User = Depends(require_permission(Permission.DEVICES_EDIT))
+            ):
+                """Acknowledge an alert."""
+                success = await self.alert_manager.acknowledge_alert(
+                    alert_id,
+                    user_id=current_user.id
+                )
+                if success:
+                    return {"status": "success"}
+                raise HTTPException(status_code=404, detail="Alert not found")
+            
+            @self.app.get("/api/alerts/history")
+            async def get_alert_history(
+                start_date: Optional[datetime] = None,
+                end_date: Optional[datetime] = None,
+                current_user: User = Depends(require_permission(Permission.DEVICES_VIEW))
+            ):
+                """Get alert history."""
+                return await self.alert_manager.get_history(
+                    start_date=start_date,
+                    end_date=end_date
+                )
+        
+        # Device groups endpoints
+        if self.device_group_manager:
+            @self.app.get("/api/device-groups")
+            async def get_device_groups(current_user: User = Depends(require_permission(Permission.DEVICES_VIEW))):
+                """Get all device groups."""
+                return await self.device_group_manager.get_all_groups()
+            
+            @self.app.get("/api/device-groups/{group_id}")
+            async def get_device_group(
+                group_id: int,
+                current_user: User = Depends(require_permission(Permission.DEVICES_VIEW))
+            ):
+                """Get a specific device group."""
+                group = await self.device_group_manager.get_group(group_id)
+                if group:
+                    return group
+                raise HTTPException(status_code=404, detail="Group not found")
+            
+            @self.app.post("/api/device-groups")
+            async def create_device_group(
+                group_data: Dict[str, Any],
+                current_user: User = Depends(require_permission(Permission.DEVICES_EDIT))
+            ):
+                """Create a new device group."""
+                return await self.device_group_manager.create_group(group_data)
+            
+            @self.app.put("/api/device-groups/{group_id}")
+            async def update_device_group(
+                group_id: int,
+                group_data: Dict[str, Any],
+                current_user: User = Depends(require_permission(Permission.DEVICES_EDIT))
+            ):
+                """Update a device group."""
+                success = await self.device_group_manager.update_group(group_id, group_data)
+                if success:
+                    return {"status": "success"}
+                raise HTTPException(status_code=404, detail="Group not found")
+            
+            @self.app.delete("/api/device-groups/{group_id}")
+            async def delete_device_group(
+                group_id: int,
+                current_user: User = Depends(require_permission(Permission.DEVICES_EDIT))
+            ):
+                """Delete a device group."""
+                success = await self.device_group_manager.delete_group(group_id)
+                if success:
+                    return {"status": "success"}
+                raise HTTPException(status_code=404, detail="Group not found")
+            
+            @self.app.post("/api/device-groups/{group_id}/control")
+            async def control_device_group(
+                group_id: int,
+                action: Dict[str, str],
+                current_user: User = Depends(require_permission(Permission.DEVICES_CONTROL))
+            ):
+                """Control all devices in a group."""
+                result = await self.device_group_manager.control_group(
+                    group_id,
+                    action.get("action", "off")
+                )
+                return {"status": "success", "result": result}
+        
+        # Backup and restore endpoints
+        if self.backup_manager:
+            @self.app.get("/api/backups")
+            async def get_backups(current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
+                """Get list of available backups."""
+                return await self.backup_manager.list_backups()
+            
+            @self.app.post("/api/backups/create")
+            async def create_backup(
+                backup_options: Dict[str, Any],
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+            ):
+                """Create a new backup."""
+                backup_file = await self.backup_manager.create_backup(
+                    description=backup_options.get("description"),
+                    compress=backup_options.get("compress", True),
+                    encrypt=backup_options.get("encrypt", False)
+                )
+                return {"status": "success", "file": backup_file}
+            
+            @self.app.get("/api/backups/{backup_id}/download")
+            async def download_backup(
+                backup_id: int,
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+            ):
+                """Download a backup file."""
+                file_path = await self.backup_manager.get_backup_file(backup_id)
+                if file_path and os.path.exists(file_path):
+                    return FileResponse(file_path)
+                raise HTTPException(status_code=404, detail="Backup not found")
+            
+            @self.app.delete("/api/backups/{backup_id}")
+            async def delete_backup(
+                backup_id: int,
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+            ):
+                """Delete a backup."""
+                success = await self.backup_manager.delete_backup(backup_id)
+                if success:
+                    return {"status": "success"}
+                raise HTTPException(status_code=404, detail="Backup not found")
+            
+            @self.app.post("/api/backups/restore")
+            async def restore_backup(
+                backup: UploadFile,
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+            ):
+                """Restore from a backup file."""
+                # Save uploaded file temporarily
+                temp_path = f"/tmp/{backup.filename}"
+                with open(temp_path, "wb") as f:
+                    content = await backup.read()
+                    f.write(content)
+                
+                success = await self.backup_manager.restore_backup(temp_path)
+                os.remove(temp_path)
+                
+                if success:
+                    return {"status": "success", "message": "Backup restored successfully"}
+                raise HTTPException(status_code=400, detail="Failed to restore backup")
+            
+            @self.app.get("/api/backups/schedules")
+            async def get_backup_schedules(current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
+                """Get backup schedules."""
+                return await self.backup_manager.get_schedules()
+        
+        # Audit logging endpoints
+        if self.audit_logger:
+            @self.app.get("/api/audit-logs")
+            async def get_audit_logs(
+                page: int = 1,
+                category: Optional[str] = None,
+                severity: Optional[str] = None,
+                range: str = "7days",
+                search: Optional[str] = None,
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+            ):
+                """Get audit logs."""
+                logs, total_pages = await self.audit_logger.get_logs(
+                    page=page,
+                    category=category,
+                    severity=severity,
+                    date_range=range,
+                    search=search
+                )
+                return {
+                    "logs": logs,
+                    "total_pages": total_pages,
+                    "current_page": page
+                }
+            
+            @self.app.post("/api/audit-logs/export")
+            async def export_audit_logs(
+                export_options: Dict[str, Any],
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+            ):
+                """Export audit logs."""
+                file_path = await self.audit_logger.export_logs(
+                    format=export_options.get("format", "csv"),
+                    date_range=export_options.get("date_range"),
+                    category=export_options.get("category")
+                )
+                if file_path:
+                    return FileResponse(file_path)
+                raise HTTPException(status_code=500, detail="Failed to export logs")
     
     async def load_saved_devices(self):
         """Load saved devices from database on startup."""

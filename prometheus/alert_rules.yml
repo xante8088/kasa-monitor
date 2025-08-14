@@ -1,0 +1,108 @@
+groups:
+  - name: kasa_monitor_alerts
+    interval: 30s
+    rules:
+      # System alerts
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is above 90% (current value: {{ $value }})"
+
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is above 80% (current value: {{ $value }})"
+
+      # Device alerts
+      - alert: DeviceOffline
+        expr: kasa_monitor_devices_online == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Device offline"
+          description: "Device {{ $labels.device_type }} is offline"
+
+      - alert: HighPowerConsumption
+        expr: kasa_monitor_energy_consumption_watts > 1000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High power consumption"
+          description: "Device {{ $labels.device_name }} is consuming {{ $value }}W"
+
+      # API alerts
+      - alert: HighErrorRate
+        expr: rate(kasa_monitor_http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API error rate"
+          description: "API error rate is above 5% (current value: {{ $value }})"
+
+      - alert: SlowAPIResponse
+        expr: histogram_quantile(0.95, rate(kasa_monitor_http_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow API response time"
+          description: "95th percentile response time is above 1s (current value: {{ $value }}s)"
+
+      # Database alerts
+      - alert: DatabaseConnectionPoolExhausted
+        expr: kasa_monitor_database_connections_active >= 20
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection pool exhausted"
+          description: "Active database connections: {{ $value }}"
+
+      - alert: DatabaseErrors
+        expr: rate(kasa_monitor_database_errors_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database errors detected"
+          description: "Database error rate: {{ $value }} errors/sec"
+
+      # Cache alerts
+      - alert: LowCacheHitRate
+        expr: (kasa_monitor_cache_hits_total / (kasa_monitor_cache_hits_total + kasa_monitor_cache_misses_total)) < 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low cache hit rate"
+          description: "Cache hit rate is below 50% (current value: {{ $value }})"
+
+      # Backup alerts
+      - alert: BackupFailed
+        expr: increase(kasa_monitor_backups_total{status="failed"}[1h]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backup failed"
+          description: "Backup type {{ $labels.backup_type }} failed"
+
+      - alert: NoRecentBackup
+        expr: time() - kasa_monitor_backup_last_success_timestamp > 86400
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No recent backup"
+          description: "No successful backup in the last 24 hours"
