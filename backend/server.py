@@ -591,7 +591,59 @@ class KasaMonitorApp:
         @self.app.get("/api/system/config")
         async def get_system_config(user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
             """Get system configuration."""
-            config = get_network_access_config()
+            # Get configuration from database or use defaults
+            config = {
+                "ssl": {
+                    "enabled": False,
+                    "cert_path": "",
+                    "key_path": "",
+                    "force_https": False
+                },
+                "network": {
+                    "host": "0.0.0.0",
+                    "port": 8000,
+                    "allowed_hosts": [],
+                    "local_only": False,
+                    "cors_origins": []
+                },
+                "database_path": "kasa_monitor.db",
+                "influxdb_enabled": False,
+                "polling_interval": 30
+            }
+            
+            # Try to load saved config from database
+            try:
+                saved_config = await self.db_manager.get_all_system_config()
+                for key, value in saved_config.items():
+                    if "." in key:
+                        # Handle nested keys like "ssl.enabled"
+                        parts = key.split(".", 1)
+                        if parts[0] in config and isinstance(config[parts[0]], dict):
+                            # Convert string values to appropriate types
+                            if value.lower() in ["true", "false"]:
+                                config[parts[0]][parts[1]] = value.lower() == "true"
+                            elif value.isdigit():
+                                config[parts[0]][parts[1]] = int(value)
+                            elif value.startswith("[") and value.endswith("]"):
+                                # Handle array values
+                                try:
+                                    import json
+                                    config[parts[0]][parts[1]] = json.loads(value)
+                                except:
+                                    config[parts[0]][parts[1]] = []
+                            else:
+                                config[parts[0]][parts[1]] = value
+                    else:
+                        # Handle top-level keys
+                        if value.lower() in ["true", "false"]:
+                            config[key] = value.lower() == "true"
+                        elif value.isdigit():
+                            config[key] = int(value)
+                        else:
+                            config[key] = value
+            except Exception as e:
+                logger.warning(f"Could not load saved config: {e}")
+            
             return config
         
         @self.app.post("/api/system/config")
@@ -600,6 +652,19 @@ class KasaMonitorApp:
             for key, value in config.items():
                 await self.db_manager.set_system_config(key, str(value))
             return {"message": "Configuration updated"}
+        
+        @self.app.put("/api/system/config")
+        async def update_system_config_put(config: Dict[str, Any], user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
+            """Update system configuration (PUT method)."""
+            # Store configuration in database
+            for key, value in config.items():
+                if isinstance(value, dict):
+                    # Handle nested configs like ssl, network
+                    for sub_key, sub_value in value.items():
+                        await self.db_manager.set_system_config(f"{key}.{sub_key}", str(sub_value))
+                else:
+                    await self.db_manager.set_system_config(key, str(value))
+            return {"message": "Configuration updated successfully"}
         
         # Permission management endpoints
         @self.app.get("/api/permissions")
@@ -614,7 +679,12 @@ class KasaMonitorApp:
                 'system': 'system_config'
             }
             
-            for perm in Permission:
+            # Import Permission enum to iterate through it
+            from models import Permission
+            
+            # Get all permission values
+            for perm_name in Permission.__members__:
+                perm = Permission[perm_name]
                 parts = perm.value.split('.')
                 category_key = parts[0] if len(parts) > 0 else 'other'
                 category = category_map.get(category_key, 'other')
@@ -637,7 +707,8 @@ class KasaMonitorApp:
         @self.app.get("/api/roles/permissions")
         async def get_roles_permissions(user: User = Depends(require_permission(Permission.USERS_VIEW))):
             """Get permissions for all roles."""
-            from backend.auth import ROLE_PERMISSIONS
+            from auth import ROLE_PERMISSIONS
+            from models import UserRole
             role_perms = []
             for role in UserRole:
                 role_perms.append({

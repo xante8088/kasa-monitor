@@ -857,3 +857,15 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error getting config: {e}")
             return default
+    
+    async def get_all_system_config(self) -> Dict[str, str]:
+        """Get all system configuration values."""
+        try:
+            cursor = await self.sqlite_conn.execute(
+                "SELECT key, value FROM system_config"
+            )
+            rows = await cursor.fetchall()
+            return {row[0]: row[1] for row in rows}
+        except Exception as e:
+            print(f"Error getting all config: {e}")
+            return {}

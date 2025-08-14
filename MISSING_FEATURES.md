@@ -226,16 +226,16 @@ This document lists all features that are documented in the wiki but not yet imp
 
 ---
 
-## 7. Device Management
+## 7. Device Management ✅
 
-### Device Grouping ❌
+### Device Grouping ✅
 - Group creation/management
 - Hierarchical groups
 - Group-based operations
 - Group permissions
 - Dynamic groups
 
-### Advanced Scheduling ❌
+### Advanced Scheduling ✅
 - Complex schedule rules
 - Schedule templates
 - Holiday schedules
@@ -243,21 +243,21 @@ This document lists all features that are documented in the wiki but not yet imp
 - Random delays
 - Schedule conflicts
 
-### Device Calibration ❌
+### Device Calibration ✅
 - Calibration factors
 - Calibration history
 - Auto-calibration
 - Calibration validation
 - Device-specific calibration
 
-### Network Features ❌
+### Network Features ✅
 - Interface selection for discovery
 - VLAN support
 - Multi-subnet discovery
 - mDNS discovery
 - Custom discovery protocols
 
-### Firmware Management ❌
+### Firmware Management ✅
 - Version tracking
 - Update notifications
 - Update scheduling
