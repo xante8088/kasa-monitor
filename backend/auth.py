@@ -60,6 +60,7 @@ ROLE_PERMISSIONS = {
         Permission.USERS_PERMISSIONS,
         Permission.SYSTEM_CONFIG,
         Permission.SYSTEM_LOGS,
+        Permission.SYSTEM_LOGS_CLEAR,
         Permission.SYSTEM_BACKUP,
     ],
     UserRole.OPERATOR: [

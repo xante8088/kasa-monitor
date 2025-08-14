@@ -145,7 +145,9 @@ class DatabaseManager:
                 is_admin BOOLEAN DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_login TIMESTAMP,
-                permissions TEXT  -- JSON string of custom permissions
+                permissions TEXT,  -- JSON string of custom permissions
+                totp_secret TEXT,  -- TOTP secret for 2FA (when enabled)
+                temp_totp_secret TEXT  -- Temporary TOTP secret (during setup)
             )
         """)
         
@@ -869,3 +871,124 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error getting all config: {e}")
             return {}
+    
+    # Profile management methods
+    async def update_user_profile(self, user_id: int, updates: Dict[str, Any]) -> bool:
+        """Update user profile fields."""
+        try:
+            set_clause = ", ".join([f"{k} = ?" for k in updates.keys()])
+            values = list(updates.values()) + [user_id]
+            
+            await self.sqlite_conn.execute(f"""
+                UPDATE users 
+                SET {set_clause}
+                WHERE id = ?
+            """, values)
+            await self.sqlite_conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error updating user profile: {e}")
+            return False
+    
+    async def update_user_password(self, user_id: int, hashed_password: str) -> bool:
+        """Update user password."""
+        try:
+            await self.sqlite_conn.execute("""
+                UPDATE users 
+                SET password_hash = ?, last_login = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (hashed_password, user_id))
+            await self.sqlite_conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error updating password: {e}")
+            return False
+    
+    async def count_admin_users(self) -> int:
+        """Count the number of admin users."""
+        try:
+            cursor = await self.sqlite_conn.execute(
+                "SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = 1"
+            )
+            count = await cursor.fetchone()
+            return count[0] if count else 0
+        except Exception as e:
+            print(f"Error counting admin users: {e}")
+            return 0
+    
+    # 2FA methods
+    async def get_user_totp_secret(self, user_id: int) -> Optional[str]:
+        """Get user's TOTP secret if 2FA is enabled."""
+        try:
+            cursor = await self.sqlite_conn.execute(
+                "SELECT totp_secret FROM users WHERE id = ? AND totp_secret IS NOT NULL",
+                (user_id,)
+            )
+            row = await cursor.fetchone()
+            return row[0] if row else None
+        except Exception as e:
+            print(f"Error getting TOTP secret: {e}")
+            return None
+    
+    async def store_temp_totp_secret(self, user_id: int, secret: str) -> bool:
+        """Store temporary TOTP secret (not confirmed yet)."""
+        try:
+            await self.sqlite_conn.execute("""
+                UPDATE users 
+                SET temp_totp_secret = ?
+                WHERE id = ?
+            """, (secret, user_id))
+            await self.sqlite_conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error storing temp TOTP secret: {e}")
+            return False
+    
+    async def get_temp_totp_secret(self, user_id: int) -> Optional[str]:
+        """Get temporary TOTP secret."""
+        try:
+            cursor = await self.sqlite_conn.execute(
+                "SELECT temp_totp_secret FROM users WHERE id = ?",
+                (user_id,)
+            )
+            row = await cursor.fetchone()
+            return row[0] if row and row[0] else None
+        except Exception as e:
+            print(f"Error getting temp TOTP secret: {e}")
+            return None
+    
+    async def confirm_totp_secret(self, user_id: int, secret: str) -> bool:
+        """Confirm TOTP secret and enable 2FA."""
+        try:
+            await self.sqlite_conn.execute("""
+                UPDATE users 
+                SET totp_secret = ?, temp_totp_secret = NULL
+                WHERE id = ?
+            """, (secret, user_id))
+            await self.sqlite_conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error confirming TOTP secret: {e}")
+            return False
+    
+    async def disable_totp(self, user_id: int) -> bool:
+        """Disable 2FA for user."""
+        try:
+            cursor = await self.sqlite_conn.execute(
+                "SELECT totp_secret FROM users WHERE id = ?",
+                (user_id,)
+            )
+            row = await cursor.fetchone()
+            if not row or not row[0]:
+                return False  # 2FA not enabled
+            
+            await self.sqlite_conn.execute("""
+                UPDATE users 
+                SET totp_secret = NULL, temp_totp_secret = NULL
+                WHERE id = ?
+            """, (user_id,))
+            await self.sqlite_conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error disabling TOTP: {e}")
+            return False

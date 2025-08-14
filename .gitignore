@@ -131,3 +131,8 @@ data/
 *.csv
 *.json.backup
 *.db.backup
+
+# Authentication tokens
+.auth/
+.kasa_token
+*.token

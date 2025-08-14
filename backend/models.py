@@ -52,6 +52,7 @@ class Permission(str, Enum):
     # System administration
     SYSTEM_CONFIG = "system.config"
     SYSTEM_LOGS = "system.logs"
+    SYSTEM_LOGS_CLEAR = "system.logs.clear"
     SYSTEM_BACKUP = "system.backup"
 
 
@@ -90,6 +91,7 @@ class UserLogin(BaseModel):
     """Model for user login."""
     username: str
     password: str
+    totp_code: Optional[str] = None  # Optional TOTP code for 2FA
 
 
 class Token(BaseModel):

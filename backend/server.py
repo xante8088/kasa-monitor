@@ -26,8 +26,12 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
 from contextlib import asynccontextmanager
 import io
+import pyotp
+import qrcode
+import base64
+from io import BytesIO
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, status, Response, UploadFile
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, status, Response, UploadFile, Request, Query
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -64,7 +68,7 @@ try:
     from alert_management import AlertManager
     from device_groups import DeviceGroupManager
     from backup_manager import BackupManager
-    from audit_logging import AuditLogger
+    from audit_logging import AuditLogger, AuditEvent, AuditEventType, AuditSeverity
     monitoring_available = True
 except ImportError as e:
     logger.warning(f"Monitoring modules not available: {e}")
@@ -279,7 +283,10 @@ class KasaMonitorApp:
             return devices_data
         
         @self.app.post("/api/discover")
-        async def discover_devices(credentials: Optional[Dict[str, str]] = None):
+        async def discover_devices(
+            credentials: Optional[Dict[str, str]] = None,
+            current_user: User = Depends(require_permission(Permission.DEVICES_DISCOVER))
+        ):
             """Trigger device discovery and save to database."""
             username = credentials.get('username') if credentials else None
             password = credentials.get('password') if credentials else None
@@ -295,6 +302,25 @@ class KasaMonitorApp:
                         logger.info(f"Saved device {device.alias} ({ip}) to database")
                 except Exception as e:
                     logger.error(f"Error saving device {ip}: {e}")
+            
+            # Audit log device discovery
+            if self.audit_logger:
+                audit_event = AuditEvent(
+                    event_type=AuditEventType.DEVICE_DISCOVERED,
+                    severity=AuditSeverity.INFO,
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    ip_address=None,
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="device_discovery",
+                    resource_id=None,
+                    action=f"Discovered {len(devices)} devices",
+                    details={"device_count": len(devices), "device_ips": list(devices.keys())},
+                    timestamp=datetime.now(timezone.utc),
+                    success=True
+                )
+                await self.audit_logger.log_event_async(audit_event)
             
             return {'discovered': len(devices)}
         
@@ -316,6 +342,26 @@ class KasaMonitorApp:
                     if device_data:
                         await self.db_manager.store_device_reading(device_data)
                         logger.info(f"Manually added device {alias} ({ip})")
+                        
+                        # Audit log device addition
+                        if self.audit_logger:
+                            audit_event = AuditEvent(
+                                event_type=AuditEventType.DEVICE_ADDED,
+                                severity=AuditSeverity.INFO,
+                                user_id=None,  # Could get from auth context
+                                username=None,
+                                ip_address=None,
+                                user_agent=None,
+                                session_id=None,
+                                resource_type="device",
+                                resource_id=ip,
+                                action="manual_device_added",
+                                details={"alias": alias, "ip": ip, "model": device_data.model},
+                                timestamp=datetime.now(),
+                                success=True
+                            )
+                            await self.audit_logger.log_event_async(audit_event)
+                        
                         return {"status": "success", "device": device_data.dict()}
                 else:
                     raise HTTPException(status_code=404, detail=f"Cannot connect to device at {ip}")
@@ -333,6 +379,25 @@ class KasaMonitorApp:
                 
                 # Mark as inactive in database (don't delete history)
                 await self.db_manager.mark_device_inactive(device_ip)
+                
+                # Audit log device removal
+                if self.audit_logger:
+                    audit_event = AuditEvent(
+                        event_type=AuditEventType.DEVICE_REMOVED,
+                        severity=AuditSeverity.INFO,
+                        user_id=None,  # Could get from auth context
+                        username=None,
+                        ip_address=None,
+                        user_agent=None,
+                        session_id=None,
+                        resource_type="device",
+                        resource_id=device_ip,
+                        action="device_removed",
+                        details={"device_ip": device_ip, "method": "mark_inactive"},
+                        timestamp=datetime.now(),
+                        success=True
+                    )
+                    await self.audit_logger.log_event_async(audit_event)
                 
                 logger.info(f"Removed device {device_ip}")
                 return {"status": "success", "message": f"Device {device_ip} removed"}
@@ -384,7 +449,7 @@ class KasaMonitorApp:
             return stats
         
         @self.app.post("/api/device/{device_ip}/control")
-        async def control_device(device_ip: str, action: str):
+        async def control_device(device_ip: str, action: str = Query(...), current_user: User = Depends(require_permission(Permission.DEVICES_CONTROL))):
             """Control a device (turn on/off)."""
             device = self.device_manager.devices.get(device_ip)
             if not device:
@@ -399,6 +464,26 @@ class KasaMonitorApp:
                     raise HTTPException(status_code=400, detail="Invalid action")
                 
                 await device.update()
+                
+                # Audit log device control
+                if self.audit_logger:
+                    audit_event = AuditEvent(
+                        event_type=AuditEventType.DEVICE_CONTROLLED,
+                        severity=AuditSeverity.INFO,
+                        user_id=current_user.id,
+                        username=current_user.username,
+                        ip_address=None,
+                        user_agent=None,
+                        session_id=None,
+                        resource_type="device",
+                        resource_id=device_ip,
+                        action=f"device_control_{action}",
+                        details={"device_ip": device_ip, "action": action, "is_on": device.is_on},
+                        timestamp=datetime.now(),
+                        success=True
+                    )
+                    await self.audit_logger.log_event_async(audit_event)
+                
                 return {"status": "success", "is_on": device.is_on}
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
@@ -431,23 +516,71 @@ class KasaMonitorApp:
             return devices
         
         @self.app.put("/api/devices/{device_ip}/monitoring")
-        async def update_device_monitoring(device_ip: str, request: Dict[str, bool]):
+        async def update_device_monitoring(
+            device_ip: str, 
+            request: Dict[str, bool],
+            current_user: User = Depends(require_permission(Permission.DEVICES_EDIT))
+        ):
             """Enable or disable monitoring for a device."""
             enabled = request.get('enabled', True)
             success = await self.db_manager.update_device_monitoring(device_ip, enabled)
+            
+            # Audit log monitoring change
+            if self.audit_logger:
+                audit_event = AuditEvent(
+                    event_type=AuditEventType.DEVICE_UPDATED,
+                    severity=AuditSeverity.INFO,
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    ip_address=None,
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="device",
+                    resource_id=device_ip,
+                    action=f"Monitoring {'enabled' if enabled else 'disabled'}",
+                    details={"device_ip": device_ip, "monitoring_enabled": enabled, "success": success},
+                    timestamp=datetime.now(timezone.utc),
+                    success=success
+                )
+                await self.audit_logger.log_event_async(audit_event)
+            
             if success:
                 return {"message": f"Monitoring {'enabled' if enabled else 'disabled'} for device {device_ip}"}
             else:
                 raise HTTPException(status_code=400, detail="Failed to update monitoring status")
         
         @self.app.put("/api/devices/{device_ip}/ip")
-        async def update_device_ip(device_ip: str, request: Dict[str, str]):
+        async def update_device_ip(
+            device_ip: str, 
+            request: Dict[str, str],
+            current_user: User = Depends(require_permission(Permission.DEVICES_EDIT))
+        ):
             """Update a device's IP address."""
             new_ip = request.get('new_ip')
             if not new_ip:
                 raise HTTPException(status_code=400, detail="New IP is required")
             
             success = await self.db_manager.update_device_ip(device_ip, new_ip)
+            
+            # Audit log IP update
+            if self.audit_logger:
+                audit_event = AuditEvent(
+                    event_type=AuditEventType.DEVICE_UPDATED,
+                    severity=AuditSeverity.INFO,
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    ip_address=None,
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="device",
+                    resource_id=device_ip,
+                    action=f"IP address updated",
+                    details={"old_ip": device_ip, "new_ip": new_ip, "success": success},
+                    timestamp=datetime.now(timezone.utc),
+                    success=success
+                )
+                await self.audit_logger.log_event_async(audit_event)
+            
             if success:
                 # Update device manager
                 if device_ip in self.device_manager.devices:
@@ -474,6 +607,26 @@ class KasaMonitorApp:
             """Update notes for a device."""
             notes = request.get('notes', '')
             success = await self.db_manager.update_device_notes(device_ip, notes)
+            
+            # Audit log notes update
+            if self.audit_logger:
+                audit_event = AuditEvent(
+                    event_type=AuditEventType.DEVICE_UPDATED,
+                    severity=AuditSeverity.INFO,
+                    user_id=user.id,
+                    username=user.username,
+                    ip_address=None,
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="device",
+                    resource_id=device_ip,
+                    action="Notes updated",
+                    details={"device_ip": device_ip, "notes_length": len(notes), "success": success},
+                    timestamp=datetime.now(timezone.utc),
+                    success=success
+                )
+                await self.audit_logger.log_event_async(audit_event)
+            
             if success:
                 return {"message": "Notes updated"}
             else:
@@ -481,10 +634,97 @@ class KasaMonitorApp:
         
         # Authentication endpoints
         @self.app.post("/api/auth/login", response_model=Token)
-        async def login(login_data: UserLogin):
+        async def login(login_data: UserLogin, request: Request):
             """Authenticate user and return JWT token."""
+            
+            # Check for test credentials in development mode (not production)
+            is_development = os.getenv('NODE_ENV') != 'production' and os.getenv('ENVIRONMENT') != 'production'
+            test_creds_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.auth', 'test_credentials.json')
+            
+            if is_development and os.path.exists(test_creds_path):
+                try:
+                    with open(test_creds_path, 'r') as f:
+                        test_data = json.load(f)
+                        
+                    # Check if this matches test credentials
+                    for test_user_key, test_user_data in test_data.items():
+                        if (login_data.username == test_user_data.get('username') and 
+                            login_data.password == test_user_data.get('password')):
+                            
+                            # Create a User object from test data
+                            test_user = User(
+                                id=test_user_data.get('id', 99999),
+                                username=test_user_data.get('username'),
+                                email=test_user_data.get('email'),
+                                full_name=test_user_data.get('full_name'),
+                                role=UserRole(test_user_data.get('role', 'admin')),
+                                is_active=test_user_data.get('is_active', True),
+                                created_at=datetime.now(timezone.utc),
+                                last_login=datetime.now(timezone.utc),
+                                permissions=test_user_data.get('permissions', ['*'])
+                            )
+                            
+                            # Create access token for test user
+                            access_token = AuthManager.create_access_token(data={"user": test_user.model_dump()})
+                            
+                            # Log successful test user authentication
+                            if self.audit_logger:
+                                client_ip = request.client.host if request.client else "unknown"
+                                user_agent = request.headers.get("user-agent", "unknown")
+                                
+                                audit_event = AuditEvent(
+                                    event_type=AuditEventType.LOGIN_SUCCESS,
+                                    severity=AuditSeverity.INFO,
+                                    user_id=test_user.id,
+                                    username=test_user.username,
+                                    ip_address=client_ip,
+                                    user_agent=user_agent,
+                                    session_id=None,
+                                    resource_type=None,
+                                    resource_id=None,
+                                    action="Test user login successful",
+                                    details={"login_method": "test_credentials", "development_mode": True},
+                                    timestamp=datetime.now(timezone.utc),
+                                    success=True
+                                )
+                                await self.audit_logger.log_event_async(audit_event)
+                            
+                            logger.info(f"Test user authenticated: {login_data.username}")
+                            return Token(
+                                access_token=access_token,
+                                expires_in=1800,  # 30 minutes
+                                user=test_user
+                            )
+                            
+                except Exception as e:
+                    logger.warning(f"Error reading test credentials: {e}")
+            
+            # Fall back to normal database authentication
+            client_ip = request.client.host if request.client else "unknown"
+            user_agent = request.headers.get("user-agent", "unknown")
+            
             user = await self.db_manager.get_user_by_username(login_data.username)
             if not user:
+                # Log failed login attempt - user not found
+                if self.audit_logger:
+                    audit_event = AuditEvent(
+                        event_type=AuditEventType.LOGIN_FAILURE,
+                        severity=AuditSeverity.WARNING,
+                        user_id=None,
+                        username=login_data.username,
+                        ip_address=client_ip,
+                        user_agent=user_agent,
+                        session_id=None,
+                        resource_type=None,
+                        resource_id=None,
+                        action="Login failed - user not found",
+                        details={"login_method": "password", "failure_reason": "user_not_found"},
+                        timestamp=datetime.now(timezone.utc),
+                        success=False,
+                        error_message="Invalid username or password"
+                    )
+                    await self.audit_logger.log_event_async(audit_event)
+                    
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid username or password"
@@ -492,13 +732,93 @@ class KasaMonitorApp:
             
             password_hash = await self.db_manager.get_user_password_hash(login_data.username)
             if not password_hash or not AuthManager.verify_password(login_data.password, password_hash):
+                # Log failed login attempt - invalid password
+                if self.audit_logger:
+                    audit_event = AuditEvent(
+                        event_type=AuditEventType.LOGIN_FAILURE,
+                        severity=AuditSeverity.WARNING,
+                        user_id=user.id,
+                        username=user.username,
+                        ip_address=client_ip,
+                        user_agent=user_agent,
+                        session_id=None,
+                        resource_type=None,
+                        resource_id=None,
+                        action="Login failed - invalid password",
+                        details={"login_method": "password", "failure_reason": "invalid_password"},
+                        timestamp=datetime.now(timezone.utc),
+                        success=False,
+                        error_message="Invalid username or password"
+                    )
+                    await self.audit_logger.log_event_async(audit_event)
+                    
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid username or password"
                 )
             
+            # Check if user has 2FA enabled
+            totp_secret = await self.db_manager.get_user_totp_secret(user.id)
+            if totp_secret:
+                # User has 2FA enabled - require TOTP code
+                if not login_data.totp_code:
+                    # Return a special response indicating 2FA is required
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="2FA verification required",
+                        headers={"X-2FA-Required": "true"}
+                    )
+                
+                # Verify TOTP code
+                import pyotp
+                totp = pyotp.TOTP(totp_secret)
+                if not totp.verify(login_data.totp_code, valid_window=1):
+                    # Log failed 2FA attempt
+                    if self.audit_logger:
+                        audit_event = AuditEvent(
+                            event_type=AuditEventType.LOGIN_FAILURE,
+                            severity=AuditSeverity.WARNING,
+                            user_id=user.id,
+                            username=user.username,
+                            ip_address=client_ip,
+                            user_agent=user_agent,
+                            session_id=None,
+                            resource_type=None,
+                            resource_id=None,
+                            action="Login failed - invalid 2FA code",
+                            details={"login_method": "password+2fa", "failure_reason": "invalid_2fa_code"},
+                            timestamp=datetime.now(timezone.utc),
+                            success=False,
+                            error_message="Invalid 2FA code"
+                        )
+                        await self.audit_logger.log_event_async(audit_event)
+                    
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Invalid 2FA code"
+                    )
+            
             # Update last login
             await self.db_manager.update_user_login(login_data.username)
+            
+            # Log successful database authentication
+            if self.audit_logger:
+                audit_event = AuditEvent(
+                    event_type=AuditEventType.LOGIN_SUCCESS,
+                    severity=AuditSeverity.INFO,
+                    user_id=user.id,
+                    username=user.username,
+                    ip_address=client_ip,
+                    user_agent=user_agent,
+                    session_id=None,
+                    resource_type=None,
+                    resource_id=None,
+                    action="User login successful",
+                    details={"login_method": "password" if not totp_secret else "password+2fa"},
+                    timestamp=datetime.now(timezone.utc),
+                    success=True
+                )
+                await self.audit_logger.log_event_async(audit_event)
             
             # Create access token
             access_token = AuthManager.create_access_token(data={"user": user.model_dump()})
@@ -562,6 +882,244 @@ class KasaMonitorApp:
             required = await self.db_manager.is_setup_required()
             return {"setup_required": required}
         
+        # Profile management endpoints
+        @self.app.put("/api/auth/profile")
+        async def update_profile(
+            updates: Dict[str, Any],
+            user: User = Depends(require_auth)
+        ):
+            """Update user profile (name and email)."""
+            allowed_fields = {'full_name', 'email'}
+            filtered_updates = {k: v for k, v in updates.items() if k in allowed_fields}
+            
+            if not filtered_updates:
+                raise HTTPException(status_code=400, detail="No valid fields to update")
+            
+            success = await self.db_manager.update_user_profile(user.id, filtered_updates)
+            if not success:
+                raise HTTPException(status_code=400, detail="Failed to update profile")
+            
+            # Audit log profile update
+            if self.audit_logger:
+                audit_event = AuditEvent(
+                    event_type=AuditEventType.USER_UPDATED,
+                    severity=AuditSeverity.INFO,
+                    user_id=user.id,
+                    username=user.username,
+                    ip_address=None,
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="user",
+                    resource_id=str(user.id),
+                    action="Profile updated",
+                    details={"updated_fields": list(filtered_updates.keys())},
+                    timestamp=datetime.now(timezone.utc),
+                    success=True
+                )
+                await self.audit_logger.log_event_async(audit_event)
+            
+            return {"message": "Profile updated successfully"}
+        
+        @self.app.post("/api/auth/change-password")
+        async def change_password(
+            password_data: Dict[str, str],
+            user: User = Depends(require_auth)
+        ):
+            """Change user password."""
+            current_password = password_data.get('current_password')
+            new_password = password_data.get('new_password')
+            
+            if not current_password or not new_password:
+                raise HTTPException(status_code=400, detail="Both current and new passwords required")
+            
+            # Verify current password
+            stored_user = await self.db_manager.get_user_by_username(user.username)
+            if not stored_user or not AuthManager.verify_password(current_password, stored_user.password):
+                raise HTTPException(status_code=401, detail="Current password is incorrect")
+            
+            # Update password
+            hashed_password = AuthManager.hash_password(new_password)
+            success = await self.db_manager.update_user_password(user.id, hashed_password)
+            
+            if not success:
+                raise HTTPException(status_code=500, detail="Failed to update password")
+            
+            # Audit log password change
+            if self.audit_logger:
+                audit_event = AuditEvent(
+                    event_type=AuditEventType.PASSWORD_CHANGE,
+                    severity=AuditSeverity.WARNING,
+                    user_id=user.id,
+                    username=user.username,
+                    ip_address=None,
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="user",
+                    resource_id=str(user.id),
+                    action="Password changed",
+                    details={},
+                    timestamp=datetime.now(timezone.utc),
+                    success=True
+                )
+                await self.audit_logger.log_event_async(audit_event)
+            
+            return {"message": "Password changed successfully"}
+        
+        @self.app.delete("/api/auth/account")
+        async def delete_account(
+            user: User = Depends(require_auth)
+        ):
+            """Delete user account."""
+            # Don't allow deleting the last admin account
+            if user.role == UserRole.ADMIN:
+                admin_count = await self.db_manager.count_admin_users()
+                if admin_count <= 1:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail="Cannot delete the last administrator account"
+                    )
+            
+            success = await self.db_manager.delete_user(user.id)
+            if not success:
+                raise HTTPException(status_code=500, detail="Failed to delete account")
+            
+            # Audit log account deletion
+            if self.audit_logger:
+                audit_event = AuditEvent(
+                    event_type=AuditEventType.USER_DELETED,
+                    severity=AuditSeverity.CRITICAL,
+                    user_id=user.id,
+                    username=user.username,
+                    ip_address=None,
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="user",
+                    resource_id=str(user.id),
+                    action="Account deleted by user",
+                    details={},
+                    timestamp=datetime.now(timezone.utc),
+                    success=True
+                )
+                await self.audit_logger.log_event_async(audit_event)
+            
+            return {"message": "Account deleted successfully"}
+        
+        # 2FA endpoints
+        @self.app.get("/api/auth/2fa/status")
+        async def get_2fa_status(user: User = Depends(require_auth)):
+            """Check if 2FA is enabled for the user."""
+            totp_secret = await self.db_manager.get_user_totp_secret(user.id)
+            return {"enabled": bool(totp_secret)}
+        
+        @self.app.post("/api/auth/2fa/setup")
+        async def setup_2fa(user: User = Depends(require_auth)):
+            """Setup 2FA for the user."""
+            # Check if already enabled
+            existing_secret = await self.db_manager.get_user_totp_secret(user.id)
+            if existing_secret:
+                raise HTTPException(status_code=400, detail="2FA is already enabled")
+            
+            # Generate secret
+            secret = pyotp.random_base32()
+            
+            # Create TOTP URI for QR code
+            totp_uri = pyotp.totp.TOTP(secret).provisioning_uri(
+                name=user.email or user.username,
+                issuer_name='Kasa Monitor'
+            )
+            
+            # Generate QR code
+            qr = qrcode.QRCode(version=1, box_size=10, border=5)
+            qr.add_data(totp_uri)
+            qr.make(fit=True)
+            
+            img = qr.make_image(fill_color="black", back_color="white")
+            buffered = BytesIO()
+            img.save(buffered, format="PNG")
+            img_str = base64.b64encode(buffered.getvalue()).decode()
+            
+            # Store secret temporarily (not confirmed yet)
+            await self.db_manager.store_temp_totp_secret(user.id, secret)
+            
+            return {
+                "qr_code": f"data:image/png;base64,{img_str}",
+                "secret": secret
+            }
+        
+        @self.app.post("/api/auth/2fa/verify")
+        async def verify_2fa(
+            verification_data: Dict[str, str],
+            user: User = Depends(require_auth)
+        ):
+            """Verify 2FA setup."""
+            token = verification_data.get('token')
+            if not token:
+                raise HTTPException(status_code=400, detail="Verification token required")
+            
+            # Get temporary secret
+            temp_secret = await self.db_manager.get_temp_totp_secret(user.id)
+            if not temp_secret:
+                raise HTTPException(status_code=400, detail="No 2FA setup in progress")
+            
+            # Verify token
+            totp = pyotp.TOTP(temp_secret)
+            if not totp.verify(token, valid_window=1):
+                raise HTTPException(status_code=400, detail="Invalid verification code")
+            
+            # Save confirmed secret
+            success = await self.db_manager.confirm_totp_secret(user.id, temp_secret)
+            if not success:
+                raise HTTPException(status_code=500, detail="Failed to enable 2FA")
+            
+            # Audit log 2FA enabled
+            if self.audit_logger:
+                audit_event = AuditEvent(
+                    event_type=AuditEventType.MFA_ENABLED,
+                    severity=AuditSeverity.INFO,
+                    user_id=user.id,
+                    username=user.username,
+                    ip_address=None,
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="user",
+                    resource_id=str(user.id),
+                    action="2FA enabled",
+                    details={},
+                    timestamp=datetime.now(timezone.utc),
+                    success=True
+                )
+                await self.audit_logger.log_event_async(audit_event)
+            
+            return {"message": "2FA enabled successfully"}
+        
+        @self.app.post("/api/auth/2fa/disable")
+        async def disable_2fa(user: User = Depends(require_auth)):
+            """Disable 2FA for the user."""
+            success = await self.db_manager.disable_totp(user.id)
+            if not success:
+                raise HTTPException(status_code=400, detail="2FA is not enabled")
+            
+            # Audit log 2FA disabled
+            if self.audit_logger:
+                audit_event = AuditEvent(
+                    event_type=AuditEventType.MFA_DISABLED,
+                    severity=AuditSeverity.WARNING,
+                    user_id=user.id,
+                    username=user.username,
+                    ip_address=None,
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="user",
+                    resource_id=str(user.id),
+                    action="2FA disabled",
+                    details={},
+                    timestamp=datetime.now(timezone.utc),
+                    success=True
+                )
+                await self.audit_logger.log_event_async(audit_event)
+            
+            return {"message": "2FA disabled successfully"}
+        
         # User management endpoints
         @self.app.get("/api/users", response_model=List[User])
         async def get_users(user: User = Depends(require_permission(Permission.USERS_VIEW))):
@@ -582,6 +1140,26 @@ class KasaMonitorApp:
                     detail="Failed to create user (username or email may already exist)"
                 )
             new_user.permissions = AuthManager.get_user_permissions(new_user.role)
+            
+            # Audit log user creation
+            if self.audit_logger:
+                audit_event = AuditEvent(
+                    event_type=AuditEventType.USER_CREATED,
+                    severity=AuditSeverity.INFO,
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    ip_address=None,
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="user",
+                    resource_id=str(new_user.id),
+                    action="user_created",
+                    details={"created_username": new_user.username, "role": new_user.role, "email": new_user.email},
+                    timestamp=datetime.now(),
+                    success=True
+                )
+                await self.audit_logger.log_event_async(audit_event)
+            
             return new_user
         
         @self.app.put("/api/users/{user_id}")
@@ -1203,7 +1781,7 @@ class KasaMonitorApp:
                 severity: Optional[str] = None,
                 range: str = "7days",
                 search: Optional[str] = None,
-                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+                current_user: User = Depends(require_permission(Permission.SYSTEM_LOGS))
             ):
                 """Get audit logs."""
                 logs, total_pages = await self.audit_logger.get_logs(
@@ -1222,7 +1800,7 @@ class KasaMonitorApp:
             @self.app.post("/api/audit-logs/export")
             async def export_audit_logs(
                 export_options: Dict[str, Any],
-                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+                current_user: User = Depends(require_permission(Permission.SYSTEM_LOGS))
             ):
                 """Export audit logs."""
                 file_path = await self.audit_logger.export_logs(
@@ -1231,8 +1809,51 @@ class KasaMonitorApp:
                     category=export_options.get("category")
                 )
                 if file_path:
-                    return FileResponse(file_path)
+                    import os
+                    filename = os.path.basename(file_path)
+                    return FileResponse(
+                        file_path,
+                        media_type='application/octet-stream',
+                        filename=filename
+                    )
                 raise HTTPException(status_code=500, detail="Failed to export logs")
+            
+            @self.app.delete("/api/audit-logs/clear")
+            async def clear_audit_logs(
+                before_date: Optional[str] = None,
+                current_user: User = Depends(require_permission(Permission.SYSTEM_LOGS_CLEAR))
+            ):
+                """Clear audit logs before specified date or all logs."""
+                try:
+                    date_obj = None
+                    if before_date:
+                        from datetime import datetime
+                        date_obj = datetime.fromisoformat(before_date.replace('Z', '+00:00'))
+                    
+                    deleted_count = await self.audit_logger.clear_logs(before_date=date_obj)
+                    
+                    # Log the clear action
+                    if self.audit_logger:
+                        audit_event = AuditEvent(
+                            event_type=AuditEventType.DATA_DELETED,
+                            severity=AuditSeverity.WARNING,
+                            user_id=current_user.id,
+                            username=current_user.username,
+                            ip_address=None,  # Could extract from request
+                            user_agent=None,
+                            session_id=None,
+                            resource_type="audit_logs",
+                            resource_id=None,
+                            action="clear_audit_logs",
+                            details={"deleted_count": deleted_count, "before_date": before_date},
+                            timestamp=datetime.now(),
+                            success=True
+                        )
+                        await self.audit_logger.log_event_async(audit_event)
+                    
+                    return {"message": f"Cleared {deleted_count} audit log entries"}
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=f"Failed to clear logs: {str(e)}")
     
     async def load_saved_devices(self):
         """Load saved devices from database on startup."""

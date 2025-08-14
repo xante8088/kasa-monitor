@@ -1,6 +1,6 @@
 'use client'
 
-import { Zap, Search, DollarSign, Settings, Users, Shield, LogOut, ChevronDown, Bell, Folder, Database, FileText, Download } from 'lucide-react'
+import { Zap, Search, DollarSign, Settings, Users, Shield, LogOut, ChevronDown, Bell, Folder, Database, FileText, Download, User } from 'lucide-react'
 import { useAuth } from '../contexts/auth-context'
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
@@ -117,6 +117,15 @@ export function Header({ onDiscoverClick, onRatesClick, onDeviceManagementClick 
                   </div>
 
                   <div className="py-2">
+                    <Link
+                      href="/profile"
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      <User className="h-4 w-4 mr-3" />
+                      Profile
+                    </Link>
+                    <hr className="my-2" />
                     {user.role === 'admin' && (
                       <>
                         <Link
