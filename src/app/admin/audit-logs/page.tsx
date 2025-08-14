@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { FileText, Filter, Search, User, Shield, Settings, Activity } from 'lucide-react';
+import { AppLayout } from '@/components/app-layout';
 
 interface AuditLog {
   id: number;
@@ -93,7 +94,8 @@ export default function AuditLogsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <AppLayout>
+      <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Audit Logs</h1>
         <p className="text-gray-600 mt-1">System activity and security audit trail</p>
@@ -300,6 +302,7 @@ export default function AuditLogsPage() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </AppLayout>
   );
 }

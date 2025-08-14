@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Folder, Plus, Trash2, Edit, Power, Zap, ChevronRight } from 'lucide-react';
+import { AppLayout } from '@/components/app-layout';
 
 interface DeviceGroup {
   id: number;
@@ -279,7 +280,8 @@ export default function DeviceGroupsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <AppLayout>
+      <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Device Groups</h1>
@@ -482,6 +484,7 @@ export default function DeviceGroupsPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </AppLayout>
   );
 }
