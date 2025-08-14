@@ -125,6 +125,48 @@ export default function DeviceGroupsPage() {
     }
   };
 
+  const createGroup = async (groupData: any) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/device-groups', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(groupData)
+      });
+      
+      if (response.ok) {
+        fetchGroups();
+        setShowCreateModal(false);
+      }
+    } catch (error) {
+      console.error('Failed to create group:', error);
+    }
+  };
+
+  const updateGroup = async (groupId: number, groupData: any) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/device-groups/${groupId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(groupData)
+      });
+      
+      if (response.ok) {
+        fetchGroups();
+        setEditingGroup(null);
+      }
+    } catch (error) {
+      console.error('Failed to update group:', error);
+    }
+  };
+
   const GroupCard = ({ group, level = 0 }: { group: DeviceGroup; level?: number }) => {
     const [expanded, setExpanded] = useState(false);
     
@@ -313,6 +355,133 @@ export default function DeviceGroupsPage() {
           </div>
         </div>
       </div>
+
+      {/* Create/Edit Group Modal */}
+      {(showCreateModal || editingGroup) && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">
+              {editingGroup ? 'Edit Group' : 'Create New Group'}
+            </h2>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                
+                // Get selected devices from checkboxes
+                const selectedDevices: string[] = [];
+                const checkboxes = e.currentTarget.querySelectorAll('input[name="device"]:checked');
+                checkboxes.forEach((checkbox: any) => {
+                  selectedDevices.push(checkbox.value);
+                });
+                
+                const groupData = {
+                  name: formData.get('name'),
+                  description: formData.get('description'),
+                  devices: selectedDevices,
+                  parent_id: formData.get('parent_id') ? parseInt(formData.get('parent_id') as string) : null
+                };
+                
+                if (editingGroup) {
+                  updateGroup(editingGroup.id, groupData);
+                } else {
+                  createGroup(groupData);
+                }
+              }}
+            >
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Group Name
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    defaultValue={editingGroup?.name}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter group name"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    name="description"
+                    defaultValue={editingGroup?.description}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter group description (optional)"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Parent Group (Optional)
+                  </label>
+                  <select
+                    name="parent_id"
+                    defaultValue={editingGroup?.parent_id || ''}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">No Parent (Root Group)</option>
+                    {groups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Select Devices
+                  </label>
+                  <div className="border border-gray-300 rounded-md p-2 max-h-40 overflow-y-auto">
+                    {devices.length === 0 ? (
+                      <p className="text-sm text-gray-500">No devices available</p>
+                    ) : (
+                      devices.map((device) => (
+                        <label key={device.id} className="flex items-center p-1 hover:bg-gray-50">
+                          <input
+                            type="checkbox"
+                            name="device"
+                            value={device.id}
+                            defaultChecked={editingGroup?.devices.includes(device.id)}
+                            className="mr-2"
+                          />
+                          <span className="text-sm">{device.name} - {device.model}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-6 flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setEditingGroup(null);
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  {editingGroup ? 'Update' : 'Create'} Group
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

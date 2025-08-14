@@ -1069,7 +1069,7 @@ class KasaMonitorApp:
             @self.app.get("/api/device-groups")
             async def get_device_groups(current_user: User = Depends(require_permission(Permission.DEVICES_VIEW))):
                 """Get all device groups."""
-                return await self.device_group_manager.get_all_groups()
+                return self.device_group_manager.get_all_groups()
             
             @self.app.get("/api/device-groups/{group_id}")
             async def get_device_group(
@@ -1077,7 +1077,7 @@ class KasaMonitorApp:
                 current_user: User = Depends(require_permission(Permission.DEVICES_VIEW))
             ):
                 """Get a specific device group."""
-                group = await self.device_group_manager.get_group(group_id)
+                group = self.device_group_manager.get_group(group_id)
                 if group:
                     return group
                 raise HTTPException(status_code=404, detail="Group not found")
@@ -1088,7 +1088,7 @@ class KasaMonitorApp:
                 current_user: User = Depends(require_permission(Permission.DEVICES_EDIT))
             ):
                 """Create a new device group."""
-                return await self.device_group_manager.create_group(group_data)
+                return self.device_group_manager.create_group(group_data)
             
             @self.app.put("/api/device-groups/{group_id}")
             async def update_device_group(
@@ -1097,7 +1097,7 @@ class KasaMonitorApp:
                 current_user: User = Depends(require_permission(Permission.DEVICES_EDIT))
             ):
                 """Update a device group."""
-                success = await self.device_group_manager.update_group(group_id, group_data)
+                success = self.device_group_manager.update_group(group_id, group_data)
                 if success:
                     return {"status": "success"}
                 raise HTTPException(status_code=404, detail="Group not found")
@@ -1108,7 +1108,7 @@ class KasaMonitorApp:
                 current_user: User = Depends(require_permission(Permission.DEVICES_EDIT))
             ):
                 """Delete a device group."""
-                success = await self.device_group_manager.delete_group(group_id)
+                success = self.device_group_manager.delete_group(group_id)
                 if success:
                     return {"status": "success"}
                 raise HTTPException(status_code=404, detail="Group not found")
@@ -1120,7 +1120,7 @@ class KasaMonitorApp:
                 current_user: User = Depends(require_permission(Permission.DEVICES_CONTROL))
             ):
                 """Control all devices in a group."""
-                result = await self.device_group_manager.control_group(
+                result = self.device_group_manager.control_group(
                     group_id,
                     action.get("action", "off")
                 )
@@ -1133,18 +1133,24 @@ class KasaMonitorApp:
                 """Get list of available backups."""
                 return await self.backup_manager.list_backups()
             
+            @self.app.get("/api/backups/progress")
+            async def get_backup_progress(current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
+                """Get current backup progress."""
+                return self.backup_manager.get_backup_progress()
+            
             @self.app.post("/api/backups/create")
             async def create_backup(
                 backup_options: Dict[str, Any],
                 current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
             ):
                 """Create a new backup."""
-                backup_file = await self.backup_manager.create_backup(
+                backup_info = await self.backup_manager.create_backup(
+                    backup_type=backup_options.get("type", "manual"),
                     description=backup_options.get("description"),
                     compress=backup_options.get("compress", True),
                     encrypt=backup_options.get("encrypt", False)
                 )
-                return {"status": "success", "file": backup_file}
+                return {"status": "success", "backup": backup_info}
             
             @self.app.get("/api/backups/{backup_id}/download")
             async def download_backup(

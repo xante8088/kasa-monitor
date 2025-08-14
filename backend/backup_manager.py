@@ -60,6 +60,10 @@ class BackupManager:
         if encryption_key:
             self.cipher = self._setup_encryption(encryption_key)
         
+        # Progress tracking
+        self.backup_progress = 0
+        self.current_backup_status = None
+        
         # Backup metadata
         self.metadata_file = self.backup_dir / "backup_metadata.json"
         self.metadata = self._load_metadata()
@@ -95,6 +99,14 @@ class BackupManager:
         except Exception as e:
             logger.error(f"Error saving metadata: {e}")
     
+    def get_backup_progress(self) -> Dict[str, Any]:
+        """Get current backup progress"""
+        return {
+            "progress": self.backup_progress,
+            "status": self.current_backup_status,
+            "in_progress": self.current_backup_status == "in_progress"
+        }
+    
     async def create_backup(
         self,
         backup_type: str = "manual",
@@ -116,6 +128,10 @@ class BackupManager:
         """
         timestamp = datetime.now()
         backup_name = f"kasa_backup_{backup_type}_{timestamp.strftime('%Y%m%d_%H%M%S')}"
+        
+        # Reset progress tracking
+        self.backup_progress = 0
+        self.current_backup_status = "in_progress"
         
         try:
             # Create backup info
@@ -166,33 +182,52 @@ class BackupManager:
             await self.cleanup_old_backups()
             
             logger.info(f"Backup created successfully: {backup_name}")
+            self.backup_progress = 100
+            self.current_backup_status = "completed"
             return backup_info
             
         except Exception as e:
             logger.error(f"Backup failed: {e}")
             backup_info["status"] = "failed"
             backup_info["error"] = str(e)
+            self.current_backup_status = "failed"
             return backup_info
     
     async def _sqlite_backup(self, backup_file: Path):
         """Perform SQLite backup using built-in backup API"""
-        # Use SQLite's backup API for consistency
-        source_conn = sqlite3.connect(str(self.db_path))
-        backup_conn = sqlite3.connect(str(backup_file))
+        import asyncio
+        import concurrent.futures
         
-        try:
-            # Lock database for consistency
-            source_conn.execute("BEGIN IMMEDIATE")
+        def perform_backup():
+            # Use SQLite's backup API for consistency
+            source_conn = sqlite3.connect(str(self.db_path))
+            backup_conn = sqlite3.connect(str(backup_file))
             
-            # Perform backup
-            with backup_conn:
-                source_conn.backup(backup_conn)
-            
-            source_conn.rollback()
-            
-        finally:
-            source_conn.close()
-            backup_conn.close()
+            try:
+                # Lock database for consistency
+                source_conn.execute("BEGIN IMMEDIATE")
+                
+                # Perform backup with progress callback
+                with backup_conn:
+                    source_conn.backup(backup_conn, pages=10, progress=self._backup_progress_callback)
+                
+                source_conn.rollback()
+                
+            finally:
+                source_conn.close()
+                backup_conn.close()
+        
+        # Run backup in thread pool to avoid blocking
+        loop = asyncio.get_event_loop()
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            await loop.run_in_executor(executor, perform_backup)
+    
+    def _backup_progress_callback(self, status, remaining, total):
+        """Progress callback for SQLite backup"""
+        if total > 0:
+            progress = ((total - remaining) / total) * 100
+            self.backup_progress = progress
+            logger.debug(f"Backup progress: {progress:.1f}%")
     
     async def _compress_backup(self, backup_file: Path, backup_name: str) -> Path:
         """Compress backup file using 7z"""
@@ -382,6 +417,31 @@ class BackupManager:
         self._save_metadata()
         
         return len(backups_to_remove)
+    
+    async def get_backup_file(self, backup_id: int) -> Optional[str]:
+        """Get backup file path by ID"""
+        # For simplicity, return the backup file from metadata
+        if backup_id < len(self.metadata["backups"]):
+            backup = self.metadata["backups"][backup_id]
+            return str(self.backup_dir / backup.get("filename", ""))
+        return None
+    
+    async def delete_backup(self, backup_id: int) -> bool:
+        """Delete a backup by ID"""
+        if backup_id < len(self.metadata["backups"]):
+            backup = self.metadata["backups"][backup_id]
+            file_path = self.backup_dir / backup.get("filename", "")
+            if file_path.exists():
+                file_path.unlink()
+            del self.metadata["backups"][backup_id]
+            self._save_metadata()
+            return True
+        return False
+    
+    async def get_schedules(self) -> List[Dict[str, Any]]:
+        """Get backup schedules"""
+        # Return empty list for now - schedules not implemented yet
+        return []
     
     async def list_backups(
         self,
