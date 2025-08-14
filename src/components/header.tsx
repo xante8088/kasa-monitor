@@ -175,6 +175,14 @@ export function Header({ onDiscoverClick, onRatesClick, onDeviceManagementClick 
                           <FileText className="h-4 w-4 mr-3" />
                           Audit Logs
                         </Link>
+                        <Link
+                          href="/admin/notifications"
+                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          onClick={() => setShowUserMenu(false)}
+                        >
+                          <Bell className="h-4 w-4 mr-3" />
+                          Notification Settings
+                        </Link>
                         <hr className="my-2" />
                       </>
                     )}
