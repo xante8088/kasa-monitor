@@ -43,6 +43,9 @@ from database import DatabaseManager
 from models import DeviceData, DeviceReading, ElectricityRate, User, UserCreate, UserRole, UserLogin, Token, Permission
 from auth import AuthManager, get_current_user, require_auth, require_permission, require_admin, is_local_network_ip, get_network_access_config
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Import data management modules
 try:
     from data_export import DataExporter, BulkOperations
@@ -52,9 +55,6 @@ try:
 except ImportError:
     logger.warning("Data management modules not available. Some features will be disabled.")
     data_management_available = False
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 class DeviceManager:

@@ -27,19 +27,26 @@ export default function UserManagementPage() {
   const fetchUsers = async () => {
     try {
       const token = localStorage.getItem('token');
+      console.log('Token for users fetch:', token ? `${token.substring(0, 20)}...` : 'No token');
+      
       const response = await fetch('/api/users', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
 
+      console.log('Users response status:', response.status);
       if (response.ok) {
         const data = await response.json();
+        console.log('Users data:', data);
         setUsers(data);
       } else {
+        const errorText = await response.text();
+        console.error('Users fetch error:', errorText);
         setError('Failed to fetch users');
       }
     } catch (err) {
+      console.error('Users fetch exception:', err);
       setError('Connection error');
     } finally {
       setLoading(false);

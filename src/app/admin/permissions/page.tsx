@@ -36,15 +36,21 @@ export default function PermissionsPage() {
   const fetchData = async () => {
     try {
       const token = localStorage.getItem('token');
+      console.log('Token retrieved:', token ? `${token.substring(0, 20)}...` : 'No token');
       
       // Fetch permissions
       const permissionsResponse = await fetch('/api/permissions', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
+      console.log('Permissions response status:', permissionsResponse.status);
       if (permissionsResponse.ok) {
         const permissionsData = await permissionsResponse.json();
+        console.log('Permissions data:', permissionsData);
         setPermissions(permissionsData);
+      } else {
+        const errorText = await permissionsResponse.text();
+        console.error('Permissions fetch error:', errorText);
       }
 
       // Fetch role permissions
@@ -52,11 +58,17 @@ export default function PermissionsPage() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
+      console.log('Role permissions response status:', rolePermissionsResponse.status);
       if (rolePermissionsResponse.ok) {
         const rolePermissionsData = await rolePermissionsResponse.json();
+        console.log('Role permissions data:', rolePermissionsData);
         setRolePermissions(rolePermissionsData);
+      } else {
+        const errorText = await rolePermissionsResponse.text();
+        console.error('Role permissions fetch error:', errorText);
       }
     } catch (err) {
+      console.error('Fetch error:', err);
       setError('Failed to load permissions data');
     } finally {
       setLoading(false);
