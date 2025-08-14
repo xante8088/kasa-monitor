@@ -62,7 +62,26 @@ export default function SystemConfigPage() {
 
       if (response.ok) {
         const data = await response.json();
-        setConfig(data);
+        // Merge with defaults to ensure all nested properties exist
+        const mergedConfig: SystemConfig = {
+          ssl: {
+            enabled: data.ssl?.enabled ?? false,
+            cert_path: data.ssl?.cert_path ?? '',
+            key_path: data.ssl?.key_path ?? '',
+            force_https: data.ssl?.force_https ?? false
+          },
+          network: {
+            host: data.network?.host ?? '0.0.0.0',
+            port: data.network?.port ?? 8000,
+            allowed_hosts: data.network?.allowed_hosts ?? [],
+            local_only: data.network?.local_only ?? false,
+            cors_origins: data.network?.cors_origins ?? []
+          },
+          database_path: data.database_path ?? 'kasa_monitor.db',
+          influxdb_enabled: data.influxdb_enabled ?? false,
+          polling_interval: data.polling_interval ?? 30
+        };
+        setConfig(mergedConfig);
       } else {
         setError('Failed to load system configuration');
       }
@@ -203,7 +222,7 @@ export default function SystemConfigPage() {
               <input
                 type="checkbox"
                 id="ssl_enabled"
-                checked={config.ssl.enabled}
+                checked={config.ssl?.enabled ?? false}
                 onChange={(e) => handleInputChange('ssl', 'enabled', e.target.checked)}
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
@@ -212,7 +231,7 @@ export default function SystemConfigPage() {
               </label>
             </div>
 
-            {config.ssl.enabled && (
+            {config.ssl?.enabled && (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -222,7 +241,7 @@ export default function SystemConfigPage() {
                     <div className="space-y-2">
                       <input
                         type="text"
-                        value={config.ssl.cert_path}
+                        value={config.ssl?.cert_path ?? ''}
                         onChange={(e) => handleInputChange('ssl', 'cert_path', e.target.value)}
                         placeholder="/path/to/certificate.crt"
                         className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -246,7 +265,7 @@ export default function SystemConfigPage() {
                     <div className="space-y-2">
                       <input
                         type="text"
-                        value={config.ssl.key_path}
+                        value={config.ssl?.key_path ?? ''}
                         onChange={(e) => handleInputChange('ssl', 'key_path', e.target.value)}
                         placeholder="/path/to/private.key"
                         className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -268,7 +287,7 @@ export default function SystemConfigPage() {
                   <input
                     type="checkbox"
                     id="force_https"
-                    checked={config.ssl.force_https}
+                    checked={config.ssl?.force_https ?? false}
                     onChange={(e) => handleInputChange('ssl', 'force_https', e.target.checked)}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
@@ -294,7 +313,7 @@ export default function SystemConfigPage() {
                 <input
                   type="text"
                   id="host"
-                  value={config.network.host}
+                  value={config.network?.host ?? '0.0.0.0'}
                   onChange={(e) => handleInputChange('network', 'host', e.target.value)}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -310,7 +329,7 @@ export default function SystemConfigPage() {
                 <input
                   type="number"
                   id="port"
-                  value={config.network.port}
+                  value={config.network?.port ?? 8000}
                   onChange={(e) => handleInputChange('network', 'port', parseInt(e.target.value))}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -321,7 +340,7 @@ export default function SystemConfigPage() {
               <input
                 type="checkbox"
                 id="local_only"
-                checked={config.network.local_only}
+                checked={config.network?.local_only ?? false}
                 onChange={(e) => handleInputChange('network', 'local_only', e.target.checked)}
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
@@ -337,7 +356,7 @@ export default function SystemConfigPage() {
               <input
                 type="text"
                 id="allowed_hosts"
-                value={config.network.allowed_hosts.join(', ')}
+                value={(config.network?.allowed_hosts ?? []).join(', ')}
                 onChange={(e) => handleArrayInputChange('network', 'allowed_hosts', e.target.value)}
                 placeholder="example.com, *.mydomain.com, 192.168.1.0/24"
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -354,7 +373,7 @@ export default function SystemConfigPage() {
               <input
                 type="text"
                 id="cors_origins"
-                value={config.network.cors_origins.join(', ')}
+                value={(config.network?.cors_origins ?? []).join(', ')}
                 onChange={(e) => handleArrayInputChange('network', 'cors_origins', e.target.value)}
                 placeholder="https://example.com, http://localhost:3000"
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -378,7 +397,7 @@ export default function SystemConfigPage() {
               <input
                 type="text"
                 id="database_path"
-                value={config.database_path}
+                value={config.database_path ?? 'kasa_monitor.db'}
                 onChange={(e) => setConfig(prev => ({ ...prev, database_path: e.target.value }))}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
@@ -393,7 +412,7 @@ export default function SystemConfigPage() {
                 id="polling_interval"
                 min="5"
                 max="300"
-                value={config.polling_interval}
+                value={config.polling_interval ?? 30}
                 onChange={(e) => setConfig(prev => ({ ...prev, polling_interval: parseInt(e.target.value) }))}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
@@ -406,7 +425,7 @@ export default function SystemConfigPage() {
               <input
                 type="checkbox"
                 id="influxdb_enabled"
-                checked={config.influxdb_enabled}
+                checked={config.influxdb_enabled ?? false}
                 onChange={(e) => setConfig(prev => ({ ...prev, influxdb_enabled: e.target.checked }))}
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
