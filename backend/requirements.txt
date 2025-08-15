@@ -27,3 +27,9 @@ cryptography
 pytz
 orjson
 typing-extensions
+influxdb-client[async]
+py7zr
+apscheduler
+pytest
+pytest-asyncio
+pytest-cov
