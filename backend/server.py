@@ -35,18 +35,8 @@ import socketio
 import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-from fastapi import (
-    Depends,
-    FastAPI,
-    HTTPException,
-    Query,
-    Request,
-    Response,
-    UploadFile,
-    WebSocket,
-    WebSocketDisconnect,
-    status,
-)
+from fastapi import (Depends, FastAPI, HTTPException, Query, Request, Response,
+                     UploadFile, WebSocket, WebSocketDisconnect, status)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
@@ -54,27 +44,12 @@ from influxdb_client.client.write_api import SYNCHRONOUS
 from kasa import Credentials, Device, Discover, SmartDevice
 from pydantic import BaseModel, Field
 
-from auth import (
-    AuthManager,
-    get_current_user,
-    get_network_access_config,
-    is_local_network_ip,
-    require_admin,
-    require_auth,
-    require_permission,
-)
+from auth import (AuthManager, get_current_user, get_network_access_config,
+                  is_local_network_ip, require_admin, require_auth,
+                  require_permission)
 from database import DatabaseManager
-from models import (
-    DeviceData,
-    DeviceReading,
-    ElectricityRate,
-    Permission,
-    Token,
-    User,
-    UserCreate,
-    UserLogin,
-    UserRole,
-)
+from models import (DeviceData, DeviceReading, ElectricityRate, Permission,
+                    Token, User, UserCreate, UserLogin, UserRole)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -95,7 +70,8 @@ except ImportError:
 # Import additional modules
 try:
     from alert_management import AlertManager
-    from audit_logging import AuditEvent, AuditEventType, AuditLogger, AuditSeverity
+    from audit_logging import (AuditEvent, AuditEventType, AuditLogger,
+                               AuditSeverity)
     from backup_manager import BackupManager
     from device_groups import DeviceGroupManager
     from health_monitor import HealthMonitor

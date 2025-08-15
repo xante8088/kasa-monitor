@@ -12,17 +12,9 @@ from functools import wraps
 from typing import Any, Callable, Dict, Optional
 
 from fastapi import APIRouter, Response
-from prometheus_client import (
-    CONTENT_TYPE_LATEST,
-    CollectorRegistry,
-    Counter,
-    Gauge,
-    Histogram,
-    Info,
-    Summary,
-    generate_latest,
-    push_to_gateway,
-)
+from prometheus_client import (CONTENT_TYPE_LATEST, CollectorRegistry, Counter,
+                               Gauge, Histogram, Info, Summary,
+                               generate_latest, push_to_gateway)
 from prometheus_client.core import CounterMetricFamily, GaugeMetricFamily
 
 logger = logging.getLogger(__name__)
