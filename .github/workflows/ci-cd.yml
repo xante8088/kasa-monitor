@@ -97,8 +97,7 @@ jobs:
       uses: trufflesecurity/trufflehog@main
       with:
         path: ./
-        base: ${{ github.event.repository.default_branch }}
-        head: HEAD
+        extra_args: --since-commit ${{ github.event.before || 'HEAD~1' }} --only-verified
 
   # Unit tests
   test-backend:
