@@ -303,7 +303,6 @@ jobs:
     if: github.ref == 'refs/heads/develop'
     environment:
       name: staging
-      url: ${{ secrets.STAGING_URL }}
     
     permissions:
       contents: read
@@ -326,7 +325,6 @@ jobs:
     if: github.ref == 'refs/heads/main'
     environment:
       name: production
-      url: ${{ secrets.PRODUCTION_URL }}
     
     permissions:
       contents: read
