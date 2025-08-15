@@ -29,6 +29,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import jwt
+
 from models import Permission, User, UserRole
 
 # Load environment variables

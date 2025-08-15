@@ -24,19 +24,13 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 import aiosqlite
-from auth import AuthManager
 from influxdb_client import Point
 from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 from influxdb_client.client.write_api import SYNCHRONOUS
-from models import (
-    DeviceData,
-    DeviceReading,
-    ElectricityRate,
-    RateType,
-    User,
-    UserCreate,
-    UserRole,
-)
+
+from auth import AuthManager
+from models import (DeviceData, DeviceReading, ElectricityRate, RateType, User,
+                    UserCreate, UserRole)
 from rate_calculator import RateCalculator
 
 
