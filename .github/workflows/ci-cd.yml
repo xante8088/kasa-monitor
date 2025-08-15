@@ -303,7 +303,7 @@ jobs:
     if: github.ref == 'refs/heads/develop'
     environment:
       name: staging
-      url: https://staging.kasa-monitor.example.com
+      url: ${{ secrets.STAGING_URL || 'https://staging.kasa-monitor.example.com' }}
     
     permissions:
       contents: read
@@ -326,7 +326,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     environment:
       name: production
-      url: https://kasa-monitor.example.com
+      url: ${{ secrets.PRODUCTION_URL || 'https://kasa-monitor.example.com' }}
     
     permissions:
       contents: read
@@ -337,6 +337,8 @@ jobs:
     
     - name: Create deployment
       uses: actions/github-script@v6
+      env:
+        PRODUCTION_URL: ${{ secrets.PRODUCTION_URL || 'https://kasa-monitor.example.com' }}
       with:
         script: |
           const deployment = await github.rest.repos.createDeployment({
@@ -353,7 +355,7 @@ jobs:
             repo: context.repo.repo,
             deployment_id: deployment.data.id,
             state: 'in_progress',
-            environment_url: 'https://kasa-monitor.example.com'
+            environment_url: process.env.PRODUCTION_URL || 'https://kasa-monitor.example.com'
           });
     
     - name: Deploy to production
@@ -364,11 +366,23 @@ jobs:
     - name: Run smoke tests
       run: |
         sleep 30
-        curl -f https://kasa-monitor.example.com/health || exit 1
+        # Only run smoke tests if PRODUCTION_URL is set and not the default example
+        if [[ -n "$PRODUCTION_URL" && "$PRODUCTION_URL" != "https://kasa-monitor.example.com" ]]; then
+          echo "Running smoke tests against: $PRODUCTION_URL"
+          curl -f "$PRODUCTION_URL/health" || exit 1
+          echo "Smoke tests passed!"
+        else
+          echo "Skipping smoke tests - PRODUCTION_URL not configured or using example domain"
+          echo "To enable smoke tests, set PRODUCTION_URL secret to your actual production domain"
+        fi
+      env:
+        PRODUCTION_URL: ${{ secrets.PRODUCTION_URL || 'https://kasa-monitor.example.com' }}
     
     - name: Update deployment status
       if: always()
       uses: actions/github-script@v6
+      env:
+        PRODUCTION_URL: ${{ secrets.PRODUCTION_URL || 'https://kasa-monitor.example.com' }}
       with:
         script: |
           // Get the latest deployment
@@ -385,7 +399,7 @@ jobs:
               repo: context.repo.repo,
               deployment_id: deployments.data[0].id,
               state: '${{ job.status }}' === 'success' ? 'success' : 'failure',
-              environment_url: 'https://kasa-monitor.example.com'
+              environment_url: process.env.PRODUCTION_URL || 'https://kasa-monitor.example.com'
             });
           }
 
