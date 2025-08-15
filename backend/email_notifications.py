@@ -42,6 +42,7 @@ import base64
 
 class EmailStatus(Enum):
     """Email delivery status."""
+
     QUEUED = "queued"
     SENDING = "sending"
     SENT = "sent"
@@ -52,6 +53,7 @@ class EmailStatus(Enum):
 
 class EmailPriority(Enum):
     """Email priority levels."""
+
     LOW = 1
     NORMAL = 2
     HIGH = 3
@@ -61,6 +63,7 @@ class EmailPriority(Enum):
 @dataclass
 class EmailMessage:
     """Email message structure."""
+
     to: Union[str, List[str]]
     subject: str
     body_html: Optional[str] = None
@@ -75,29 +78,31 @@ class EmailMessage:
     tags: Optional[List[str]] = None
     track_opens: bool = True
     track_clicks: bool = True
-    
+
     def to_dict(self) -> Dict:
         """Convert to dictionary."""
         data = asdict(self)
-        data['priority'] = self.priority.value
+        data["priority"] = self.priority.value
         return data
 
 
 class SMTPConfig:
     """SMTP server configuration."""
-    
-    def __init__(self,
-                 host: str,
-                 port: int,
-                 username: Optional[str] = None,
-                 password: Optional[str] = None,
-                 use_tls: bool = True,
-                 use_ssl: bool = False,
-                 from_email: str = "noreply@kasa-monitor.local",
-                 from_name: str = "Kasa Monitor",
-                 timeout: int = 30):
+
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        use_tls: bool = True,
+        use_ssl: bool = False,
+        from_email: str = "noreply@kasa-monitor.local",
+        from_name: str = "Kasa Monitor",
+        timeout: int = 30,
+    ):
         """Initialize SMTP configuration.
-        
+
         Args:
             host: SMTP server hostname
             port: SMTP server port
@@ -122,33 +127,33 @@ class SMTPConfig:
 
 class EmailTemplateEngine:
     """Email template rendering engine."""
-    
+
     def __init__(self, template_dir: str = "templates/email"):
         """Initialize template engine.
-        
+
         Args:
             template_dir: Directory containing email templates
         """
         self.template_dir = Path(template_dir)
         self.template_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Setup Jinja2 environment
         self.jinja_env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(str(self.template_dir)),
-            autoescape=jinja2.select_autoescape(['html', 'xml'])
+            autoescape=jinja2.select_autoescape(["html", "xml"]),
         )
-        
+
         # Register custom filters
-        self.jinja_env.filters['markdown'] = self._markdown_filter
-        self.jinja_env.filters['format_date'] = self._format_date_filter
-        
+        self.jinja_env.filters["markdown"] = self._markdown_filter
+        self.jinja_env.filters["format_date"] = self._format_date_filter
+
         # Create default templates
         self._create_default_templates()
-    
+
     def _create_default_templates(self):
         """Create default email templates."""
         templates = {
-            'base.html': """<!DOCTYPE html>
+            "base.html": """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
@@ -180,8 +185,7 @@ class EmailTemplateEngine:
     </div>
 </body>
 </html>""",
-            
-            'alert.html': """{% extends "base.html" %}
+            "alert.html": """{% extends "base.html" %}
 {% block title %}Alert: {{ alert_title }}{% endblock %}
 {% block header %}⚠️ Alert Notification{% endblock %}
 {% block content %}
@@ -205,8 +209,7 @@ class EmailTemplateEngine:
 </p>
 {% endif %}
 {% endblock %}""",
-            
-            'welcome.html': """{% extends "base.html" %}
+            "welcome.html": """{% extends "base.html" %}
 {% block title %}Welcome to Kasa Monitor{% endblock %}
 {% block header %}Welcome to Kasa Monitor!{% endblock %}
 {% block content %}
@@ -223,8 +226,7 @@ class EmailTemplateEngine:
     <a href="{{ login_url }}" class="button">Login to Dashboard</a>
 </p>
 {% endblock %}""",
-            
-            'password_reset.html': """{% extends "base.html" %}
+            "password_reset.html": """{% extends "base.html" %}
 {% block title %}Password Reset Request{% endblock %}
 {% block header %}Password Reset Request{% endblock %}
 {% block content %}
@@ -238,8 +240,7 @@ class EmailTemplateEngine:
 <p style="color: #666; font-size: 14px;">If the button doesn't work, copy and paste this link into your browser:</p>
 <p style="color: #666; font-size: 12px; word-break: break-all;">{{ reset_url }}</p>
 {% endblock %}""",
-            
-            'report.html': """{% extends "base.html" %}
+            "report.html": """{% extends "base.html" %}
 {% block title %}{{ report_type }} Report{% endblock %}
 {% block header %}{{ report_type }} Report{% endblock %}
 {% block content %}
@@ -267,101 +268,101 @@ class EmailTemplateEngine:
     📎 Detailed report attached to this email
 </p>
 {% endif %}
-{% endblock %}"""
+{% endblock %}""",
         }
-        
+
         # Save templates if they don't exist
         for filename, content in templates.items():
             template_path = self.template_dir / filename
             if not template_path.exists():
                 template_path.write_text(content)
-    
+
     def render(self, template_name: str, context: Dict[str, Any]) -> Tuple[str, str]:
         """Render email template.
-        
+
         Args:
             template_name: Template filename
             context: Template context variables
-            
+
         Returns:
             Tuple of (html_content, text_content)
         """
         # Add default context
-        context.setdefault('year', datetime.now().year)
-        context.setdefault('timestamp', datetime.now().isoformat())
-        
+        context.setdefault("year", datetime.now().year)
+        context.setdefault("timestamp", datetime.now().isoformat())
+
         # Render HTML version
         template = self.jinja_env.get_template(template_name)
         html_content = template.render(**context)
-        
+
         # Generate text version from HTML
         text_content = self._html_to_text(html_content)
-        
+
         return html_content, text_content
-    
+
     def _markdown_filter(self, text: str) -> str:
         """Convert Markdown to HTML.
-        
+
         Args:
             text: Markdown text
-            
+
         Returns:
             HTML content
         """
-        return markdown.markdown(text, extensions=['extra', 'nl2br'])
-    
+        return markdown.markdown(text, extensions=["extra", "nl2br"])
+
     def _format_date_filter(self, date: Union[str, datetime], format: str = "%Y-%m-%d %H:%M:%S") -> str:
         """Format date for display.
-        
+
         Args:
             date: Date to format
             format: Date format string
-            
+
         Returns:
             Formatted date string
         """
         if isinstance(date, str):
             date = datetime.fromisoformat(date)
         return date.strftime(format)
-    
+
     def _html_to_text(self, html: str) -> str:
         """Convert HTML to plain text.
-        
+
         Args:
             html: HTML content
-            
+
         Returns:
             Plain text content
         """
         # Simple HTML to text conversion
         import re
-        
+
         # Remove style and script tags
-        text = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL)
-        text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL)
-        
+        text = re.sub(r"<style[^>]*>.*?</style>", "", html, flags=re.DOTALL)
+        text = re.sub(r"<script[^>]*>.*?</script>", "", text, flags=re.DOTALL)
+
         # Replace common tags
-        text = re.sub(r'<h[1-6][^>]*>(.*?)</h[1-6]>', r'\n\1\n', text)
-        text = re.sub(r'<p[^>]*>(.*?)</p>', r'\1\n\n', text)
-        text = re.sub(r'<br\s*/?>', '\n', text)
-        text = re.sub(r'<li[^>]*>(.*?)</li>', r'  • \1\n', text)
-        
+        text = re.sub(r"<h[1-6][^>]*>(.*?)</h[1-6]>", r"\n\1\n", text)
+        text = re.sub(r"<p[^>]*>(.*?)</p>", r"\1\n\n", text)
+        text = re.sub(r"<br\s*/?>", "\n", text)
+        text = re.sub(r"<li[^>]*>(.*?)</li>", r"  • \1\n", text)
+
         # Remove remaining tags
-        text = re.sub(r'<[^>]+>', '', text)
-        
+        text = re.sub(r"<[^>]+>", "", text)
+
         # Clean up whitespace
-        text = re.sub(r'\n{3,}', '\n\n', text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
         text = text.strip()
-        
+
         return text
 
 
 class EmailQueue:
     """Email queue management."""
-    
+
     def __init__(self, db_path: str = "kasa_monitor.db"):
         """Initialize email queue.
-        
+
         Args:
             db_path: Path to database
         """
@@ -370,13 +371,14 @@ class EmailQueue:
         self.queue = queue.PriorityQueue()
         self.running = False
         self.worker_thread = None
-    
+
     def _init_database(self):
         """Initialize email queue tables."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
-        cursor.execute("""
+
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS email_queue (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 message_id TEXT UNIQUE NOT NULL,
@@ -396,14 +398,18 @@ class EmailQueue:
                 next_retry TIMESTAMP,
                 error_message TEXT
             )
-        """)
-        
-        cursor.execute("""
+        """
+        )
+
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_email_queue_status 
             ON email_queue(status, scheduled_at)
-        """)
-        
-        cursor.execute("""
+        """
+        )
+
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS email_tracking (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 message_id TEXT NOT NULL,
@@ -412,89 +418,89 @@ class EmailQueue:
                 details TEXT,
                 FOREIGN KEY (message_id) REFERENCES email_queue(message_id)
             )
-        """)
-        
+        """
+        )
+
         conn.commit()
         conn.close()
-    
+
     def enqueue(self, message: EmailMessage, scheduled_at: Optional[datetime] = None) -> str:
         """Add email to queue.
-        
+
         Args:
             message: Email message
             scheduled_at: Schedule delivery time
-            
+
         Returns:
             Message ID
         """
         message_id = self._generate_message_id()
-        
+
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
-        cursor.execute("""
+
+        cursor.execute(
+            """
             INSERT INTO email_queue 
             (message_id, recipient, subject, body_html, body_text, 
              attachments, priority, category, scheduled_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            message_id,
-            json.dumps(message.to) if isinstance(message.to, list) else message.to,
-            message.subject,
-            message.body_html,
-            message.body_text,
-            json.dumps(message.attachments) if message.attachments else None,
-            message.priority.value,
-            message.category,
-            scheduled_at
-        ))
-        
+        """,
+            (
+                message_id,
+                json.dumps(message.to) if isinstance(message.to, list) else message.to,
+                message.subject,
+                message.body_html,
+                message.body_text,
+                json.dumps(message.attachments) if message.attachments else None,
+                message.priority.value,
+                message.category,
+                scheduled_at,
+            ),
+        )
+
         conn.commit()
         conn.close()
-        
+
         # Add to in-memory queue if scheduled for now
         if not scheduled_at or scheduled_at <= datetime.now():
             self.queue.put((message.priority.value * -1, message_id, message))
-        
+
         return message_id
-    
+
     def start_worker(self, smtp_config: SMTPConfig, interval: int = 5):
         """Start background worker thread.
-        
+
         Args:
             smtp_config: SMTP configuration
             interval: Check interval in seconds
         """
         if self.running:
             return
-        
+
         self.running = True
-        self.worker_thread = threading.Thread(
-            target=self._worker_loop,
-            args=(smtp_config, interval),
-            daemon=True
-        )
+        self.worker_thread = threading.Thread(target=self._worker_loop, args=(smtp_config, interval), daemon=True)
         self.worker_thread.start()
-    
+
     def stop_worker(self):
         """Stop background worker thread."""
         self.running = False
         if self.worker_thread:
             self.worker_thread.join(timeout=5)
-    
+
     def _worker_loop(self, smtp_config: SMTPConfig, interval: int):
         """Background worker loop.
-        
+
         Args:
             smtp_config: SMTP configuration
             interval: Check interval
         """
         sender = EmailSender(smtp_config)
-        
+
         while self.running:
             # Process queued emails
             self._process_scheduled_emails()
-            
+
             # Process in-memory queue
             try:
                 while not self.queue.empty():
@@ -502,81 +508,85 @@ class EmailQueue:
                     self._send_email(sender, message_id, message)
             except queue.Empty:
                 pass
-            
+
             # Process database queue
             self._process_database_queue(sender)
-            
+
             # Sleep before next iteration
             time.sleep(interval)
-    
+
     def _process_scheduled_emails(self):
         """Move scheduled emails to active queue."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
-        cursor.execute("""
+
+        cursor.execute(
+            """
             SELECT message_id, recipient, subject, body_html, body_text,
                    attachments, priority, category
             FROM email_queue
             WHERE status = 'queued'
             AND (scheduled_at IS NULL OR scheduled_at <= CURRENT_TIMESTAMP)
             LIMIT 10
-        """)
-        
+        """
+        )
+
         for row in cursor.fetchall():
             message_id = row[0]
             message = EmailMessage(
-                to=json.loads(row[1]) if row[1].startswith('[') else row[1],
+                to=json.loads(row[1]) if row[1].startswith("[") else row[1],
                 subject=row[2],
                 body_html=row[3],
                 body_text=row[4],
                 attachments=json.loads(row[5]) if row[5] else None,
                 priority=EmailPriority(row[6]),
-                category=row[7]
+                category=row[7],
             )
-            
+
             self.queue.put((message.priority.value * -1, message_id, message))
-        
+
         conn.close()
-    
-    def _process_database_queue(self, sender: 'EmailSender'):
+
+    def _process_database_queue(self, sender: "EmailSender"):
         """Process emails from database queue.
-        
+
         Args:
             sender: Email sender instance
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         # Get emails ready for retry
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT message_id, recipient, subject, body_html, body_text,
                    attachments, priority, category
             FROM email_queue
             WHERE status = 'retry'
             AND next_retry <= CURRENT_TIMESTAMP
             LIMIT 5
-        """)
-        
+        """
+        )
+
         for row in cursor.fetchall():
             message_id = row[0]
             message = EmailMessage(
-                to=json.loads(row[1]) if row[1].startswith('[') else row[1],
+                to=json.loads(row[1]) if row[1].startswith("[") else row[1],
                 subject=row[2],
                 body_html=row[3],
                 body_text=row[4],
                 attachments=json.loads(row[5]) if row[5] else None,
                 priority=EmailPriority(row[6]),
-                category=row[7]
+                category=row[7],
             )
-            
+
             self._send_email(sender, message_id, message)
-        
+
         conn.close()
-    
-    def _send_email(self, sender: 'EmailSender', message_id: str, message: EmailMessage):
+
+    def _send_email(self, sender: "EmailSender", message_id: str, message: EmailMessage):
         """Send email and update status.
-        
+
         Args:
             sender: Email sender instance
             message_id: Message ID
@@ -584,240 +594,253 @@ class EmailQueue:
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         # Update status to sending
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE email_queue
             SET status = 'sending', attempts = attempts + 1
             WHERE message_id = ?
-        """, (message_id,))
+        """,
+            (message_id,),
+        )
         conn.commit()
-        
+
         try:
             # Send email
             sender.send(message)
-            
+
             # Update status to sent
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE email_queue
                 SET status = 'sent', sent_at = CURRENT_TIMESTAMP
                 WHERE message_id = ?
-            """, (message_id,))
-            
+            """,
+                (message_id,),
+            )
+
             # Track delivery
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO email_tracking (message_id, event_type)
                 VALUES (?, 'delivered')
-            """, (message_id,))
-            
+            """,
+                (message_id,),
+            )
+
         except Exception as e:
             # Get current attempts
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT attempts, max_attempts FROM email_queue
                 WHERE message_id = ?
-            """, (message_id,))
-            
+            """,
+                (message_id,),
+            )
+
             attempts, max_attempts = cursor.fetchone()
-            
+
             if attempts >= max_attempts:
                 # Mark as failed
-                cursor.execute("""
+                cursor.execute(
+                    """
                     UPDATE email_queue
                     SET status = 'failed', error_message = ?
                     WHERE message_id = ?
-                """, (str(e), message_id))
+                """,
+                    (str(e), message_id),
+                )
             else:
                 # Schedule retry
                 next_retry = datetime.now() + timedelta(minutes=5 * attempts)
-                cursor.execute("""
+                cursor.execute(
+                    """
                     UPDATE email_queue
                     SET status = 'retry', next_retry = ?, error_message = ?
                     WHERE message_id = ?
-                """, (next_retry, str(e), message_id))
-            
+                """,
+                    (next_retry, str(e), message_id),
+                )
+
             # Track failure
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO email_tracking (message_id, event_type, details)
                 VALUES (?, 'failed', ?)
-            """, (message_id, str(e)))
-        
+            """,
+                (message_id, str(e)),
+            )
+
         conn.commit()
         conn.close()
-    
+
     def _generate_message_id(self) -> str:
         """Generate unique message ID.
-        
+
         Returns:
             Message ID
         """
         timestamp = datetime.now().isoformat()
         random_part = hashlib.md5(timestamp.encode()).hexdigest()[:8]
         return f"{timestamp}-{random_part}"
-    
+
     def get_status(self, message_id: str) -> Optional[Dict]:
         """Get email status.
-        
+
         Args:
             message_id: Message ID
-            
+
         Returns:
             Status information
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
-        cursor.execute("""
+
+        cursor.execute(
+            """
             SELECT status, attempts, sent_at, error_message
             FROM email_queue
             WHERE message_id = ?
-        """, (message_id,))
-        
+        """,
+            (message_id,),
+        )
+
         row = cursor.fetchone()
         conn.close()
-        
+
         if row:
             return {
-                'status': row[0],
-                'attempts': row[1],
-                'sent_at': row[2],
-                'error_message': row[3]
+                "status": row[0],
+                "attempts": row[1],
+                "sent_at": row[2],
+                "error_message": row[3],
             }
-        
+
         return None
 
 
 class EmailSender:
     """Email sending functionality."""
-    
+
     def __init__(self, smtp_config: SMTPConfig):
         """Initialize email sender.
-        
+
         Args:
             smtp_config: SMTP configuration
         """
         self.config = smtp_config
-    
+
     def send(self, message: EmailMessage):
         """Send email message.
-        
+
         Args:
             message: Email message to send
         """
         # Create MIME message
-        msg = MIMEMultipart('alternative')
-        
+        msg = MIMEMultipart("alternative")
+
         # Set headers
-        msg['From'] = f"{self.config.from_name} <{self.config.from_email}>"
-        msg['Subject'] = message.subject
-        
+        msg["From"] = f"{self.config.from_name} <{self.config.from_email}>"
+        msg["Subject"] = message.subject
+
         # Handle recipients
         if isinstance(message.to, list):
-            msg['To'] = ', '.join(message.to)
+            msg["To"] = ", ".join(message.to)
             recipients = message.to
         else:
-            msg['To'] = message.to
+            msg["To"] = message.to
             recipients = [message.to]
-        
+
         if message.cc:
             if isinstance(message.cc, list):
-                msg['Cc'] = ', '.join(message.cc)
+                msg["Cc"] = ", ".join(message.cc)
                 recipients.extend(message.cc)
             else:
-                msg['Cc'] = message.cc
+                msg["Cc"] = message.cc
                 recipients.append(message.cc)
-        
+
         if message.reply_to:
-            msg['Reply-To'] = message.reply_to
-        
+            msg["Reply-To"] = message.reply_to
+
         # Add custom headers
         if message.headers:
             for key, value in message.headers.items():
                 msg[key] = value
-        
+
         # Add tracking pixel if enabled
         if message.track_opens and message.body_html:
-            tracking_pixel = self._generate_tracking_pixel(msg['Message-ID'])
+            tracking_pixel = self._generate_tracking_pixel(msg["Message-ID"])
             message.body_html += tracking_pixel
-        
+
         # Attach body
         if message.body_text:
-            msg.attach(MIMEText(message.body_text, 'plain'))
-        
+            msg.attach(MIMEText(message.body_text, "plain"))
+
         if message.body_html:
-            msg.attach(MIMEText(message.body_html, 'html'))
-        
+            msg.attach(MIMEText(message.body_html, "html"))
+
         # Add attachments
         if message.attachments:
             for attachment in message.attachments:
                 self._attach_file(msg, attachment)
-        
+
         # Send email
         self._send_smtp(msg, recipients)
-    
+
     def _send_smtp(self, msg: MIMEMultipart, recipients: List[str]):
         """Send email via SMTP.
-        
+
         Args:
             msg: MIME message
             recipients: List of recipients
         """
         if self.config.use_ssl:
-            server = smtplib.SMTP_SSL(
-                self.config.host,
-                self.config.port,
-                timeout=self.config.timeout
-            )
+            server = smtplib.SMTP_SSL(self.config.host, self.config.port, timeout=self.config.timeout)
         else:
-            server = smtplib.SMTP(
-                self.config.host,
-                self.config.port,
-                timeout=self.config.timeout
-            )
-            
+            server = smtplib.SMTP(self.config.host, self.config.port, timeout=self.config.timeout)
+
             if self.config.use_tls:
                 server.starttls()
-        
+
         try:
             if self.config.username and self.config.password:
                 server.login(self.config.username, self.config.password)
-            
+
             server.send_message(msg, to_addrs=recipients)
         finally:
             server.quit()
-    
+
     def _attach_file(self, msg: MIMEMultipart, attachment: Dict[str, Any]):
         """Attach file to email.
-        
+
         Args:
             msg: MIME message
             attachment: Attachment information
         """
-        part = MIMEBase('application', 'octet-stream')
-        
-        if 'content' in attachment:
+        part = MIMEBase("application", "octet-stream")
+
+        if "content" in attachment:
             # Content provided directly
-            part.set_payload(attachment['content'])
-        elif 'path' in attachment:
+            part.set_payload(attachment["content"])
+        elif "path" in attachment:
             # Read from file
-            with open(attachment['path'], 'rb') as f:
+            with open(attachment["path"], "rb") as f:
                 part.set_payload(f.read())
-        
+
         encoders.encode_base64(part)
-        
-        filename = attachment.get('filename', 'attachment')
-        part.add_header(
-            'Content-Disposition',
-            f'attachment; filename={filename}'
-        )
-        
+
+        filename = attachment.get("filename", "attachment")
+        part.add_header("Content-Disposition", f"attachment; filename={filename}")
+
         msg.attach(part)
-    
+
     def _generate_tracking_pixel(self, message_id: str) -> str:
         """Generate email tracking pixel.
-        
+
         Args:
             message_id: Message ID
-            
+
         Returns:
             HTML for tracking pixel
         """

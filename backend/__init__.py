@@ -5,9 +5,9 @@ from .database import DatabaseManager
 from .models import DeviceData, DeviceReading, ElectricityRate
 
 __all__ = [
-    'KasaMonitorApp',
-    'DatabaseManager',
-    'DeviceData',
-    'DeviceReading',
-    'ElectricityRate'
+    "KasaMonitorApp",
+    "DatabaseManager",
+    "DeviceData",
+    "DeviceReading",
+    "ElectricityRate",
 ]

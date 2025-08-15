@@ -26,29 +26,30 @@ from enum import Enum
 
 class Permission(str, Enum):
     """System permissions for user roles."""
+
     # Device management
     DEVICES_VIEW = "devices.view"
     DEVICES_DISCOVER = "devices.discover"
     DEVICES_EDIT = "devices.edit"
     DEVICES_REMOVE = "devices.remove"
     DEVICES_CONTROL = "devices.control"
-    
+
     # Rate management
     RATES_VIEW = "rates.view"
     RATES_EDIT = "rates.edit"
     RATES_DELETE = "rates.delete"
-    
+
     # Cost analysis
     COSTS_VIEW = "costs.view"
     COSTS_EXPORT = "costs.export"
-    
+
     # User management
     USERS_VIEW = "users.view"
     USERS_INVITE = "users.invite"
     USERS_EDIT = "users.edit"
     USERS_REMOVE = "users.remove"
     USERS_PERMISSIONS = "users.permissions"
-    
+
     # System administration
     SYSTEM_CONFIG = "system.config"
     SYSTEM_LOGS = "system.logs"
@@ -58,14 +59,16 @@ class Permission(str, Enum):
 
 class UserRole(str, Enum):
     """Predefined user roles with permission sets."""
+
     ADMIN = "admin"
-    OPERATOR = "operator" 
+    OPERATOR = "operator"
     VIEWER = "viewer"
     GUEST = "guest"
 
 
 class User(BaseModel):
     """User account model."""
+
     id: Optional[int] = None
     username: str
     email: str
@@ -80,6 +83,7 @@ class User(BaseModel):
 
 class UserCreate(BaseModel):
     """Model for creating new users."""
+
     username: str
     email: str
     full_name: str
@@ -89,6 +93,7 @@ class UserCreate(BaseModel):
 
 class UserLogin(BaseModel):
     """Model for user login."""
+
     username: str
     password: str
     totp_code: Optional[str] = None  # Optional TOTP code for 2FA
@@ -96,6 +101,7 @@ class UserLogin(BaseModel):
 
 class Token(BaseModel):
     """JWT token response."""
+
     access_token: str
     token_type: str = "bearer"
     expires_in: int
@@ -104,6 +110,7 @@ class Token(BaseModel):
 
 class DeviceData(BaseModel):
     """Model for device data snapshot."""
+
     ip: str
     alias: str
     model: str
@@ -122,6 +129,7 @@ class DeviceData(BaseModel):
 
 class DeviceReading(BaseModel):
     """Model for storing device readings."""
+
     device_ip: str
     timestamp: datetime
     is_on: bool
@@ -136,6 +144,7 @@ class DeviceReading(BaseModel):
 
 class RateType(str, Enum):
     """Types of electricity rate structures."""
+
     FLAT = "flat"
     TIME_OF_USE = "time_of_use"
     TIERED = "tiered"
@@ -146,6 +155,7 @@ class RateType(str, Enum):
 
 class TierRate(BaseModel):
     """Model for tiered rate structure."""
+
     min_kwh: float = 0  # Starting kWh for this tier
     max_kwh: Optional[float] = None  # None means unlimited
     rate_per_kwh: float
@@ -154,8 +164,9 @@ class TierRate(BaseModel):
 
 class TimeOfUseRate(BaseModel):
     """Model for time-of-use rate structure."""
+
     start_hour: int  # 0-23
-    end_hour: int    # 0-23
+    end_hour: int  # 0-23
     rate_per_kwh: float
     days_of_week: Optional[List[int]] = None  # 0=Monday, 6=Sunday; None = all days
     description: Optional[str] = None
@@ -163,8 +174,9 @@ class TimeOfUseRate(BaseModel):
 
 class SeasonalRate(BaseModel):
     """Model for seasonal rate structure."""
+
     start_month: int  # 1-12
-    end_month: int    # 1-12
+    end_month: int  # 1-12
     base_rate: float
     time_of_use_rates: Optional[List[TimeOfUseRate]] = None
     tier_rates: Optional[List[TierRate]] = None
@@ -173,38 +185,40 @@ class SeasonalRate(BaseModel):
 
 class ElectricityRate(BaseModel):
     """Enhanced model for electricity rate configuration."""
+
     name: str
     rate_type: RateType
     currency: str = "USD"
-    
+
     # Flat rate
     flat_rate: Optional[float] = None
-    
+
     # Time-of-use rates
     time_of_use_rates: Optional[List[TimeOfUseRate]] = None
-    
+
     # Tiered rates
     tier_rates: Optional[List[TierRate]] = None
-    
+
     # Seasonal rates
     seasonal_rates: Optional[List[SeasonalRate]] = None
-    
+
     # Additional charges
     monthly_service_charge: Optional[float] = None
     demand_charge_per_kw: Optional[float] = None
-    
+
     # Taxes and fees
     tax_rate: Optional[float] = None  # As percentage (e.g., 8.5 for 8.5%)
     additional_fees: Optional[Dict[str, float]] = None
-    
+
     # Metadata
     utility_provider: Optional[str] = None
     rate_schedule: Optional[str] = None
     effective_date: Optional[datetime] = None
     notes: Optional[str] = None
-    
+
 
 class DeviceControl(BaseModel):
     """Model for device control commands."""
+
     action: str  # "on" or "off"
     device_ip: str

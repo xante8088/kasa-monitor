@@ -83,7 +83,7 @@ ROLE_PERMISSIONS = {
     UserRole.GUEST: [
         # Very limited access
         Permission.DEVICES_VIEW,
-    ]
+    ],
 }
 
 security = HTTPBearer(auto_error=False)
@@ -91,18 +91,18 @@ security = HTTPBearer(auto_error=False)
 
 class AuthManager:
     """Handles authentication and authorization."""
-    
+
     @staticmethod
     def hash_password(password: str) -> str:
         """Hash a password using bcrypt."""
         salt = bcrypt.gensalt()
-        return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
-    
+        return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
+
     @staticmethod
     def verify_password(password: str, hashed: str) -> bool:
         """Verify a password against its hash."""
-        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
-    
+        return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
+
     @staticmethod
     def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
         """Create a JWT access token."""
@@ -111,7 +111,7 @@ class AuthManager:
             expire = datetime.now(timezone.utc) + expires_delta
         else:
             expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        
+
         # Convert datetime objects to ISO strings for JSON serialization (except exp)
         def serialize_datetime(obj):
             if isinstance(obj, datetime):
@@ -121,15 +121,15 @@ class AuthManager:
             elif isinstance(obj, list):
                 return [serialize_datetime(v) for v in obj]
             return obj
-        
+
         # Serialize everything except exp (which JWT needs as datetime)
         serialized_data = serialize_datetime(data)
         to_encode = serialized_data.copy() if isinstance(serialized_data, dict) else data.copy()
         to_encode.update({"exp": expire})  # Add exp as datetime object
-        
+
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
         return encoded_jwt
-    
+
     @staticmethod
     def verify_token(token: str) -> Dict[str, Any]:
         """Verify and decode a JWT token."""
@@ -144,18 +144,19 @@ class AuthManager:
             )
         except jwt.PyJWTError as e:
             import logging
+
             logging.error(f"JWT verification error: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-    
+
     @staticmethod
     def get_user_permissions(role: UserRole) -> list[Permission]:
         """Get permissions for a user role."""
         return ROLE_PERMISSIONS.get(role, [])
-    
+
     @staticmethod
     def check_permission(user_permissions: list[Permission], required_permission: Permission) -> bool:
         """Check if user has required permission."""
@@ -163,12 +164,12 @@ class AuthManager:
 
 
 def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> Optional[User]:
     """Get current authenticated user from JWT token."""
     if not credentials:
         return None
-    
+
     try:
         payload = AuthManager.verify_token(credentials.credentials)
         user_data = payload.get("user")
@@ -178,12 +179,12 @@ def get_current_user(
             return user
     except HTTPException:
         pass
-    
+
     return None
 
 
 def require_auth(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> User:
     """Require authentication - raises exception if not authenticated."""
     if not credentials:
@@ -192,7 +193,7 @@ def require_auth(
             detail="Authentication required",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     payload = AuthManager.verify_token(credentials.credentials)
     user_data = payload.get("user")
     if not user_data:
@@ -201,7 +202,7 @@ def require_auth(
             detail="Invalid authentication token",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     user = User(**user_data)
     user.permissions = AuthManager.get_user_permissions(user.role)
     return user
@@ -209,23 +210,22 @@ def require_auth(
 
 def require_permission(permission: Permission):
     """Decorator to require specific permission."""
+
     def permission_checker(user: User = Depends(require_auth)) -> User:
         if not AuthManager.check_permission(user.permissions, permission):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permission required: {permission.value}"
+                detail=f"Permission required: {permission.value}",
             )
         return user
+
     return permission_checker
 
 
 def require_admin(user: User = Depends(require_auth)) -> User:
     """Require admin role."""
     if not user.is_admin and user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return user
 
 
@@ -243,10 +243,10 @@ def get_network_access_config() -> Dict[str, Any]:
 def is_local_network_ip(client_ip: str) -> bool:
     """Check if IP is from local network."""
     import ipaddress
-    
+
     try:
         client = ipaddress.ip_address(client_ip)
-        
+
         # Check common private network ranges
         private_ranges = [
             ipaddress.ip_network("192.168.0.0/16"),
@@ -254,11 +254,11 @@ def is_local_network_ip(client_ip: str) -> bool:
             ipaddress.ip_network("172.16.0.0/12"),
             ipaddress.ip_network("127.0.0.0/8"),  # Loopback
         ]
-        
+
         for network in private_ranges:
             if client in network:
                 return True
-                
+
         return False
     except ValueError:
         return False
