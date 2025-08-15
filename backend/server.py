@@ -280,6 +280,11 @@ class KasaMonitorApp:
     def setup_routes(self):
         """Set up FastAPI routes."""
 
+        @self.app.get("/health")
+        async def simple_health_check():
+            """Simple health check endpoint for integration tests."""
+            return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
         @self.app.get("/api/devices")
         async def get_devices():
             """Get list of all discovered devices."""

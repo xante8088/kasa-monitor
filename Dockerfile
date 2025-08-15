@@ -108,8 +108,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV SQLITE_PATH=/app/data/kasa_monitor.db
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:8000/api/devices || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
 
 # Use app user
 USER appuser

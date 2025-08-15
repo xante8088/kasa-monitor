@@ -210,7 +210,24 @@ jobs:
     - name: Start services
       run: |
         docker compose -f docker-compose.yml up -d
-        sleep 30  # Wait for services to start
+        sleep 30  # Initial wait for services to start
+    
+    - name: Wait for health check
+      run: |
+        # Wait up to 120 seconds for the health endpoint to be available
+        for i in {1..24}; do
+          if curl -f http://localhost:8000/health; then
+            echo "Health check passed!"
+            break
+          fi
+          echo "Attempt $i/24: Health check failed, waiting 5 seconds..."
+          sleep 5
+          if [ $i -eq 24 ]; then
+            echo "Health check failed after 2 minutes"
+            docker compose logs
+            exit 1
+          fi
+        done
     
     - name: Run integration tests
       run: |
