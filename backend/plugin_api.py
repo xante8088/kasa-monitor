@@ -28,12 +28,16 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import aiohttp
-from fastapi import (BackgroundTasks, Depends, FastAPI, File, HTTPException,
-                     UploadFile)
+from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from hook_system import HookManager, HookPriority, HookType
-from plugin_system import (PluginLoader, PluginManifest, PluginPriority,
-                           PluginState, PluginType)
+from plugin_system import (
+    PluginLoader,
+    PluginManifest,
+    PluginPriority,
+    PluginState,
+    PluginType,
+)
 from pydantic import BaseModel, Field
 
 

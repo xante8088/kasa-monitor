@@ -12,8 +12,7 @@ from auth import get_current_user, require_permission
 from cache_manager import CacheManager, ResponseCache
 from data_aggregation import AggregationPeriod, DataAggregator
 from data_export import BulkOperations, DataExporter
-from fastapi import (APIRouter, Depends, File, HTTPException, Query, Response,
-                     UploadFile)
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from models import Permission, User
 from pydantic import BaseModel
