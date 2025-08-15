@@ -23,26 +23,14 @@
 import { useState } from 'react'
 import { DeviceGrid } from '@/components/device-grid'
 import { DeviceDetail } from '@/components/device-detail'
-import { Header } from '@/components/header'
-import { DiscoveryModal } from '@/components/discovery-modal'
-import { ElectricityRatesModal } from '@/components/electricity-rates-modal'
-import { DeviceManagementModal } from '@/components/device-management-modal'
 import { CostSummary } from '@/components/cost-summary'
+import { AppLayout } from '@/components/app-layout'
 
 export default function Home() {
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null)
-  const [showDiscovery, setShowDiscovery] = useState(false)
-  const [showRates, setShowRates] = useState(false)
-  const [showDeviceManagement, setShowDeviceManagement] = useState(false)
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header 
-        onDiscoverClick={() => setShowDiscovery(true)}
-        onRatesClick={() => setShowRates(true)}
-        onDeviceManagementClick={() => setShowDeviceManagement(true)}
-      />
-      
+    <AppLayout showCostSummary={true}>
       <main className="container mx-auto px-4 py-8">
         {selectedDevice ? (
           <DeviceDetail 
@@ -56,21 +44,6 @@ export default function Home() {
           </>
         )}
       </main>
-
-      {showDiscovery && (
-        <DiscoveryModal onClose={() => setShowDiscovery(false)} />
-      )}
-      
-      {showRates && (
-        <ElectricityRatesModal onClose={() => setShowRates(false)} />
-      )}
-      
-      {showDeviceManagement && (
-        <DeviceManagementModal 
-          isOpen={showDeviceManagement}
-          onClose={() => setShowDeviceManagement(false)} 
-        />
-      )}
-    </div>
+    </AppLayout>
   )
 }

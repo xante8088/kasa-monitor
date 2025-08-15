@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: kasa-redis-local
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - kasa-local
+
+  # Main application
+  kasa-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    container_name: kasa-monitor-local
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_PATH=/app/data/kasa_monitor.db
+      - BACKUP_DIR=/app/backups
+      - REDIS_URL=redis://redis:6379/0
+      - APP_VERSION=2.0.0
+      - ENVIRONMENT=development
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data:/app/data
+      - ./backups:/app/backups
+      - ./backend:/app/backend
+    depends_on:
+      - redis
+    networks:
+      - kasa-local
+    command: python backend/main.py
+
+networks:
+  kasa-local:
+    driver: bridge
+
+volumes:
+  redis_data:

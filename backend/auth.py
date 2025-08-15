@@ -28,7 +28,10 @@ import jwt
 from fastapi import HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from models import User, Permission, UserRole
+from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv()
 
 # Security configuration
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", secrets.token_urlsafe(32))
@@ -57,6 +60,7 @@ ROLE_PERMISSIONS = {
         Permission.USERS_PERMISSIONS,
         Permission.SYSTEM_CONFIG,
         Permission.SYSTEM_LOGS,
+        Permission.SYSTEM_LOGS_CLEAR,
         Permission.SYSTEM_BACKUP,
     ],
     UserRole.OPERATOR: [
@@ -108,9 +112,7 @@ class AuthManager:
         else:
             expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         
-        to_encode.update({"exp": expire})
-        
-        # Convert datetime objects to ISO strings for JSON serialization
+        # Convert datetime objects to ISO strings for JSON serialization (except exp)
         def serialize_datetime(obj):
             if isinstance(obj, datetime):
                 return obj.isoformat()
@@ -120,7 +122,11 @@ class AuthManager:
                 return [serialize_datetime(v) for v in obj]
             return obj
         
-        to_encode = serialize_datetime(to_encode)
+        # Serialize everything except exp (which JWT needs as datetime)
+        serialized_data = serialize_datetime(data)
+        to_encode = serialized_data.copy() if isinstance(serialized_data, dict) else data.copy()
+        to_encode.update({"exp": expire})  # Add exp as datetime object
+        
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
         return encoded_jwt
     
@@ -136,7 +142,9 @@ class AuthManager:
                 detail="Token expired",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        except jwt.JWTError:
+        except jwt.PyJWTError as e:
+            import logging
+            logging.error(f"JWT verification error: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",

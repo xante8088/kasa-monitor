@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { AppLayout } from '@/components/app-layout';
 
 interface Permission {
   name: string;
@@ -36,15 +37,21 @@ export default function PermissionsPage() {
   const fetchData = async () => {
     try {
       const token = localStorage.getItem('token');
+      console.log('Token retrieved:', token ? `${token.substring(0, 20)}...` : 'No token');
       
       // Fetch permissions
       const permissionsResponse = await fetch('/api/permissions', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
+      console.log('Permissions response status:', permissionsResponse.status);
       if (permissionsResponse.ok) {
         const permissionsData = await permissionsResponse.json();
+        console.log('Permissions data:', permissionsData);
         setPermissions(permissionsData);
+      } else {
+        const errorText = await permissionsResponse.text();
+        console.error('Permissions fetch error:', errorText);
       }
 
       // Fetch role permissions
@@ -52,11 +59,17 @@ export default function PermissionsPage() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
+      console.log('Role permissions response status:', rolePermissionsResponse.status);
       if (rolePermissionsResponse.ok) {
         const rolePermissionsData = await rolePermissionsResponse.json();
+        console.log('Role permissions data:', rolePermissionsData);
         setRolePermissions(rolePermissionsData);
+      } else {
+        const errorText = await rolePermissionsResponse.text();
+        console.error('Role permissions fetch error:', errorText);
       }
     } catch (err) {
+      console.error('Fetch error:', err);
       setError('Failed to load permissions data');
     } finally {
       setLoading(false);
@@ -157,7 +170,8 @@ export default function PermissionsPage() {
   const groupedPermissions = groupPermissionsByCategory();
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <AppLayout>
+      <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Role & Permission Management</h1>
         <p className="text-gray-600 mt-1">Configure permissions for each user role</p>
@@ -263,6 +277,7 @@ export default function PermissionsPage() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </AppLayout>
   );
 }

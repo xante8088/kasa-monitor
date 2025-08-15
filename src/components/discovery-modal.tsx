@@ -26,7 +26,14 @@ export function DiscoveryModal({ onClose }: DiscoveryModalProps) {
         ? { username, password }
         : undefined
       
-      const response = await axios.post('/api/discover', credentials)
+      // Get auth token from localStorage
+      const token = localStorage.getItem('token')
+      
+      const response = await axios.post('/api/discover', credentials, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : ''
+        }
+      })
       const count = response.data.discovered
       
       setResult(`Successfully discovered ${count} device${count !== 1 ? 's' : ''}!`)

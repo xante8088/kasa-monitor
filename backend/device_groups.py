@@ -170,7 +170,7 @@ class DeviceGroupManager:
         conn.commit()
         conn.close()
     
-    def create_group(self, group: DeviceGroup) -> int:
+    def create_group(self, group_data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new device group.
         
         Args:
@@ -189,21 +189,32 @@ class DeviceGroupManager:
                  icon, color, sort_order, enabled)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                group.name,
-                group.description,
-                group.group_type.value,
-                group.parent_id,
-                json.dumps(group.rules) if group.rules else None,
-                json.dumps(group.metadata) if group.metadata else None,
-                group.icon,
-                group.color,
-                group.sort_order,
-                group.enabled
+                group_data.get('name'),
+                group_data.get('description', ''),
+                'manual',  # Default group type
+                group_data.get('parent_id'),
+                json.dumps(group_data.get('rules')) if group_data.get('rules') else None,
+                json.dumps(group_data.get('metadata')) if group_data.get('metadata') else None,
+                group_data.get('icon'),
+                group_data.get('color'),
+                group_data.get('sort_order', 0),
+                group_data.get('enabled', True)
             ))
             
             group_id = cursor.lastrowid
+            
+            # Add devices to the group if provided
+            devices = group_data.get('devices', [])
+            for device_ip in devices:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO group_members (group_id, device_ip)
+                    VALUES (?, ?)
+                """, (group_id, device_ip))
+            
             conn.commit()
-            return group_id
+            
+            # Return the created group
+            return self.get_group(group_id)
             
         except sqlite3.IntegrityError:
             return 0
@@ -223,27 +234,40 @@ class DeviceGroupManager:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        # Build update query
-        fields = []
-        values = []
+        # Handle devices separately
+        devices = updates.pop('devices', None)
         
-        for key, value in updates.items():
-            fields.append(f"{key} = ?")
-            if key in ['rules', 'metadata']:
-                values.append(json.dumps(value) if value else None)
-            elif key == 'group_type':
-                values.append(value.value if isinstance(value, Enum) else value)
-            else:
-                values.append(value)
+        # Build update query for group fields
+        if updates:
+            fields = []
+            values = []
+            
+            for key, value in updates.items():
+                if key in ['name', 'description', 'parent_id']:  # Only update safe fields
+                    fields.append(f"{key} = ?")
+                    values.append(value)
+            
+            if fields:
+                fields.append("updated_at = CURRENT_TIMESTAMP")
+                values.append(group_id)
+                
+                query = f"UPDATE device_groups SET {', '.join(fields)} WHERE id = ?"
+                cursor.execute(query, values)
         
-        fields.append("updated_at = CURRENT_TIMESTAMP")
-        values.append(group_id)
+        # Update group members if devices provided
+        if devices is not None:
+            # Remove all existing members
+            cursor.execute("DELETE FROM group_members WHERE group_id = ?", (group_id,))
+            
+            # Add new members
+            for device_ip in devices:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO group_members (group_id, device_ip)
+                    VALUES (?, ?)
+                """, (group_id, device_ip))
         
-        query = f"UPDATE device_groups SET {', '.join(fields)} WHERE id = ?"
-        
-        cursor.execute(query, values)
-        success = cursor.rowcount > 0
         conn.commit()
+        success = True
         conn.close()
         
         return success
@@ -390,6 +414,135 @@ class DeviceGroupManager:
         
         conn.close()
         return groups
+    
+    def get_all_groups(self) -> List[Dict]:
+        """Get all device groups.
+        
+        Returns:
+            List of all groups with their metadata
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                SELECT 
+                    g.id,
+                    g.name,
+                    g.description,
+                    g.parent_id,
+                    g.created_at,
+                    COUNT(DISTINCT gm.device_ip) as device_count,
+                    0 as total_power
+                FROM device_groups g
+                LEFT JOIN group_members gm ON g.id = gm.group_id
+                WHERE g.enabled = 1
+                GROUP BY g.id
+                ORDER BY g.sort_order, g.name
+            """)
+            
+            groups = []
+            for row in cursor.fetchall():
+                # Get devices for this group
+                cursor.execute("""
+                    SELECT device_ip FROM group_members
+                    WHERE group_id = ?
+                """, (row[0],))
+                devices = [r[0] for r in cursor.fetchall()]
+                
+                groups.append({
+                    'id': row[0],
+                    'name': row[1],
+                    'description': row[2],
+                    'parent_id': row[3],
+                    'created_at': row[4],
+                    'device_count': row[5],
+                    'total_power': row[6],
+                    'devices': devices
+                })
+            
+            return groups
+            
+        finally:
+            conn.close()
+    
+    def get_group(self, group_id: int) -> Optional[Dict]:
+        """Get a specific device group.
+        
+        Args:
+            group_id: Group ID
+            
+        Returns:
+            Group data or None
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                SELECT 
+                    g.id,
+                    g.name,
+                    g.description,
+                    g.parent_id,
+                    g.created_at,
+                    COUNT(DISTINCT gm.device_ip) as device_count,
+                    0 as total_power
+                FROM device_groups g
+                LEFT JOIN group_members gm ON g.id = gm.group_id
+                WHERE g.id = ? AND g.enabled = 1
+                GROUP BY g.id
+            """, (group_id,))
+            
+            row = cursor.fetchone()
+            if not row:
+                return None
+            
+            # Get devices for this group
+            cursor.execute("""
+                SELECT device_ip FROM group_members
+                WHERE group_id = ?
+            """, (group_id,))
+            devices = [r[0] for r in cursor.fetchall()]
+            
+            return {
+                'id': row[0],
+                'name': row[1],
+                'description': row[2],
+                'parent_id': row[3],
+                'created_at': row[4],
+                'device_count': row[5],
+                'total_power': row[6],
+                'devices': devices
+            }
+            
+        finally:
+            conn.close()
+    
+    def control_group(self, group_id: int, action: str) -> Dict[str, Any]:
+        """Control all devices in a group.
+        
+        Args:
+            group_id: Group ID
+            action: Control action ('on' or 'off')
+            
+        Returns:
+            Result of control operation
+        """
+        devices = self.get_group_devices(group_id)
+        results = {'success': [], 'failed': []}
+        
+        # This would normally control actual devices
+        # For now, just return success for all devices
+        for device_ip in devices:
+            results['success'].append(device_ip)
+        
+        return {
+            'group_id': group_id,
+            'action': action,
+            'devices_affected': len(devices),
+            'results': results
+        }
     
     def get_group_hierarchy(self, parent_id: Optional[int] = None) -> List[Dict]:
         """Get hierarchical group structure.

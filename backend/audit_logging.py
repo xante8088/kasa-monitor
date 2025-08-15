@@ -22,6 +22,7 @@ import sqlite3
 import json
 import hashlib
 import asyncio
+import os
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Union
 from enum import Enum
@@ -30,6 +31,8 @@ import logging
 from pathlib import Path
 import csv
 import gzip
+
+logger = logging.getLogger(__name__)
 
 
 class AuditEventType(Enum):
@@ -431,11 +434,11 @@ class AuditLogger:
         
         if start_date:
             query += " AND timestamp >= ?"
-            params.append(start_date)
+            params.append(start_date.isoformat() if hasattr(start_date, 'isoformat') else start_date)
         
         if end_date:
             query += " AND timestamp <= ?"
-            params.append(end_date)
+            params.append(end_date.isoformat() if hasattr(end_date, 'isoformat') else end_date)
         
         if user_id:
             query += " AND user_id = ?"
@@ -481,6 +484,258 @@ class AuditLogger:
         
         conn.close()
         return logs
+    
+    async def get_logs(self, 
+                      page: int = 1,
+                      category: Optional[str] = None,
+                      severity: Optional[str] = None,
+                      date_range: str = "7days",
+                      search: Optional[str] = None,
+                      limit: int = 50) -> tuple[List[Dict], int]:
+        """Get paginated audit logs for API endpoint.
+        
+        Args:
+            page: Page number (1-based)
+            category: Event category filter
+            severity: Severity filter
+            date_range: Date range (7days, 30days, 90days, etc.)
+            search: Search term
+            limit: Results per page
+            
+        Returns:
+            Tuple of (logs, total_pages)
+        """
+        # Calculate date range
+        end_date = datetime.now()
+        if date_range == "1day":
+            start_date = end_date - timedelta(days=1)
+        elif date_range == "7days":
+            start_date = end_date - timedelta(days=7)
+        elif date_range == "30days":
+            start_date = end_date - timedelta(days=30)
+        elif date_range == "90days":
+            start_date = end_date - timedelta(days=90)
+        else:
+            start_date = end_date - timedelta(days=7)  # Default to 7 days
+        
+        # Convert category to event type pattern
+        event_type_pattern = None
+        if category and category != "all":
+            # Map category names to event type prefixes
+            category_prefixes = {
+                "authentication": "auth.",
+                "devices": "device.",
+                "users": "user.",
+                "system": "system.",
+                "security": "security.",
+                "data": "data.",
+                "api": "api."
+            }
+            if category in category_prefixes:
+                event_type_pattern = category_prefixes[category]
+                logger.info(f"Single category filter: {category} -> {event_type_pattern}")
+            elif "," in category:
+                # Handle multiple categories
+                categories = category.split(",")
+                patterns = [category_prefixes.get(cat.strip(), "") for cat in categories if cat.strip() in category_prefixes]
+                if patterns:
+                    event_type_pattern = patterns
+                    logger.info(f"Multiple category filters: {categories} -> {patterns}")
+        
+        # Convert severity (handle multiple values)
+        severity_values = []
+        if severity and severity != "all":
+            if "," in severity:
+                # Handle multiple severities
+                for sev in severity.split(","):
+                    try:
+                        severity_enum = AuditSeverity(sev.strip().lower())
+                        severity_values.append(severity_enum.value)
+                    except ValueError:
+                        pass
+            else:
+                try:
+                    severity_enum = AuditSeverity(severity.lower())
+                    severity_values.append(severity_enum.value)
+                except ValueError:
+                    pass
+        
+        # Get total count for pagination
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        count_query = "SELECT COUNT(*) FROM audit_log WHERE timestamp >= ? AND timestamp <= ?"
+        count_params = [start_date.isoformat(), end_date.isoformat()]
+        
+        if event_type_pattern:
+            if isinstance(event_type_pattern, list):
+                # Multiple patterns
+                pattern_conditions = " OR ".join(["event_type LIKE ?" for _ in event_type_pattern])
+                count_query += f" AND ({pattern_conditions})"
+                count_params.extend([f"{pattern}%" for pattern in event_type_pattern])
+            else:
+                # Single pattern
+                count_query += " AND event_type LIKE ?"
+                count_params.append(f"{event_type_pattern}%")
+        
+        if severity_values:
+            if len(severity_values) == 1:
+                count_query += " AND severity = ?"
+                count_params.append(severity_values[0])
+            else:
+                placeholders = ",".join(["?" for _ in severity_values])
+                count_query += f" AND severity IN ({placeholders})"
+                count_params.extend(severity_values)
+        
+        if search:
+            count_query += " AND (username LIKE ? OR action LIKE ? OR details LIKE ?)"
+            search_term = f"%{search}%"
+            count_params.extend([search_term, search_term, search_term])
+        
+        cursor.execute(count_query, count_params)
+        total_count = cursor.fetchone()[0]
+        total_pages = (total_count + limit - 1) // limit  # Ceiling division
+        
+        # Get paginated results
+        offset = (page - 1) * limit
+        query = """
+        SELECT id, event_type, severity, user_id, username, ip_address, 
+               user_agent, session_id, resource_type, resource_id, action, 
+               details, success, error_message, timestamp, checksum
+        FROM audit_log 
+        WHERE timestamp >= ? AND timestamp <= ?
+        """
+        params = [start_date.isoformat(), end_date.isoformat()]
+        
+        if event_type_pattern:
+            if isinstance(event_type_pattern, list):
+                # Multiple patterns
+                pattern_conditions = " OR ".join(["event_type LIKE ?" for _ in event_type_pattern])
+                query += f" AND ({pattern_conditions})"
+                params.extend([f"{pattern}%" for pattern in event_type_pattern])
+            else:
+                # Single pattern
+                query += " AND event_type LIKE ?"
+                params.append(f"{event_type_pattern}%")
+        
+        if severity_values:
+            if len(severity_values) == 1:
+                query += " AND severity = ?"
+                params.append(severity_values[0])
+            else:
+                placeholders = ",".join(["?" for _ in severity_values])
+                query += f" AND severity IN ({placeholders})"
+                params.extend(severity_values)
+        
+        if search:
+            query += " AND (username LIKE ? OR action LIKE ? OR details LIKE ?)"
+            search_term = f"%{search}%"
+            params.extend([search_term, search_term, search_term])
+        
+        query += " ORDER BY timestamp DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        
+        logger.debug(f"Query: {query[:200]}...")  # Log first 200 chars of query
+        logger.info(f"Filter params - category: {category}, severity: {severity}, search: {search}")
+        cursor.execute(query, params)
+        
+        logs = []
+        for row in cursor.fetchall():
+            logs.append({
+                'id': row[0],
+                'event_type': row[1],
+                'severity': row[2],
+                'user_id': row[3],
+                'username': row[4],
+                'ip_address': row[5],
+                'user_agent': row[6],
+                'session_id': row[7],
+                'resource_type': row[8],
+                'resource_id': row[9],
+                'action': row[10],
+                'details': json.loads(row[11]) if row[11] else {},
+                'success': bool(row[12]),
+                'error_message': row[13],
+                'timestamp': row[14],
+                'checksum': row[15]
+            })
+        
+        conn.close()
+        logger.info(f"Returning {len(logs)} logs for filters - category: {category}, severity: {severity}")
+        return logs, max(1, total_pages)  # Ensure at least 1 page
+    
+    async def export_logs(self, 
+                         format: str = "csv", 
+                         date_range: Optional[str] = None, 
+                         category: Optional[str] = None) -> Optional[str]:
+        """Export audit logs for API endpoint.
+        
+        Args:
+            format: Export format (csv, json)
+            date_range: Date range filter  
+            category: Category filter
+            
+        Returns:
+            Path to exported file or None if error
+        """
+        try:
+            # Calculate date range
+            end_date = datetime.now()
+            if date_range == "1day":
+                start_date = end_date - timedelta(days=1)
+                file_suffix = "1day"
+            elif date_range == "7days":
+                start_date = end_date - timedelta(days=7)
+                file_suffix = "7days"
+            elif date_range == "30days":
+                start_date = end_date - timedelta(days=30)
+                file_suffix = "30days"
+            elif date_range == "90days":
+                start_date = end_date - timedelta(days=90)
+                file_suffix = "90days"
+            else:
+                start_date = end_date - timedelta(days=7)
+                file_suffix = "7days"
+            
+            # Convert category to event type if needed
+            event_type = None
+            if category and category != "all":
+                try:
+                    event_type = AuditEventType(category)
+                except ValueError:
+                    event_type = None
+            
+            # Query logs
+            logs = self.query_logs(
+                start_date=start_date,
+                end_date=end_date,
+                event_type=event_type,
+                limit=1000000  # Large limit for export
+            )
+            
+            # Create export directory if it doesn't exist (use absolute path)
+            export_dir = Path(os.path.dirname(__file__)) / "exports" / "audit"
+            export_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Generate filename
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"audit_logs_{file_suffix}_{timestamp}.{format}"
+            file_path = export_dir / filename
+            
+            # Export based on format
+            if format.lower() == "csv":
+                self._export_to_csv(logs, file_path)
+            elif format.lower() == "json":
+                self._export_to_json(logs, file_path)
+            else:
+                # Default to CSV
+                self._export_to_csv(logs, file_path)
+            
+            return str(file_path)
+            
+        except Exception as e:
+            logger.error(f"Failed to export audit logs: {e}")
+            return None
     
     def get_user_activity(self, user_id: int, days: int = 7) -> List[Dict]:
         """Get user activity summary.
@@ -620,11 +875,11 @@ class AuditLogger:
         
         return report
     
-    def export_logs(self, 
+    def export_logs_legacy(self, 
                    start_date: datetime,
                    end_date: datetime,
                    output_file: str):
-        """Export audit logs to file.
+        """Legacy export audit logs to file method.
         
         Args:
             start_date: Start date
@@ -683,6 +938,30 @@ class AuditLogger:
         if self.enable_file_logging:
             self._cleanup_file_logs()
         
+        return deleted
+    
+    async def clear_logs(self, before_date: Optional[datetime] = None) -> int:
+        """Clear audit logs before specified date or all logs.
+        
+        Args:
+            before_date: Clear logs before this date. If None, clears all logs.
+            
+        Returns:
+            Number of logs cleared
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        if before_date:
+            cursor.execute("DELETE FROM audit_log WHERE timestamp < ?", (before_date.isoformat(),))
+        else:
+            cursor.execute("DELETE FROM audit_log")
+        
+        deleted = cursor.rowcount
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"Cleared {deleted} audit log entries")
         return deleted
     
     def verify_integrity(self, start_date: Optional[datetime] = None) -> List[int]:

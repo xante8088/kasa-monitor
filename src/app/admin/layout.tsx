@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Users, Shield, Settings, Home, BarChart3 } from 'lucide-react';
+import { Users, Shield, Settings, Home, BarChart3, FileText, Bell, AlertTriangle, Layers } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../../contexts/auth-context';
@@ -45,6 +45,30 @@ export default function AdminLayout({
       href: '/admin/permissions',
       icon: Shield,
       description: 'Configure role permissions'
+    },
+    {
+      name: 'Audit Logs',
+      href: '/admin/audit-logs',
+      icon: FileText,
+      description: 'System activity logs'
+    },
+    {
+      name: 'Device Groups',
+      href: '/admin/device-groups',
+      icon: Layers,
+      description: 'Manage device groups'
+    },
+    {
+      name: 'Alert Management',
+      href: '/admin/alerts',
+      icon: AlertTriangle,
+      description: 'Configure system alerts'
+    },
+    {
+      name: 'Notification Settings',
+      href: '/admin/notifications',
+      icon: Bell,
+      description: 'Notification preferences'
     },
     {
       name: 'System Config',

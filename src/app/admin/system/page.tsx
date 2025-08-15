@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { AppLayout } from '@/components/app-layout';
 
 interface SSLConfig {
   enabled: boolean;
@@ -185,20 +186,21 @@ export default function SystemConfigPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">System Configuration</h1>
-          <p className="text-gray-600 mt-1">Configure SSL, network settings, and system parameters</p>
+    <AppLayout>
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">System Configuration</h1>
+            <p className="text-gray-600 mt-1">Configure SSL, network settings, and system parameters</p>
+          </div>
+          <button
+            onClick={saveConfig}
+            disabled={saving}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save Configuration'}
+          </button>
         </div>
-        <button
-          onClick={saveConfig}
-          disabled={saving}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium disabled:opacity-50"
-        >
-          {saving ? 'Saving...' : 'Save Configuration'}
-        </button>
-      </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
@@ -456,6 +458,7 @@ export default function SystemConfigPage() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </AppLayout>
   );
 }
