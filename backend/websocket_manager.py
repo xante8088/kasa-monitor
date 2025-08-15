@@ -6,11 +6,12 @@ Handles real-time device status, energy data, and notifications
 import json
 import logging
 import asyncio
+import os
 from typing import Dict, List, Set, Any, Optional
 from datetime import datetime
 from fastapi import WebSocket, WebSocketDisconnect, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import jwt
+from jose import jwt
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
@@ -24,8 +25,12 @@ class ConnectionManager:
         self.active_connections: Dict[str, WebSocket] = {}
 
         # Subscription management
-        self.subscriptions: Dict[str, Set[str]] = defaultdict(set)  # topic -> set of client_ids
-        self.client_subscriptions: Dict[str, Set[str]] = defaultdict(set)  # client_id -> set of topics
+        self.subscriptions: Dict[str, Set[str]] = defaultdict(
+            set
+        )  # topic -> set of client_ids
+        self.client_subscriptions: Dict[str, Set[str]] = defaultdict(
+            set
+        )  # client_id -> set of topics
 
         # Authentication tracking
         self.authenticated_clients: Dict[str, Dict[str, Any]] = {}
@@ -39,7 +44,9 @@ class ConnectionManager:
             "errors": 0,
         }
 
-    async def connect(self, websocket: WebSocket, client_id: str, user_info: Optional[Dict] = None):
+    async def connect(
+        self, websocket: WebSocket, client_id: str, user_info: Optional[Dict] = None
+    ):
         """Accept and register a new WebSocket connection"""
         await websocket.accept()
         self.active_connections[client_id] = websocket
@@ -169,7 +176,10 @@ class ConnectionManager:
             "active_connections": len(self.active_connections),
             "authenticated_clients": len(self.authenticated_clients),
             "topics": len(self.subscriptions),
-            "topic_details": {topic: len(subscribers) for topic, subscribers in self.subscriptions.items()},
+            "topic_details": {
+                topic: len(subscribers)
+                for topic, subscribers in self.subscriptions.items()
+            },
         }
 
 
@@ -278,7 +288,9 @@ class WebSocketEventHandler:
 
     async def handle_ping(self, client_id: str, message: Dict[str, Any]):
         """Handle ping message"""
-        await self.manager.send_personal_message({"type": "pong", "timestamp": datetime.now().isoformat()}, client_id)
+        await self.manager.send_personal_message(
+            {"type": "pong", "timestamp": datetime.now().isoformat()}, client_id
+        )
 
 
 class WebSocketNotifier:
@@ -342,7 +354,9 @@ class WebSocketNotifier:
         }
 
         if "device_id" in schedule:
-            await self.manager.broadcast(message, topic=f"schedules:{schedule['device_id']}")
+            await self.manager.broadcast(
+                message, topic=f"schedules:{schedule['device_id']}"
+            )
 
         await self.manager.broadcast(message, topic="schedules:all")
 
@@ -354,7 +368,9 @@ notifier = WebSocketNotifier(manager)
 
 
 # WebSocket authentication
-async def get_current_user_ws(websocket: WebSocket, token: Optional[str] = None) -> Optional[Dict[str, Any]]:
+async def get_current_user_ws(
+    websocket: WebSocket, token: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
     """Authenticate WebSocket connection"""
     if not token:
         # Check for token in query params
@@ -374,12 +390,14 @@ async def get_current_user_ws(websocket: WebSocket, token: Optional[str] = None)
             "is_authenticated": True,
             "is_admin": payload.get("is_admin", False),
         }
-    except jwt.InvalidTokenError:
+    except jwt.JWTError:
         return None
 
 
 # WebSocket endpoint
-async def websocket_endpoint(websocket: WebSocket, client_id: str, token: Optional[str] = None):
+async def websocket_endpoint(
+    websocket: WebSocket, client_id: str, token: Optional[str] = None
+):
     """Main WebSocket endpoint"""
     # Authenticate if token provided
     user_info = await get_current_user_ws(websocket, token)

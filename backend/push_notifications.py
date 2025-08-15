@@ -29,7 +29,7 @@ import base64
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.backends import default_backend
-import jwt
+from jose import jwt
 import time
 import aiohttp
 from pathlib import Path
@@ -126,7 +126,9 @@ class WebPushService:
         self.vapid_public_key = vapid_public_key
         self.vapid_email = vapid_email
 
-    async def send(self, subscription: PushSubscription, notification: PushNotification) -> bool:
+    async def send(
+        self, subscription: PushSubscription, notification: PushNotification
+    ) -> bool:
         """Send Web Push notification.
 
         Args:
@@ -164,7 +166,9 @@ class WebPushService:
 
             # Send request
             async with aiohttp.ClientSession() as session:
-                async with session.post(subscription.endpoint, data=payload, headers=headers) as response:
+                async with session.post(
+                    subscription.endpoint, data=payload, headers=headers
+                ) as response:
                     return response.status in [200, 201, 204]
 
         except Exception:
@@ -239,9 +243,13 @@ class FCMService:
         self.service_account_path = service_account_path
         self.access_token = None
         self.token_expiry = None
-        self.fcm_url = "https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
+        self.fcm_url = (
+            "https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
+        )
 
-    async def send(self, subscription: PushSubscription, notification: PushNotification) -> bool:
+    async def send(
+        self, subscription: PushSubscription, notification: PushNotification
+    ) -> bool:
         """Send FCM notification.
 
         Args:
@@ -273,7 +281,9 @@ class FCMService:
                 message["message"]["notification"]["image"] = notification.image
 
             if notification.data:
-                message["message"]["data"] = {k: str(v) for k, v in notification.data.items()}
+                message["message"]["data"] = {
+                    k: str(v) for k, v in notification.data.items()
+                }
 
             # Platform-specific config
             if subscription.platform == PushPlatform.ANDROID:
@@ -283,11 +293,15 @@ class FCMService:
                 }
 
                 if notification.collapse_key:
-                    message["message"]["android"]["collapse_key"] = notification.collapse_key
+                    message["message"]["android"][
+                        "collapse_key"
+                    ] = notification.collapse_key
 
             elif subscription.platform == PushPlatform.IOS:
                 message["message"]["apns"] = {
-                    "headers": {"apns-priority": self._get_apns_priority(notification.priority)},
+                    "headers": {
+                        "apns-priority": self._get_apns_priority(notification.priority)
+                    },
                     "payload": {
                         "aps": {
                             "alert": {
@@ -299,10 +313,14 @@ class FCMService:
                 }
 
                 if notification.badge:
-                    message["message"]["apns"]["payload"]["aps"]["badge"] = notification.badge
+                    message["message"]["apns"]["payload"]["aps"][
+                        "badge"
+                    ] = notification.badge
 
                 if notification.sound:
-                    message["message"]["apns"]["payload"]["aps"]["sound"] = notification.sound
+                    message["message"]["apns"]["payload"]["aps"][
+                        "sound"
+                    ] = notification.sound
 
             # Send request
             headers = {
@@ -389,7 +407,9 @@ class PushNotificationManager:
         # Initialize services
         self.web_push = None
         if vapid_keys:
-            self.web_push = WebPushService(vapid_keys["private_key"], vapid_keys["public_key"], vapid_keys["email"])
+            self.web_push = WebPushService(
+                vapid_keys["private_key"], vapid_keys["public_key"], vapid_keys["email"]
+            )
 
         self.fcm = None
         if fcm_config:
@@ -510,7 +530,11 @@ class PushNotificationManager:
                     subscription.auth,
                     json.dumps(subscription.topics) if subscription.topics else None,
                     subscription.enabled,
-                    (json.dumps(subscription.metadata) if subscription.metadata else None),
+                    (
+                        json.dumps(subscription.metadata)
+                        if subscription.metadata
+                        else None
+                    ),
                 ),
             )
 
@@ -677,7 +701,9 @@ class PushNotificationManager:
 
         return sent_count
 
-    async def broadcast(self, notification: PushNotification, platform: Optional[PushPlatform] = None) -> int:
+    async def broadcast(
+        self, notification: PushNotification, platform: Optional[PushPlatform] = None
+    ) -> int:
         """Broadcast notification to all users.
 
         Args:
@@ -710,7 +736,9 @@ class PushNotificationManager:
 
         return sent_count
 
-    async def _send_notification(self, subscription: PushSubscription, notification: PushNotification) -> bool:
+    async def _send_notification(
+        self, subscription: PushSubscription, notification: PushNotification
+    ) -> bool:
         """Send notification to specific subscription.
 
         Args:
@@ -851,7 +879,9 @@ class PushNotificationManager:
         conn.commit()
         conn.close()
 
-    def get_metrics(self, days: int = 30, platform: Optional[PushPlatform] = None) -> Dict:
+    def get_metrics(
+        self, days: int = 30, platform: Optional[PushPlatform] = None
+    ) -> Dict:
         """Get push notification metrics.
 
         Args:

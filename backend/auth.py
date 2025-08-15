@@ -24,7 +24,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 import bcrypt
-import jwt
+from jose import jwt
 from fastapi import HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from models import User, Permission, UserRole
@@ -104,13 +104,17 @@ class AuthManager:
         return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
     @staticmethod
-    def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+    def create_access_token(
+        data: Dict[str, Any], expires_delta: Optional[timedelta] = None
+    ) -> str:
         """Create a JWT access token."""
         to_encode = data.copy()
         if expires_delta:
             expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+            expire = datetime.now(timezone.utc) + timedelta(
+                minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+            )
 
         # Convert datetime objects to ISO strings for JSON serialization (except exp)
         def serialize_datetime(obj):
@@ -124,7 +128,9 @@ class AuthManager:
 
         # Serialize everything except exp (which JWT needs as datetime)
         serialized_data = serialize_datetime(data)
-        to_encode = serialized_data.copy() if isinstance(serialized_data, dict) else data.copy()
+        to_encode = (
+            serialized_data.copy() if isinstance(serialized_data, dict) else data.copy()
+        )
         to_encode.update({"exp": expire})  # Add exp as datetime object
 
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -142,7 +148,7 @@ class AuthManager:
                 detail="Token expired",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        except jwt.PyJWTError as e:
+        except jwt.JWTError as e:
             import logging
 
             logging.error(f"JWT verification error: {str(e)}")
@@ -158,7 +164,9 @@ class AuthManager:
         return ROLE_PERMISSIONS.get(role, [])
 
     @staticmethod
-    def check_permission(user_permissions: list[Permission], required_permission: Permission) -> bool:
+    def check_permission(
+        user_permissions: list[Permission], required_permission: Permission
+    ) -> bool:
         """Check if user has required permission."""
         return required_permission in user_permissions
 
@@ -225,7 +233,9 @@ def require_permission(permission: Permission):
 def require_admin(user: User = Depends(require_auth)) -> User:
     """Require admin role."""
     if not user.is_admin and user.role != UserRole.ADMIN:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+        )
     return user
 
 
@@ -233,7 +243,9 @@ def get_network_access_config() -> Dict[str, Any]:
     """Get network access configuration."""
     return {
         "allow_local_only": os.getenv("ALLOW_LOCAL_ONLY", "true").lower() == "true",
-        "allowed_networks": os.getenv("ALLOWED_NETWORKS", "192.168.0.0/16,10.0.0.0/8,172.16.0.0/12").split(","),
+        "allowed_networks": os.getenv(
+            "ALLOWED_NETWORKS", "192.168.0.0/16,10.0.0.0/8,172.16.0.0/12"
+        ).split(","),
         "use_https": os.getenv("USE_HTTPS", "false").lower() == "true",
         "ssl_cert_path": os.getenv("SSL_CERT_PATH", ""),
         "ssl_key_path": os.getenv("SSL_KEY_PATH", ""),
