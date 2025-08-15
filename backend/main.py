@@ -13,24 +13,30 @@ from fastapi.responses import HTMLResponse
 import uvicorn
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Import all our modules
 from health_monitor import router as health_router, health_monitor
-from prometheus_metrics import router as metrics_router, metrics_collector, metrics_background_task
+from prometheus_metrics import (
+    router as metrics_router,
+    metrics_collector,
+    metrics_background_task,
+)
 from database_api import router as database_router
 from data_management_api import router as data_management_router
-from websocket_manager import websocket_endpoint, manager as ws_manager, websocket_background_task
+from websocket_manager import (
+    websocket_endpoint,
+    manager as ws_manager,
+    websocket_background_task,
+)
 from redis_cache import init_redis_cache, close_redis_cache
 from database_pool import init_pool
 
 # Import existing server functionality
 try:
     from server import app as existing_app, device_manager
+
     USE_EXISTING = True
 except ImportError:
     USE_EXISTING = False
@@ -41,53 +47,50 @@ except ImportError:
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     logger.info("Starting Kasa Monitor application...")
-    
+
     # Initialize database pool
     try:
         db_pool = init_pool()  # Use defaults
         logger.info("Database pool initialized")
     except Exception as e:
         logger.error(f"Failed to initialize database pool: {e}")
-    
+
     # Initialize Redis cache
     try:
-        await init_redis_cache(
-            default_ttl=3600,
-            max_connections=50
-        )
+        await init_redis_cache(default_ttl=3600, max_connections=50)
         logger.info("Redis cache initialized")
     except Exception as e:
         logger.warning(f"Redis cache not available: {e}")
-    
+
     # Initialize health monitor
     try:
         await health_monitor.initialize()
         logger.info("Health monitor initialized")
     except Exception as e:
         logger.error(f"Failed to initialize health monitor: {e}")
-    
+
     # Start background tasks
     tasks = []
     tasks.append(asyncio.create_task(metrics_background_task()))
     tasks.append(asyncio.create_task(websocket_background_task()))
     logger.info("Background tasks started")
-    
+
     yield
-    
+
     # Cleanup
     logger.info("Shutting down Kasa Monitor application...")
-    
+
     # Cancel background tasks
     for task in tasks:
         task.cancel()
-    
+
     # Close Redis cache
     await close_redis_cache()
-    
+
     # Close database pool
-    if 'db_pool' in locals():
+    if "db_pool" in locals():
         await db_pool.async_close()
-    
+
     logger.info("Cleanup completed")
 
 
@@ -97,7 +100,7 @@ if not USE_EXISTING:
         title="Kasa Monitor",
         description="Smart home device monitoring system with comprehensive features",
         version="2.0.0",
-        lifespan=lifespan
+        lifespan=lifespan,
     )
 else:
     app = existing_app
@@ -117,11 +120,13 @@ app.include_router(metrics_router, prefix="", tags=["metrics"])
 app.include_router(database_router, tags=["database"])
 app.include_router(data_management_router, tags=["data"])
 
+
 # WebSocket endpoint
 @app.websocket("/ws/{client_id}")
 async def websocket_route(websocket: WebSocket, client_id: str):
     """WebSocket endpoint for real-time updates"""
     await websocket_endpoint(websocket, client_id)
+
 
 # Test page for WebSocket
 @app.get("/test", response_class=HTMLResponse)
@@ -487,6 +492,7 @@ async def test_page():
     </html>
     """
 
+
 # Root endpoint
 @app.get("/")
 async def root():
@@ -498,13 +504,13 @@ async def root():
             "metrics": "/metrics",
             "test_page": "/test",
             "api_docs": "/docs",
-            "websocket": "ws://localhost:8000/ws/{client_id}"
+            "websocket": "ws://localhost:8000/ws/{client_id}",
         },
         "implemented_sections": [
             "Core Infrastructure (Health, Redis, WebSocket, Prometheus, Grafana)",
             "Database Features (Backup/Restore, Migrations, Connection Pooling)",
-            "Data Management Features (Export, Aggregation, Caching)"
-        ]
+            "Data Management Features (Export, Aggregation, Caching)",
+        ],
     }
 
 
@@ -515,16 +521,10 @@ if __name__ == "__main__":
     os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
     os.environ.setdefault("APP_VERSION", "2.0.0")
     os.environ.setdefault("ENVIRONMENT", "development")
-    
+
     # Create necessary directories
     os.makedirs("data", exist_ok=True)
     os.makedirs("backups", exist_ok=True)
-    
+
     # Run the application
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
-    )
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")

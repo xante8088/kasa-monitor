@@ -32,6 +32,7 @@ def get_data_exporter():
     global data_exporter
     if not data_exporter:
         from database import DatabaseManager
+
         db_manager = DatabaseManager()
         data_exporter = DataExporter(db_manager)
     return data_exporter
@@ -42,6 +43,7 @@ def get_bulk_operations():
     global bulk_operations
     if not bulk_operations:
         from database import DatabaseManager
+
         db_manager = DatabaseManager()
         bulk_operations = BulkOperations(db_manager)
     return bulk_operations
@@ -52,6 +54,7 @@ def get_data_aggregator():
     global data_aggregator
     if not data_aggregator:
         from database import DatabaseManager
+
         db_manager = DatabaseManager()
         data_aggregator = DataAggregator(db_manager)
     return data_aggregator
@@ -69,6 +72,7 @@ def get_cache_manager():
 
 
 # Request/Response Models
+
 
 class ExportRequest(BaseModel):
     format: str = "csv"  # csv, excel, pdf
@@ -118,86 +122,81 @@ class TrendAnalysisResponse(BaseModel):
 
 # Export Endpoints
 
+
 @router.post("/export/devices")
-async def export_devices(
-    request: ExportRequest,
-    user: User = Depends(get_current_user)
-):
+async def export_devices(request: ExportRequest, user: User = Depends(get_current_user)):
     """Export device data in various formats"""
     exporter = get_data_exporter()
-    
+
     try:
         if request.format == "csv":
             content = await exporter.export_devices_csv(user_id=user.id)
             return StreamingResponse(
                 io.BytesIO(content),
                 media_type="text/csv",
-                headers={"Content-Disposition": "attachment; filename=devices.csv"}
+                headers={"Content-Disposition": "attachment; filename=devices.csv"},
             )
-        
+
         elif request.format == "excel":
             content = await exporter.export_devices_excel(include_energy=request.include_energy)
             return StreamingResponse(
                 io.BytesIO(content),
                 media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                headers={"Content-Disposition": "attachment; filename=devices.xlsx"}
+                headers={"Content-Disposition": "attachment; filename=devices.xlsx"},
             )
-        
+
         elif request.format == "pdf":
             content = await exporter.generate_pdf_report(
                 report_type="devices",
                 start_date=request.start_date,
-                end_date=request.end_date
+                end_date=request.end_date,
             )
             return StreamingResponse(
                 io.BytesIO(content),
                 media_type="application/pdf",
-                headers={"Content-Disposition": "attachment; filename=devices_report.pdf"}
+                headers={"Content-Disposition": "attachment; filename=devices_report.pdf"},
             )
-        
+
         else:
             raise HTTPException(status_code=400, detail="Unsupported export format")
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/export/energy")
-async def export_energy_data(
-    request: ExportRequest,
-    user: User = Depends(get_current_user)
-):
+async def export_energy_data(request: ExportRequest, user: User = Depends(get_current_user)):
     """Export energy consumption data"""
     exporter = get_data_exporter()
-    
+
     try:
         if request.format == "csv":
             content = await exporter.export_energy_data_csv(
                 device_ip=request.device_ip,
                 start_date=request.start_date,
-                end_date=request.end_date
+                end_date=request.end_date,
             )
             return StreamingResponse(
                 io.BytesIO(content),
                 media_type="text/csv",
-                headers={"Content-Disposition": "attachment; filename=energy_data.csv"}
+                headers={"Content-Disposition": "attachment; filename=energy_data.csv"},
             )
-        
+
         elif request.format == "pdf":
             content = await exporter.generate_pdf_report(
                 report_type="energy",
                 start_date=request.start_date,
-                end_date=request.end_date
+                end_date=request.end_date,
             )
             return StreamingResponse(
                 io.BytesIO(content),
                 media_type="application/pdf",
-                headers={"Content-Disposition": "attachment; filename=energy_report.pdf"}
+                headers={"Content-Disposition": "attachment; filename=energy_report.pdf"},
             )
-        
+
         else:
             raise HTTPException(status_code=400, detail="Unsupported export format")
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -207,49 +206,46 @@ async def generate_report(
     report_type: str,
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
 ):
     """Generate comprehensive PDF report"""
     if report_type not in ["daily", "weekly", "monthly", "annual"]:
         raise HTTPException(status_code=400, detail="Invalid report type")
-    
+
     exporter = get_data_exporter()
-    
+
     try:
-        content = await exporter.generate_pdf_report(
-            report_type=report_type,
-            start_date=start_date,
-            end_date=end_date
-        )
-        
+        content = await exporter.generate_pdf_report(report_type=report_type, start_date=start_date, end_date=end_date)
+
         return StreamingResponse(
             io.BytesIO(content),
             media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename={report_type}_report.pdf"}
+            headers={"Content-Disposition": f"attachment; filename={report_type}_report.pdf"},
         )
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # Bulk Operations Endpoints
 
+
 @router.post("/bulk/import", response_model=BulkImportResponse)
 async def bulk_import_devices(
     file: UploadFile = File(...),
-    user: User = Depends(require_permission(Permission.DEVICES_EDIT))
+    user: User = Depends(require_permission(Permission.DEVICES_EDIT)),
 ):
     """Bulk import devices from CSV file"""
-    if not file.filename.endswith('.csv'):
+    if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are supported")
-    
+
     bulk_ops = get_bulk_operations()
-    
+
     try:
         content = await file.read()
         result = await bulk_ops.bulk_import_devices(content)
         return BulkImportResponse(**result)
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -257,15 +253,15 @@ async def bulk_import_devices(
 @router.post("/bulk/update")
 async def bulk_update_devices(
     request: BulkUpdateRequest,
-    user: User = Depends(require_permission(Permission.DEVICES_EDIT))
+    user: User = Depends(require_permission(Permission.DEVICES_EDIT)),
 ):
     """Bulk update device configurations"""
     bulk_ops = get_bulk_operations()
-    
+
     try:
         result = await bulk_ops.bulk_update_devices(request.updates)
         return result
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -273,20 +269,21 @@ async def bulk_update_devices(
 @router.post("/bulk/delete")
 async def bulk_delete_devices(
     request: BulkDeleteRequest,
-    user: User = Depends(require_permission(Permission.DEVICES_REMOVE))
+    user: User = Depends(require_permission(Permission.DEVICES_REMOVE)),
 ):
     """Bulk delete devices"""
     bulk_ops = get_bulk_operations()
-    
+
     try:
         result = await bulk_ops.bulk_delete_devices(request.device_ips)
         return result
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # Aggregation Endpoints
+
 
 @router.get("/aggregation")
 async def get_aggregated_data(
@@ -294,32 +291,32 @@ async def get_aggregated_data(
     device_ip: Optional[str] = Query(None),
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
 ):
     """Get aggregated data for specified period"""
     aggregator = get_data_aggregator()
     cache = get_cache_manager()
-    
+
     # Check cache
     cache_key = f"aggregation:{period}:{device_ip}:{start_date}:{end_date}"
     cached_data = await cache.get(cache_key)
     if cached_data:
         return cached_data
-    
+
     try:
         period_enum = AggregationPeriod(period.lower())
         data = await aggregator.get_aggregated_data(
             device_ip=device_ip,
             period=period_enum,
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
         )
-        
+
         # Cache result
         await cache.set(cache_key, data, ttl=300)
-        
+
         return data
-    
+
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid aggregation period")
     except Exception as e:
@@ -331,26 +328,22 @@ async def get_device_statistics(
     device_ip: str,
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
 ):
     """Get statistical analysis for a device"""
     aggregator = get_data_aggregator()
-    
+
     try:
-        stats = await aggregator.calculate_statistics(
-            device_ip=device_ip,
-            start_date=start_date,
-            end_date=end_date
-        )
-        
+        stats = await aggregator.calculate_statistics(device_ip=device_ip, start_date=start_date, end_date=end_date)
+
         return StatisticsResponse(
             device_ip=device_ip,
             statistics=stats,
             period="custom",
             start_date=start_date or datetime.now() - timedelta(days=30),
-            end_date=end_date or datetime.now()
+            end_date=end_date or datetime.now(),
         )
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -360,24 +353,19 @@ async def get_trend_analysis(
     device_ip: str,
     period: str = Query("day"),
     lookback: int = Query(30),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
 ):
     """Get trend analysis for a device"""
     aggregator = get_data_aggregator()
-    
+
     try:
         period_enum = AggregationPeriod(period.lower())
         analysis = await aggregator.get_trend_analysis(
-            device_ip=device_ip,
-            period=period_enum,
-            lookback_periods=lookback
+            device_ip=device_ip, period=period_enum, lookback_periods=lookback
         )
-        
-        return TrendAnalysisResponse(
-            device_ip=device_ip,
-            **analysis
-        )
-    
+
+        return TrendAnalysisResponse(device_ip=device_ip, **analysis)
+
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid period")
     except Exception as e:
@@ -386,15 +374,16 @@ async def get_trend_analysis(
 
 # Aggregation Management
 
+
 @router.post("/aggregation/run")
 async def trigger_aggregation(
     period: str = Query("hour"),
     force_date: Optional[datetime] = Query(None),
-    user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+    user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Manually trigger data aggregation"""
     aggregator = get_data_aggregator()
-    
+
     try:
         if period == "hour":
             await aggregator.aggregate_hourly_data(force_date)
@@ -404,9 +393,9 @@ async def trigger_aggregation(
             await aggregator.aggregate_monthly_data(force_date.year, force_date.month)
         else:
             raise HTTPException(status_code=400, detail="Invalid aggregation period")
-        
+
         return {"status": "success", "message": f"{period}ly aggregation completed"}
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -414,24 +403,28 @@ async def trigger_aggregation(
 @router.post("/aggregation/cleanup")
 async def cleanup_old_data(
     retention_days: int = Query(7),
-    user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+    user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Clean up old detailed data"""
     aggregator = get_data_aggregator()
-    
+
     try:
         await aggregator.cleanup_old_data(retention_days)
-        return {"status": "success", "message": f"Cleaned up data older than {retention_days} days"}
-    
+        return {
+            "status": "success",
+            "message": f"Cleaned up data older than {retention_days} days",
+        }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # Cache Management
 
+
 @router.get("/cache/stats")
 async def get_cache_statistics(
-    user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+    user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Get cache statistics"""
     cache = get_cache_manager()
@@ -441,7 +434,7 @@ async def get_cache_statistics(
 @router.post("/cache/clear")
 async def clear_cache(
     pattern: Optional[str] = Query(None),
-    user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+    user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Clear cache entries"""
     cache = get_cache_manager()
@@ -451,31 +444,32 @@ async def clear_cache(
 
 # Service Management
 
+
 @router.post("/services/start")
 async def start_data_services(
-    user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+    user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Start data management services"""
     aggregator = get_data_aggregator()
-    
+
     try:
         await aggregator.start()
         return {"status": "success", "message": "Data services started"}
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/services/stop")
 async def stop_data_services(
-    user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+    user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Stop data management services"""
     aggregator = get_data_aggregator()
-    
+
     try:
         await aggregator.stop()
         return {"status": "success", "message": "Data services stopped"}
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

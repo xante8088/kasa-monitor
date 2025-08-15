@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 class AuditEventType(Enum):
     """Types of audit events."""
+
     # Authentication events
     LOGIN_SUCCESS = "auth.login.success"
     LOGIN_FAILURE = "auth.login.failure"
@@ -45,7 +46,7 @@ class AuditEventType(Enum):
     PASSWORD_RESET = "auth.password_reset"
     MFA_ENABLED = "auth.mfa_enabled"
     MFA_DISABLED = "auth.mfa_disabled"
-    
+
     # User management
     USER_CREATED = "user.created"
     USER_UPDATED = "user.updated"
@@ -54,34 +55,34 @@ class AuditEventType(Enum):
     USER_PERMISSIONS_CHANGED = "user.permissions_changed"
     USER_LOCKED = "user.locked"
     USER_UNLOCKED = "user.unlocked"
-    
+
     # Device management
     DEVICE_ADDED = "device.added"
     DEVICE_REMOVED = "device.removed"
     DEVICE_UPDATED = "device.updated"
     DEVICE_CONTROLLED = "device.controlled"
     DEVICE_DISCOVERED = "device.discovered"
-    
+
     # System events
     SYSTEM_CONFIG_CHANGED = "system.config_changed"
     SYSTEM_BACKUP_CREATED = "system.backup_created"
     SYSTEM_BACKUP_RESTORED = "system.backup_restored"
     SYSTEM_UPDATE = "system.update"
     SYSTEM_ERROR = "system.error"
-    
+
     # Data access
     DATA_EXPORTED = "data.exported"
     DATA_IMPORTED = "data.imported"
     DATA_VIEWED = "data.viewed"
     DATA_DELETED = "data.deleted"
-    
+
     # Security events
     SECURITY_VIOLATION = "security.violation"
     PERMISSION_DENIED = "security.permission_denied"
     RATE_LIMIT_EXCEEDED = "security.rate_limit"
     SUSPICIOUS_ACTIVITY = "security.suspicious"
     IP_BLOCKED = "security.ip_blocked"
-    
+
     # API events
     API_KEY_CREATED = "api.key_created"
     API_KEY_REVOKED = "api.key_revoked"
@@ -91,6 +92,7 @@ class AuditEventType(Enum):
 
 class AuditSeverity(Enum):
     """Severity levels for audit events."""
+
     DEBUG = "debug"
     INFO = "info"
     WARNING = "warning"
@@ -101,6 +103,7 @@ class AuditSeverity(Enum):
 @dataclass
 class AuditEvent:
     """Audit event data structure."""
+
     event_type: AuditEventType
     severity: AuditSeverity
     user_id: Optional[int]
@@ -115,27 +118,29 @@ class AuditEvent:
     timestamp: datetime
     success: bool
     error_message: Optional[str] = None
-    
+
     def to_dict(self) -> Dict:
         """Convert to dictionary."""
         data = asdict(self)
-        data['event_type'] = self.event_type.value
-        data['severity'] = self.severity.value
-        data['timestamp'] = self.timestamp.isoformat()
+        data["event_type"] = self.event_type.value
+        data["severity"] = self.severity.value
+        data["timestamp"] = self.timestamp.isoformat()
         return data
 
 
 class AuditLogger:
     """Main audit logging system."""
-    
-    def __init__(self, 
-                 db_path: str = "kasa_monitor.db",
-                 log_dir: str = "/var/log/kasa_monitor/audit",
-                 enable_file_logging: bool = True,
-                 enable_compression: bool = True,
-                 retention_days: int = 90):
+
+    def __init__(
+        self,
+        db_path: str = "kasa_monitor.db",
+        log_dir: str = "/var/log/kasa_monitor/audit",
+        enable_file_logging: bool = True,
+        enable_compression: bool = True,
+        retention_days: int = 90,
+    ):
         """Initialize audit logger.
-        
+
         Args:
             db_path: Path to database
             log_dir: Directory for audit log files
@@ -148,20 +153,21 @@ class AuditLogger:
         self.enable_file_logging = enable_file_logging
         self.enable_compression = enable_compression
         self.retention_days = retention_days
-        
+
         if enable_file_logging:
             self.log_dir.mkdir(parents=True, exist_ok=True)
-        
+
         self._init_database()
         self._setup_file_logger()
-    
+
     def _init_database(self):
         """Initialize audit log tables."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         # Main audit log table
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS audit_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 event_type TEXT NOT NULL,
@@ -180,46 +186,60 @@ class AuditLogger:
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 checksum TEXT
             )
-        """)
-        
+        """
+        )
+
         # Indexes for common queries
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_audit_timestamp 
             ON audit_log(timestamp DESC)
-        """)
-        
-        cursor.execute("""
+        """
+        )
+
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_audit_user 
             ON audit_log(user_id, timestamp DESC)
-        """)
-        
-        cursor.execute("""
+        """
+        )
+
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_audit_event_type 
             ON audit_log(event_type, timestamp DESC)
-        """)
-        
-        cursor.execute("""
+        """
+        )
+
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_audit_severity 
             ON audit_log(severity, timestamp DESC)
-        """)
-        
-        cursor.execute("""
+        """
+        )
+
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_audit_resource 
             ON audit_log(resource_type, resource_id)
-        """)
-        
+        """
+        )
+
         # Audit log retention policy
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS audit_retention (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 event_type_pattern TEXT,
                 retention_days INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """)
-        
+        """
+        )
+
         # Audit log analysis cache
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS audit_analysis_cache (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 analysis_type TEXT,
@@ -228,78 +248,79 @@ class AuditLogger:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 expires_at TIMESTAMP
             )
-        """)
-        
+        """
+        )
+
         conn.commit()
         conn.close()
-    
+
     def _setup_file_logger(self):
         """Setup file-based audit logger."""
         if not self.enable_file_logging:
             self.file_logger = None
             return
-        
+
         # Configure Python logging
-        self.file_logger = logging.getLogger('audit')
+        self.file_logger = logging.getLogger("audit")
         self.file_logger.setLevel(logging.INFO)
-        
+
         # Create rotating file handler
         log_file = self.log_dir / f"audit_{datetime.now().strftime('%Y%m%d')}.log"
         handler = logging.FileHandler(log_file)
-        
+
         # Set format
-        formatter = logging.Formatter(
-            '%(asctime)s - %(levelname)s - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
         handler.setFormatter(formatter)
-        
+
         self.file_logger.addHandler(handler)
-    
+
     def log_event(self, event: AuditEvent):
         """Log an audit event.
-        
+
         Args:
             event: Audit event to log
         """
         # Calculate checksum for integrity
         checksum = self._calculate_checksum(event)
-        
+
         # Store in database
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
-        cursor.execute("""
+
+        cursor.execute(
+            """
             INSERT INTO audit_log 
             (event_type, severity, user_id, username, ip_address, user_agent,
              session_id, resource_type, resource_id, action, details, success,
              error_message, timestamp, checksum)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            event.event_type.value,
-            event.severity.value,
-            event.user_id,
-            event.username,
-            event.ip_address,
-            event.user_agent,
-            event.session_id,
-            event.resource_type,
-            event.resource_id,
-            event.action,
-            json.dumps(event.details),
-            event.success,
-            event.error_message,
-            event.timestamp,
-            checksum
-        ))
-        
+        """,
+            (
+                event.event_type.value,
+                event.severity.value,
+                event.user_id,
+                event.username,
+                event.ip_address,
+                event.user_agent,
+                event.session_id,
+                event.resource_type,
+                event.resource_id,
+                event.action,
+                json.dumps(event.details),
+                event.success,
+                event.error_message,
+                event.timestamp,
+                checksum,
+            ),
+        )
+
         conn.commit()
         conn.close()
-        
+
         # Log to file if enabled
         if self.file_logger:
             log_message = self._format_log_message(event)
-            
+
             if event.severity == AuditSeverity.DEBUG:
                 self.file_logger.debug(log_message)
             elif event.severity == AuditSeverity.INFO:
@@ -310,20 +331,26 @@ class AuditLogger:
                 self.file_logger.error(log_message)
             elif event.severity == AuditSeverity.CRITICAL:
                 self.file_logger.critical(log_message)
-    
+
     async def log_event_async(self, event: AuditEvent):
         """Log an audit event asynchronously.
-        
+
         Args:
             event: Audit event to log
         """
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, self.log_event, event)
-    
-    def log_login(self, user_id: int, username: str, ip_address: str, 
-                  success: bool, error_message: Optional[str] = None):
+
+    def log_login(
+        self,
+        user_id: int,
+        username: str,
+        ip_address: str,
+        success: bool,
+        error_message: Optional[str] = None,
+    ):
         """Log login attempt.
-        
+
         Args:
             user_id: User ID
             username: Username
@@ -332,7 +359,7 @@ class AuditLogger:
             error_message: Error message if failed
         """
         event = AuditEvent(
-            event_type=AuditEventType.LOGIN_SUCCESS if success else AuditEventType.LOGIN_FAILURE,
+            event_type=(AuditEventType.LOGIN_SUCCESS if success else AuditEventType.LOGIN_FAILURE),
             severity=AuditSeverity.INFO if success else AuditSeverity.WARNING,
             user_id=user_id if success else None,
             username=username,
@@ -345,14 +372,20 @@ class AuditLogger:
             details={"username": username},
             timestamp=datetime.now(),
             success=success,
-            error_message=error_message
+            error_message=error_message,
         )
         self.log_event(event)
-    
-    def log_data_access(self, user_id: int, resource_type: str, 
-                       resource_id: str, action: str, details: Optional[Dict] = None):
+
+    def log_data_access(
+        self,
+        user_id: int,
+        resource_type: str,
+        resource_id: str,
+        action: str,
+        details: Optional[Dict] = None,
+    ):
         """Log data access event.
-        
+
         Args:
             user_id: User ID
             resource_type: Type of resource
@@ -373,14 +406,19 @@ class AuditLogger:
             action=action,
             details=details or {},
             timestamp=datetime.now(),
-            success=True
+            success=True,
         )
         self.log_event(event)
-    
-    def log_security_event(self, event_type: AuditEventType, ip_address: str,
-                          details: Dict, severity: AuditSeverity = AuditSeverity.WARNING):
+
+    def log_security_event(
+        self,
+        event_type: AuditEventType,
+        ip_address: str,
+        details: Dict,
+        severity: AuditSeverity = AuditSeverity.WARNING,
+    ):
         """Log security event.
-        
+
         Args:
             event_type: Type of security event
             ip_address: IP address
@@ -400,20 +438,22 @@ class AuditLogger:
             action="security_event",
             details=details,
             timestamp=datetime.now(),
-            success=False
+            success=False,
         )
         self.log_event(event)
-    
-    def query_logs(self,
-                  start_date: Optional[datetime] = None,
-                  end_date: Optional[datetime] = None,
-                  user_id: Optional[int] = None,
-                  event_type: Optional[AuditEventType] = None,
-                  severity: Optional[AuditSeverity] = None,
-                  resource_type: Optional[str] = None,
-                  limit: int = 100) -> List[Dict]:
+
+    def query_logs(
+        self,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        user_id: Optional[int] = None,
+        event_type: Optional[AuditEventType] = None,
+        severity: Optional[AuditSeverity] = None,
+        resource_type: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict]:
         """Query audit logs.
-        
+
         Args:
             start_date: Start date filter
             end_date: End date filter
@@ -422,78 +462,82 @@ class AuditLogger:
             severity: Severity filter
             resource_type: Resource type filter
             limit: Maximum results
-            
+
         Returns:
             List of audit log entries
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         query = "SELECT * FROM audit_log WHERE 1=1"
         params = []
-        
+
         if start_date:
             query += " AND timestamp >= ?"
-            params.append(start_date.isoformat() if hasattr(start_date, 'isoformat') else start_date)
-        
+            params.append(start_date.isoformat() if hasattr(start_date, "isoformat") else start_date)
+
         if end_date:
             query += " AND timestamp <= ?"
-            params.append(end_date.isoformat() if hasattr(end_date, 'isoformat') else end_date)
-        
+            params.append(end_date.isoformat() if hasattr(end_date, "isoformat") else end_date)
+
         if user_id:
             query += " AND user_id = ?"
             params.append(user_id)
-        
+
         if event_type:
             query += " AND event_type = ?"
             params.append(event_type.value)
-        
+
         if severity:
             query += " AND severity = ?"
             params.append(severity.value)
-        
+
         if resource_type:
             query += " AND resource_type = ?"
             params.append(resource_type)
-        
+
         query += " ORDER BY timestamp DESC LIMIT ?"
         params.append(limit)
-        
+
         cursor.execute(query, params)
-        
+
         logs = []
         for row in cursor.fetchall():
-            logs.append({
-                'id': row[0],
-                'event_type': row[1],
-                'severity': row[2],
-                'user_id': row[3],
-                'username': row[4],
-                'ip_address': row[5],
-                'user_agent': row[6],
-                'session_id': row[7],
-                'resource_type': row[8],
-                'resource_id': row[9],
-                'action': row[10],
-                'details': json.loads(row[11]) if row[11] else {},
-                'success': bool(row[12]),
-                'error_message': row[13],
-                'timestamp': row[14],
-                'checksum': row[15]
-            })
-        
+            logs.append(
+                {
+                    "id": row[0],
+                    "event_type": row[1],
+                    "severity": row[2],
+                    "user_id": row[3],
+                    "username": row[4],
+                    "ip_address": row[5],
+                    "user_agent": row[6],
+                    "session_id": row[7],
+                    "resource_type": row[8],
+                    "resource_id": row[9],
+                    "action": row[10],
+                    "details": json.loads(row[11]) if row[11] else {},
+                    "success": bool(row[12]),
+                    "error_message": row[13],
+                    "timestamp": row[14],
+                    "checksum": row[15],
+                }
+            )
+
         conn.close()
         return logs
-    
-    async def get_logs(self, 
-                      page: int = 1,
-                      category: Optional[str] = None,
-                      severity: Optional[str] = None,
-                      date_range: str = "7days",
-                      search: Optional[str] = None,
-                      limit: int = 50) -> tuple[List[Dict], int]:
+
+    async def get_logs(
+        self,
+        page: int = 1,
+        category: Optional[str] = None,
+        severity: Optional[str] = None,
+        date_range: str = "7days",
+        search: Optional[str] = None,
+        limit: int = 50,
+    ) -> tuple[List[Dict], int]:
         """Get paginated audit logs for API endpoint.
-        
+
         Args:
             page: Page number (1-based)
             category: Event category filter
@@ -501,7 +545,7 @@ class AuditLogger:
             date_range: Date range (7days, 30days, 90days, etc.)
             search: Search term
             limit: Results per page
-            
+
         Returns:
             Tuple of (logs, total_pages)
         """
@@ -517,7 +561,7 @@ class AuditLogger:
             start_date = end_date - timedelta(days=90)
         else:
             start_date = end_date - timedelta(days=7)  # Default to 7 days
-        
+
         # Convert category to event type pattern
         event_type_pattern = None
         if category and category != "all":
@@ -529,7 +573,7 @@ class AuditLogger:
                 "system": "system.",
                 "security": "security.",
                 "data": "data.",
-                "api": "api."
+                "api": "api.",
             }
             if category in category_prefixes:
                 event_type_pattern = category_prefixes[category]
@@ -537,11 +581,13 @@ class AuditLogger:
             elif "," in category:
                 # Handle multiple categories
                 categories = category.split(",")
-                patterns = [category_prefixes.get(cat.strip(), "") for cat in categories if cat.strip() in category_prefixes]
+                patterns = [
+                    category_prefixes.get(cat.strip(), "") for cat in categories if cat.strip() in category_prefixes
+                ]
                 if patterns:
                     event_type_pattern = patterns
                     logger.info(f"Multiple category filters: {categories} -> {patterns}")
-        
+
         # Convert severity (handle multiple values)
         severity_values = []
         if severity and severity != "all":
@@ -559,14 +605,14 @@ class AuditLogger:
                     severity_values.append(severity_enum.value)
                 except ValueError:
                     pass
-        
+
         # Get total count for pagination
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         count_query = "SELECT COUNT(*) FROM audit_log WHERE timestamp >= ? AND timestamp <= ?"
         count_params = [start_date.isoformat(), end_date.isoformat()]
-        
+
         if event_type_pattern:
             if isinstance(event_type_pattern, list):
                 # Multiple patterns
@@ -577,7 +623,7 @@ class AuditLogger:
                 # Single pattern
                 count_query += " AND event_type LIKE ?"
                 count_params.append(f"{event_type_pattern}%")
-        
+
         if severity_values:
             if len(severity_values) == 1:
                 count_query += " AND severity = ?"
@@ -586,16 +632,16 @@ class AuditLogger:
                 placeholders = ",".join(["?" for _ in severity_values])
                 count_query += f" AND severity IN ({placeholders})"
                 count_params.extend(severity_values)
-        
+
         if search:
             count_query += " AND (username LIKE ? OR action LIKE ? OR details LIKE ?)"
             search_term = f"%{search}%"
             count_params.extend([search_term, search_term, search_term])
-        
+
         cursor.execute(count_query, count_params)
         total_count = cursor.fetchone()[0]
         total_pages = (total_count + limit - 1) // limit  # Ceiling division
-        
+
         # Get paginated results
         offset = (page - 1) * limit
         query = """
@@ -606,7 +652,7 @@ class AuditLogger:
         WHERE timestamp >= ? AND timestamp <= ?
         """
         params = [start_date.isoformat(), end_date.isoformat()]
-        
+
         if event_type_pattern:
             if isinstance(event_type_pattern, list):
                 # Multiple patterns
@@ -617,7 +663,7 @@ class AuditLogger:
                 # Single pattern
                 query += " AND event_type LIKE ?"
                 params.append(f"{event_type_pattern}%")
-        
+
         if severity_values:
             if len(severity_values) == 1:
                 query += " AND severity = ?"
@@ -626,55 +672,59 @@ class AuditLogger:
                 placeholders = ",".join(["?" for _ in severity_values])
                 query += f" AND severity IN ({placeholders})"
                 params.extend(severity_values)
-        
+
         if search:
             query += " AND (username LIKE ? OR action LIKE ? OR details LIKE ?)"
             search_term = f"%{search}%"
             params.extend([search_term, search_term, search_term])
-        
+
         query += " ORDER BY timestamp DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
-        
+
         logger.debug(f"Query: {query[:200]}...")  # Log first 200 chars of query
         logger.info(f"Filter params - category: {category}, severity: {severity}, search: {search}")
         cursor.execute(query, params)
-        
+
         logs = []
         for row in cursor.fetchall():
-            logs.append({
-                'id': row[0],
-                'event_type': row[1],
-                'severity': row[2],
-                'user_id': row[3],
-                'username': row[4],
-                'ip_address': row[5],
-                'user_agent': row[6],
-                'session_id': row[7],
-                'resource_type': row[8],
-                'resource_id': row[9],
-                'action': row[10],
-                'details': json.loads(row[11]) if row[11] else {},
-                'success': bool(row[12]),
-                'error_message': row[13],
-                'timestamp': row[14],
-                'checksum': row[15]
-            })
-        
+            logs.append(
+                {
+                    "id": row[0],
+                    "event_type": row[1],
+                    "severity": row[2],
+                    "user_id": row[3],
+                    "username": row[4],
+                    "ip_address": row[5],
+                    "user_agent": row[6],
+                    "session_id": row[7],
+                    "resource_type": row[8],
+                    "resource_id": row[9],
+                    "action": row[10],
+                    "details": json.loads(row[11]) if row[11] else {},
+                    "success": bool(row[12]),
+                    "error_message": row[13],
+                    "timestamp": row[14],
+                    "checksum": row[15],
+                }
+            )
+
         conn.close()
         logger.info(f"Returning {len(logs)} logs for filters - category: {category}, severity: {severity}")
         return logs, max(1, total_pages)  # Ensure at least 1 page
-    
-    async def export_logs(self, 
-                         format: str = "csv", 
-                         date_range: Optional[str] = None, 
-                         category: Optional[str] = None) -> Optional[str]:
+
+    async def export_logs(
+        self,
+        format: str = "csv",
+        date_range: Optional[str] = None,
+        category: Optional[str] = None,
+    ) -> Optional[str]:
         """Export audit logs for API endpoint.
-        
+
         Args:
             format: Export format (csv, json)
-            date_range: Date range filter  
+            date_range: Date range filter
             category: Category filter
-            
+
         Returns:
             Path to exported file or None if error
         """
@@ -696,7 +746,7 @@ class AuditLogger:
             else:
                 start_date = end_date - timedelta(days=7)
                 file_suffix = "7days"
-            
+
             # Convert category to event type if needed
             event_type = None
             if category and category != "all":
@@ -704,24 +754,24 @@ class AuditLogger:
                     event_type = AuditEventType(category)
                 except ValueError:
                     event_type = None
-            
+
             # Query logs
             logs = self.query_logs(
                 start_date=start_date,
                 end_date=end_date,
                 event_type=event_type,
-                limit=1000000  # Large limit for export
+                limit=1000000,  # Large limit for export
             )
-            
+
             # Create export directory if it doesn't exist (use absolute path)
             export_dir = Path(os.path.dirname(__file__)) / "exports" / "audit"
             export_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # Generate filename
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"audit_logs_{file_suffix}_{timestamp}.{format}"
             file_path = export_dir / filename
-            
+
             # Export based on format
             if format.lower() == "csv":
                 self._export_to_csv(logs, file_path)
@@ -730,86 +780,94 @@ class AuditLogger:
             else:
                 # Default to CSV
                 self._export_to_csv(logs, file_path)
-            
+
             return str(file_path)
-            
+
         except Exception as e:
             logger.error(f"Failed to export audit logs: {e}")
             return None
-    
+
     def get_user_activity(self, user_id: int, days: int = 7) -> List[Dict]:
         """Get user activity summary.
-        
+
         Args:
             user_id: User ID
             days: Number of days to look back
-            
+
         Returns:
             User activity summary
         """
         start_date = datetime.now() - timedelta(days=days)
-        
+
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         # Get activity counts by type
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT event_type, COUNT(*) as count
             FROM audit_log
             WHERE user_id = ? AND timestamp >= ?
             GROUP BY event_type
             ORDER BY count DESC
-        """, (user_id, start_date))
-        
+        """,
+            (user_id, start_date),
+        )
+
         activity_counts = {}
         for event_type, count in cursor.fetchall():
             activity_counts[event_type] = count
-        
+
         # Get recent activities
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT event_type, action, resource_type, resource_id, timestamp
             FROM audit_log
             WHERE user_id = ? AND timestamp >= ?
             ORDER BY timestamp DESC
             LIMIT 50
-        """, (user_id, start_date))
-        
+        """,
+            (user_id, start_date),
+        )
+
         recent_activities = []
         for row in cursor.fetchall():
-            recent_activities.append({
-                'event_type': row[0],
-                'action': row[1],
-                'resource_type': row[2],
-                'resource_id': row[3],
-                'timestamp': row[4]
-            })
-        
+            recent_activities.append(
+                {
+                    "event_type": row[0],
+                    "action": row[1],
+                    "resource_type": row[2],
+                    "resource_id": row[3],
+                    "timestamp": row[4],
+                }
+            )
+
         conn.close()
-        
+
         return {
-            'activity_counts': activity_counts,
-            'recent_activities': recent_activities
+            "activity_counts": activity_counts,
+            "recent_activities": recent_activities,
         }
-    
-    def generate_compliance_report(self, 
-                                  start_date: datetime,
-                                  end_date: datetime,
-                                  output_format: str = 'json') -> Union[Dict, str]:
+
+    def generate_compliance_report(
+        self, start_date: datetime, end_date: datetime, output_format: str = "json"
+    ) -> Union[Dict, str]:
         """Generate compliance report.
-        
+
         Args:
             start_date: Report start date
             end_date: Report end date
             output_format: Output format (json, csv)
-            
+
         Returns:
             Compliance report data
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         # Get summary statistics
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT 
                 COUNT(*) as total_events,
                 COUNT(DISTINCT user_id) as unique_users,
@@ -818,226 +876,228 @@ class AuditLogger:
                 COUNT(DISTINCT DATE(timestamp)) as active_days
             FROM audit_log
             WHERE timestamp BETWEEN ? AND ?
-        """, (start_date, end_date))
-        
+        """,
+            (start_date, end_date),
+        )
+
         stats = cursor.fetchone()
-        
+
         # Get events by type
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT event_type, COUNT(*) as count
             FROM audit_log
             WHERE timestamp BETWEEN ? AND ?
             GROUP BY event_type
             ORDER BY count DESC
-        """, (start_date, end_date))
-        
+        """,
+            (start_date, end_date),
+        )
+
         events_by_type = {}
         for event_type, count in cursor.fetchall():
             events_by_type[event_type] = count
-        
+
         # Get security events
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT event_type, severity, COUNT(*) as count
             FROM audit_log
             WHERE timestamp BETWEEN ? AND ?
             AND event_type LIKE 'security.%'
             GROUP BY event_type, severity
-        """, (start_date, end_date))
-        
+        """,
+            (start_date, end_date),
+        )
+
         security_events = []
         for row in cursor.fetchall():
-            security_events.append({
-                'event_type': row[0],
-                'severity': row[1],
-                'count': row[2]
-            })
-        
+            security_events.append({"event_type": row[0], "severity": row[1], "count": row[2]})
+
         conn.close()
-        
+
         report = {
-            'period': {
-                'start': start_date.isoformat(),
-                'end': end_date.isoformat()
+            "period": {"start": start_date.isoformat(), "end": end_date.isoformat()},
+            "summary": {
+                "total_events": stats[0],
+                "unique_users": stats[1],
+                "unique_ips": stats[2],
+                "failed_events": stats[3],
+                "active_days": stats[4],
             },
-            'summary': {
-                'total_events': stats[0],
-                'unique_users': stats[1],
-                'unique_ips': stats[2],
-                'failed_events': stats[3],
-                'active_days': stats[4]
-            },
-            'events_by_type': events_by_type,
-            'security_events': security_events
+            "events_by_type": events_by_type,
+            "security_events": security_events,
         }
-        
-        if output_format == 'csv':
+
+        if output_format == "csv":
             return self._report_to_csv(report)
-        
+
         return report
-    
-    def export_logs_legacy(self, 
-                   start_date: datetime,
-                   end_date: datetime,
-                   output_file: str):
+
+    def export_logs_legacy(self, start_date: datetime, end_date: datetime, output_file: str):
         """Legacy export audit logs to file method.
-        
+
         Args:
             start_date: Start date
             end_date: End date
             output_file: Output file path
         """
         logs = self.query_logs(start_date=start_date, end_date=end_date, limit=1000000)
-        
+
         output_path = Path(output_file)
-        
-        if output_path.suffix == '.csv':
+
+        if output_path.suffix == ".csv":
             self._export_to_csv(logs, output_path)
-        elif output_path.suffix == '.json':
+        elif output_path.suffix == ".json":
             self._export_to_json(logs, output_path)
         else:
             # Default to JSON
             self._export_to_json(logs, output_path)
-        
+
         # Compress if enabled
         if self.enable_compression:
             self._compress_file(output_path)
-    
+
     def cleanup_old_logs(self):
         """Clean up old audit logs based on retention policy."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         # Get retention policies
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT event_type_pattern, retention_days
             FROM audit_retention
-        """)
-        
+        """
+        )
+
         policies = cursor.fetchall()
-        
+
         # Apply default retention if no specific policies
         if not policies:
             cutoff_date = datetime.now() - timedelta(days=self.retention_days)
-            cursor.execute("""
+            cursor.execute(
+                """
                 DELETE FROM audit_log WHERE timestamp < ?
-            """, (cutoff_date,))
+            """,
+                (cutoff_date,),
+            )
         else:
             # Apply specific retention policies
             for pattern, retention_days in policies:
                 cutoff_date = datetime.now() - timedelta(days=retention_days)
-                cursor.execute("""
+                cursor.execute(
+                    """
                     DELETE FROM audit_log 
                     WHERE timestamp < ? AND event_type LIKE ?
-                """, (cutoff_date, pattern))
-        
+                """,
+                    (cutoff_date, pattern),
+                )
+
         deleted = cursor.rowcount
         conn.commit()
         conn.close()
-        
+
         # Clean up old file logs
         if self.enable_file_logging:
             self._cleanup_file_logs()
-        
+
         return deleted
-    
+
     async def clear_logs(self, before_date: Optional[datetime] = None) -> int:
         """Clear audit logs before specified date or all logs.
-        
+
         Args:
             before_date: Clear logs before this date. If None, clears all logs.
-            
+
         Returns:
             Number of logs cleared
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         if before_date:
             cursor.execute("DELETE FROM audit_log WHERE timestamp < ?", (before_date.isoformat(),))
         else:
             cursor.execute("DELETE FROM audit_log")
-        
+
         deleted = cursor.rowcount
         conn.commit()
         conn.close()
-        
+
         logger.info(f"Cleared {deleted} audit log entries")
         return deleted
-    
+
     def verify_integrity(self, start_date: Optional[datetime] = None) -> List[int]:
         """Verify audit log integrity.
-        
+
         Args:
             start_date: Start date for verification
-            
+
         Returns:
             List of compromised log IDs
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         query = "SELECT * FROM audit_log"
         params = []
-        
+
         if start_date:
             query += " WHERE timestamp >= ?"
             params.append(start_date)
-        
+
         cursor.execute(query, params)
-        
+
         compromised = []
         for row in cursor.fetchall():
             # Recreate event from row
             event_data = {
-                'event_type': row[1],
-                'severity': row[2],
-                'user_id': row[3],
-                'username': row[4],
-                'action': row[10],
-                'timestamp': row[14]
+                "event_type": row[1],
+                "severity": row[2],
+                "user_id": row[3],
+                "username": row[4],
+                "action": row[10],
+                "timestamp": row[14],
             }
-            
+
             # Calculate expected checksum
-            expected_checksum = hashlib.sha256(
-                json.dumps(event_data, sort_keys=True).encode()
-            ).hexdigest()
-            
+            expected_checksum = hashlib.sha256(json.dumps(event_data, sort_keys=True).encode()).hexdigest()
+
             # Compare with stored checksum
             if row[15] != expected_checksum:
                 compromised.append(row[0])
-        
+
         conn.close()
         return compromised
-    
+
     def _calculate_checksum(self, event: AuditEvent) -> str:
         """Calculate checksum for audit event.
-        
+
         Args:
             event: Audit event
-            
+
         Returns:
             Checksum string
         """
         # Create deterministic string from event
         event_data = {
-            'event_type': event.event_type.value,
-            'severity': event.severity.value,
-            'user_id': event.user_id,
-            'username': event.username,
-            'action': event.action,
-            'timestamp': event.timestamp.isoformat()
+            "event_type": event.event_type.value,
+            "severity": event.severity.value,
+            "user_id": event.user_id,
+            "username": event.username,
+            "action": event.action,
+            "timestamp": event.timestamp.isoformat(),
         }
-        
-        return hashlib.sha256(
-            json.dumps(event_data, sort_keys=True).encode()
-        ).hexdigest()
-    
+
+        return hashlib.sha256(json.dumps(event_data, sort_keys=True).encode()).hexdigest()
+
     def _format_log_message(self, event: AuditEvent) -> str:
         """Format audit event for file logging.
-        
+
         Args:
             event: Audit event
-            
+
         Returns:
             Formatted log message
         """
@@ -1045,110 +1105,110 @@ class AuditLogger:
             f"[{event.event_type.value}]",
             f"User: {event.username or event.user_id or 'anonymous'}",
             f"IP: {event.ip_address or 'unknown'}",
-            f"Action: {event.action}"
+            f"Action: {event.action}",
         ]
-        
+
         if event.resource_type:
             parts.append(f"Resource: {event.resource_type}/{event.resource_id}")
-        
+
         if not event.success:
             parts.append(f"FAILED: {event.error_message}")
-        
+
         return " | ".join(parts)
-    
+
     def _export_to_csv(self, logs: List[Dict], output_path: Path):
         """Export logs to CSV file.
-        
+
         Args:
             logs: Log entries
             output_path: Output file path
         """
         if not logs:
             return
-        
-        with open(output_path, 'w', newline='') as csvfile:
+
+        with open(output_path, "w", newline="") as csvfile:
             fieldnames = logs[0].keys()
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            
+
             writer.writeheader()
             for log in logs:
                 # Convert complex fields to strings
                 log_copy = log.copy()
-                if 'details' in log_copy:
-                    log_copy['details'] = json.dumps(log_copy['details'])
+                if "details" in log_copy:
+                    log_copy["details"] = json.dumps(log_copy["details"])
                 writer.writerow(log_copy)
-    
+
     def _export_to_json(self, logs: List[Dict], output_path: Path):
         """Export logs to JSON file.
-        
+
         Args:
             logs: Log entries
             output_path: Output file path
         """
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             json.dump(logs, f, indent=2, default=str)
-    
+
     def _compress_file(self, file_path: Path):
         """Compress a file using gzip.
-        
+
         Args:
             file_path: File to compress
         """
-        compressed_path = file_path.with_suffix(file_path.suffix + '.gz')
-        
-        with open(file_path, 'rb') as f_in:
-            with gzip.open(compressed_path, 'wb') as f_out:
+        compressed_path = file_path.with_suffix(file_path.suffix + ".gz")
+
+        with open(file_path, "rb") as f_in:
+            with gzip.open(compressed_path, "wb") as f_out:
                 f_out.writelines(f_in)
-        
+
         # Remove original file
         file_path.unlink()
-    
+
     def _cleanup_file_logs(self):
         """Clean up old file logs."""
         if not self.log_dir.exists():
             return
-        
+
         cutoff_date = datetime.now() - timedelta(days=self.retention_days)
-        
+
         for log_file in self.log_dir.glob("audit_*.log*"):
             # Try to parse date from filename
             try:
-                date_str = log_file.stem.split('_')[1]
-                file_date = datetime.strptime(date_str, '%Y%m%d')
-                
+                date_str = log_file.stem.split("_")[1]
+                file_date = datetime.strptime(date_str, "%Y%m%d")
+
                 if file_date < cutoff_date:
                     log_file.unlink()
             except (IndexError, ValueError):
                 continue
-    
+
     def _report_to_csv(self, report: Dict) -> str:
         """Convert report to CSV format.
-        
+
         Args:
             report: Report data
-            
+
         Returns:
             CSV string
         """
         import io
-        
+
         output = io.StringIO()
-        
+
         # Write summary section
         output.write("Compliance Report\n")
         output.write(f"Period: {report['period']['start']} to {report['period']['end']}\n")
         output.write("\nSummary\n")
-        
-        for key, value in report['summary'].items():
+
+        for key, value in report["summary"].items():
             output.write(f"{key},{value}\n")
-        
+
         output.write("\nEvents by Type\n")
-        for event_type, count in report['events_by_type'].items():
+        for event_type, count in report["events_by_type"].items():
             output.write(f"{event_type},{count}\n")
-        
+
         output.write("\nSecurity Events\n")
         output.write("Event Type,Severity,Count\n")
-        for event in report['security_events']:
+        for event in report["security_events"]:
             output.write(f"{event['event_type']},{event['severity']},{event['count']}\n")
-        
+
         return output.getvalue()
