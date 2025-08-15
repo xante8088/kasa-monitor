@@ -210,8 +210,12 @@ class KasaMonitorApp:
             self.prometheus_metrics = PrometheusMetrics()
             self.alert_manager = AlertManager(db_path="kasa_monitor.db")
             self.device_group_manager = DeviceGroupManager(db_path="kasa_monitor.db")
-            self.backup_manager = BackupManager(db_path="kasa_monitor.db", backup_dir="./backups")
             self.audit_logger = AuditLogger(db_path="kasa_monitor.db", log_dir="./logs/audit")
+            self.backup_manager = BackupManager(
+                db_path="kasa_monitor.db", 
+                backup_dir="./backups",
+                audit_logger=self.audit_logger
+            )
         
         self.setup_middleware()
         self.setup_routes()
@@ -1724,53 +1728,208 @@ class KasaMonitorApp:
                     compress=backup_options.get("compress", True),
                     encrypt=backup_options.get("encrypt", False)
                 )
+                
+                # Check if backup failed
+                if backup_info.get("status") == "failed":
+                    error_msg = backup_info.get("error", "Unknown error occurred")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Backup failed: {error_msg}"
+                    )
+                
                 return {"status": "success", "backup": backup_info}
             
-            @self.app.get("/api/backups/{backup_id}/download")
+            @self.app.get("/api/backups/{filename}/download")
             async def download_backup(
-                backup_id: int,
+                filename: str,
                 current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
             ):
                 """Download a backup file."""
-                file_path = await self.backup_manager.get_backup_file(backup_id)
+                file_path = await self.backup_manager.get_backup_file_by_name(filename)
                 if file_path and os.path.exists(file_path):
-                    return FileResponse(file_path)
+                    from fastapi.responses import FileResponse
+                    return FileResponse(
+                        path=file_path,
+                        filename=filename,
+                        media_type='application/octet-stream'
+                    )
                 raise HTTPException(status_code=404, detail="Backup not found")
             
-            @self.app.delete("/api/backups/{backup_id}")
+            @self.app.delete("/api/backups/{filename}")
             async def delete_backup(
-                backup_id: int,
+                filename: str,
                 current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
             ):
                 """Delete a backup."""
-                success = await self.backup_manager.delete_backup(backup_id)
+                success = await self.backup_manager.delete_backup_by_name(filename)
                 if success:
                     return {"status": "success"}
                 raise HTTPException(status_code=404, detail="Backup not found")
             
             @self.app.post("/api/backups/restore")
             async def restore_backup(
+                request: Request,
                 backup: UploadFile,
                 current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
             ):
                 """Restore from a backup file."""
+                import tempfile
+                import shutil
+                
+                # Check if backup manager is available
+                if not self.backup_manager:
+                    raise HTTPException(status_code=503, detail="Backup service not available")
+                
+                # Get client IP for audit logging
+                client_ip = request.client.host if request.client else "unknown"
+                
+                # Validate file extension
+                allowed_extensions = ['.db', '.sql', '.backup', '.7z']
+                file_ext = os.path.splitext(backup.filename)[1].lower()
+                if file_ext not in allowed_extensions:
+                    raise HTTPException(status_code=400, detail=f"Invalid file type. Allowed types: {', '.join(allowed_extensions)}")
+                
+                # Log the restore initiation to the current database
+                if self.audit_logger:
+                    event = AuditEvent(
+                        event_type=AuditEventType.SYSTEM_BACKUP_RESTORED,
+                        severity=AuditSeverity.INFO,
+                        user_id=current_user.id,
+                        username=current_user.username,
+                        ip_address=client_ip,
+                        user_agent=request.headers.get("user-agent"),
+                        session_id=None,
+                        resource_type="backup",
+                        resource_id=backup.filename,
+                        action="restore_initiated",
+                        details={
+                            "backup_file": backup.filename,
+                            "file_size": backup.size if hasattr(backup, 'size') else None
+                        },
+                        timestamp=datetime.now(),
+                        success=True
+                    )
+                    await self.audit_logger.log_event_async(event)
+                
                 # Save uploaded file temporarily
-                temp_path = f"/tmp/{backup.filename}"
-                with open(temp_path, "wb") as f:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
                     content = await backup.read()
-                    f.write(content)
+                    tmp_file.write(content)
+                    temp_path = tmp_file.name
                 
-                success = await self.backup_manager.restore_backup(temp_path)
-                os.remove(temp_path)
-                
-                if success:
-                    return {"status": "success", "message": "Backup restored successfully"}
-                raise HTTPException(status_code=400, detail="Failed to restore backup")
+                try:
+                    # Prepare user info for audit logging
+                    user_info = {
+                        "id": current_user.id,
+                        "username": current_user.username,
+                        "ip_address": client_ip
+                    }
+                    
+                    # Restore the backup
+                    result = await self.backup_manager.restore_uploaded_backup(
+                        temp_path, 
+                        backup.filename,
+                        user_info=user_info
+                    )
+                    
+                    if result.get("status") == "completed":
+                        # Log successful restore to the restored database
+                        if self.audit_logger:
+                            event = AuditEvent(
+                                event_type=AuditEventType.SYSTEM_BACKUP_RESTORED,
+                                severity=AuditSeverity.INFO,
+                                user_id=current_user.id,
+                                username=current_user.username,
+                                ip_address=client_ip,
+                                user_agent=request.headers.get("user-agent"),
+                                session_id=None,
+                                resource_type="backup",
+                                resource_id=backup.filename,
+                                action="restore_completed",
+                                details={
+                                    "backup_file": backup.filename,
+                                    "restore_id": result.get("restore_id"),
+                                    "pre_restore_backup": result.get("pre_restore_backup")
+                                },
+                                timestamp=datetime.now(),
+                                success=True
+                            )
+                            await self.audit_logger.log_event_async(event)
+                        
+                        # Verify audit log was properly recorded
+                        if result.get("restore_id") and self.backup_manager:
+                            await self.backup_manager.verify_restore_audit_log(result["restore_id"])
+                        
+                        return {
+                            "status": "success", 
+                            "message": "Backup restored successfully",
+                            "restore_id": result.get("restore_id")
+                        }
+                    else:
+                        # Log failed restore
+                        if self.audit_logger:
+                            event = AuditEvent(
+                                event_type=AuditEventType.SYSTEM_BACKUP_RESTORED,
+                                severity=AuditSeverity.ERROR,
+                                user_id=current_user.id,
+                                username=current_user.username,
+                                ip_address=client_ip,
+                                user_agent=request.headers.get("user-agent"),
+                                session_id=None,
+                                resource_type="backup",
+                                resource_id=backup.filename,
+                                action="restore_failed",
+                                details={
+                                    "backup_file": backup.filename,
+                                    "error": result.get("error", "Unknown error")
+                                },
+                                timestamp=datetime.now(),
+                                success=False,
+                                error_message=result.get("error", "Unknown error")
+                            )
+                            await self.audit_logger.log_event_async(event)
+                        raise HTTPException(status_code=500, detail=result.get("error", "Restore failed"))
+                finally:
+                    # Clean up temp file
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
             
             @self.app.get("/api/backups/schedules")
             async def get_backup_schedules(current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
                 """Get backup schedules."""
                 return await self.backup_manager.get_schedules()
+            
+            @self.app.post("/api/backups/schedules")
+            async def create_backup_schedule(
+                schedule_data: Dict[str, Any],
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+            ):
+                """Create a new backup schedule."""
+                schedule = await self.backup_manager.create_schedule(schedule_data)
+                return {"status": "success", "schedule": schedule}
+            
+            @self.app.put("/api/backups/schedules/{schedule_id}")
+            async def update_backup_schedule(
+                schedule_id: int,
+                schedule_data: Dict[str, Any],
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+            ):
+                """Update a backup schedule."""
+                success = await self.backup_manager.update_schedule(schedule_id, schedule_data)
+                if success:
+                    return {"status": "success"}
+                raise HTTPException(status_code=404, detail="Schedule not found")
+            
+            @self.app.delete("/api/backups/schedules/{schedule_id}")
+            async def delete_backup_schedule(
+                schedule_id: int,
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+            ):
+                """Delete a backup schedule."""
+                success = await self.backup_manager.delete_schedule(schedule_id)
+                if success:
+                    return {"status": "success"}
+                raise HTTPException(status_code=404, detail="Schedule not found")
         
         # Audit logging endpoints
         if self.audit_logger:
