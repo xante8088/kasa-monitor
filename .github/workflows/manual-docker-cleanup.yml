@@ -21,16 +21,20 @@ jobs:
     name: Manual Docker Cleanup
     runs-on: ubuntu-latest
     
+    permissions:
+      contents: read
+      packages: write
+    
     steps:
     - name: List packages (dry run)
       if: ${{ inputs.dry_run == 'true' }}
       uses: actions/github-script@v6
       with:
         script: |
-          const { data: packages } = await github.rest.packages.getAllPackageVersionsForPackageOwnedByOrg({
+          const { data: packages } = await github.rest.packages.getAllPackageVersionsForPackageOwnedByUser({
             package_type: 'container',
             package_name: 'kasa-monitor',
-            org: context.repo.owner
+            username: context.repo.owner
           });
           
           console.log(`Total package versions: ${packages.length}`);
@@ -53,3 +57,4 @@ jobs:
         package-type: 'container'
         min-versions-to-keep: ${{ inputs.keep_count }}
         delete-only-untagged-versions: false
+        token: ${{ secrets.GITHUB_TOKEN }}
