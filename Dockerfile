@@ -53,16 +53,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Stage 3: Final Runtime Image
 FROM python:3.11-slim AS runtime
 
-# Install Node.js and runtime dependencies
+# Install Node.js and runtime dependencies from Debian repos
 RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
-    gnupg \
-    && mkdir -p /etc/apt/keyrings \
-    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
-    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_18.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
-    && apt-get update \
-    && apt-get install -y nodejs \
+    nodejs \
+    npm \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean \
     && node --version \
