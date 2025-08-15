@@ -49,13 +49,6 @@ done
 # Start frontend
 echo "🎨 Starting Next.js frontend..."
 cd /app/frontend
-# Verify npm is available
-if ! command -v npm &> /dev/null; then
-    echo "❌ npm not found in PATH"
-    echo "📍 Node.js location: $(which node || echo 'not found')"
-    echo "📍 Current PATH: $PATH"
-    exit 1
-fi
 npm run start &
 FRONTEND_PID=$!
 
