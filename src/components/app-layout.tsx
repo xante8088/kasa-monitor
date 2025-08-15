@@ -46,14 +46,12 @@ export function AppLayout({ children, showCostSummary = false }: AppLayoutProps)
 
       {showDiscoveryModal && (
         <DiscoveryModal
-          isOpen={showDiscoveryModal}
           onClose={() => setShowDiscoveryModal(false)}
         />
       )}
 
       {showRatesModal && (
         <ElectricityRatesModal
-          isOpen={showRatesModal}
           onClose={() => setShowRatesModal(false)}
         />
       )}
