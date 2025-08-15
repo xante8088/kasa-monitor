@@ -9,13 +9,12 @@ import os
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI, WebSocket
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
-
 from data_management_api import router as data_management_router
 from database_api import router as database_router
 from database_pool import init_pool
+from fastapi import FastAPI, WebSocket
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from health_monitor import health_monitor
 from health_monitor import router as health_router
 from prometheus_metrics import metrics_background_task
