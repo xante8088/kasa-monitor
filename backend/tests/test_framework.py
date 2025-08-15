@@ -34,13 +34,14 @@ from unittest.mock import AsyncMock, Mock, patch
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from alert_management import (AlertCategory, AlertManager, AlertRule,
-                              AlertSeverity)
+from alert_management import AlertCategory, AlertManager, AlertRule, AlertSeverity
+from performance_monitor import PerformanceMonitor
+
 from auth import AuthManager
+
 # Import modules to test
 from database import DatabaseManager
 from models import DeviceData, User, UserCreate, UserRole
-from performance_monitor import PerformanceMonitor
 
 
 class TestBase(unittest.TestCase):

@@ -8,8 +8,7 @@ import os
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import (APIRouter, Depends, File, HTTPException, Query, Response,
-                     UploadFile)
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
