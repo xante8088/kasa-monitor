@@ -772,7 +772,7 @@ class SessionManager:
 
         # Invalidate oldest sessions if limit exceeded
         if len(sessions) >= max_sessions:
-            for session in sessions[max_sessions - 1:]:
+            for session in sessions[max_sessions - 1 :]:
                 cursor.execute(
                     """
                     UPDATE user_sessions
