@@ -18,7 +18,6 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import json
 import os
 import secrets
 from datetime import datetime, timedelta, timezone

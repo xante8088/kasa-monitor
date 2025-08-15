@@ -22,11 +22,11 @@ import functools
 import sqlite3
 import warnings
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional
 
-from fastapi import Header, HTTPException, Request, Response
+from fastapi import HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -197,7 +197,8 @@ class VersionRegistry:
         cursor.execute(
             """
             INSERT OR REPLACE INTO api_versions
-            (version, introduced, deprecated, sunset, changes, breaking_changes, migration_guide)
+            (version, introduced, deprecated, sunset, changes,
+             breaking_changes, migration_guide)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
             (
@@ -269,7 +270,8 @@ class VersionRegistry:
 
         cursor.execute(
             """
-            INSERT INTO api_usage (version, endpoint, method, client_id, response_time_ms, status_code)
+            INSERT INTO api_usage (version, endpoint, method, client_id,
+                                   response_time_ms, status_code)
             VALUES (?, ?, ?, ?, ?, ?)
         """,
             (version, endpoint, method, client_id, response_time_ms, status_code),
@@ -515,7 +517,8 @@ def deprecated(sunset_date: datetime, migration_guide: Optional[str] = None):
         async def wrapper(*args, **kwargs):
             # Issue deprecation warning
             warnings.warn(
-                f"Endpoint {func.__name__} is deprecated and will be removed on {sunset_date}",
+                f"Endpoint {func.__name__} is deprecated and will be removed "
+                f"on {sunset_date}",
                 DeprecationWarning,
                 stacklevel=2,
             )

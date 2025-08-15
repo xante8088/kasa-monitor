@@ -120,7 +120,7 @@ class DataExporter:
 
         # Get readings from database
         query = """
-            SELECT 
+            SELECT
                 device_ip,
                 timestamp,
                 power_w,
@@ -308,7 +308,7 @@ class DataExporter:
     async def _get_energy_summary(self) -> List[Dict]:
         """Get energy summary for all devices"""
         query = """
-            SELECT 
+            SELECT
                 device_ip,
                 COUNT(*) as reading_count,
                 SUM(energy_kwh) as total_energy,
@@ -340,7 +340,7 @@ class DataExporter:
     async def _get_daily_consumption(self) -> List[Dict]:
         """Get daily consumption data"""
         query = """
-            SELECT 
+            SELECT
                 DATE(timestamp) as date,
                 device_ip,
                 SUM(energy_kwh) as daily_energy,
@@ -373,7 +373,7 @@ class DataExporter:
 
         # Get energy data
         query = """
-            SELECT 
+            SELECT
                 SUM(energy_kwh) as total_energy,
                 AVG(power_w) as avg_power,
                 MAX(power_w) as peak_power
@@ -408,7 +408,7 @@ class DataExporter:
     ) -> List[Dict]:
         """Get performance metrics for each device"""
         query = """
-            SELECT 
+            SELECT
                 d.device_name,
                 d.device_ip,
                 SUM(r.energy_kwh) as total_energy,
@@ -445,7 +445,7 @@ class DataExporter:
         """Generate consumption chart for PDF report"""
         # Get daily consumption data
         query = """
-            SELECT 
+            SELECT
                 DATE(timestamp) as date,
                 SUM(energy_kwh) as daily_energy
             FROM readings

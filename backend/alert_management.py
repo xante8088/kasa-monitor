@@ -18,18 +18,15 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import asyncio
 import json
 import operator
 import re
 import sqlite3
-import statistics
-import threading
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 class AlertSeverity(Enum):
@@ -379,8 +376,8 @@ class AlertManager:
         try:
             cursor.execute(
                 """
-                INSERT INTO alert_rules 
-                (name, description, category, conditions, severity, 
+                INSERT INTO alert_rules
+                (name, description, category, conditions, severity,
                  threshold_count, threshold_window, cooldown_period, enabled, metadata)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
@@ -569,8 +566,8 @@ class AlertManager:
 
         cursor.execute(
             """
-            INSERT INTO alerts 
-            (alert_id, rule_name, severity, category, title, message, 
+            INSERT INTO alerts
+            (alert_id, rule_name, severity, category, title, message,
              source, status, data, metadata)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
@@ -627,8 +624,8 @@ class AlertManager:
 
         cursor.execute(
             """
-            UPDATE alerts 
-            SET status = 'acknowledged', 
+            UPDATE alerts
+            SET status = 'acknowledged',
                 acknowledged_at = CURRENT_TIMESTAMP,
                 acknowledged_by = ?,
                 updated_at = CURRENT_TIMESTAMP
@@ -678,8 +675,8 @@ class AlertManager:
 
         cursor.execute(
             """
-            UPDATE alerts 
-            SET status = 'resolved', 
+            UPDATE alerts
+            SET status = 'resolved',
                 resolved_at = CURRENT_TIMESTAMP,
                 resolved_by = ?,
                 updated_at = CURRENT_TIMESTAMP
@@ -741,7 +738,7 @@ class AlertManager:
 
         cursor.execute(
             """
-            INSERT INTO alert_suppressions 
+            INSERT INTO alert_suppressions
             (rule_pattern, source_pattern, category, severity_min, severity_max,
              start_time, end_time, reason, created_by)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)

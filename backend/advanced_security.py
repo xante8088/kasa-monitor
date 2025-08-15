@@ -18,17 +18,13 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import hashlib
-import json
 import os
 import sqlite3
-import ssl
 import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import OpenSSL.crypto
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
@@ -237,7 +233,7 @@ ignoreregex =
 
         cursor.execute(
             """
-            INSERT INTO security_events 
+            INSERT INTO security_events
             (event_type, ip_address, user_agent, username, details, severity)
             VALUES (?, ?, ?, ?, ?, ?)
         """,
@@ -268,7 +264,7 @@ ignoreregex =
 
         cursor.execute(
             """
-            INSERT OR REPLACE INTO banned_ips 
+            INSERT OR REPLACE INTO banned_ips
             (ip_address, reason, expires_at, banned_by, is_permanent)
             VALUES (?, ?, ?, 'manual', ?)
         """,
@@ -670,7 +666,7 @@ class SessionManager:
 
         cursor.execute(
             """
-            INSERT INTO user_sessions 
+            INSERT INTO user_sessions
             (session_id, user_id, ip_address, user_agent, expires_at)
             VALUES (?, ?, ?, ?, ?)
         """,
@@ -776,7 +772,7 @@ class SessionManager:
 
         # Invalidate oldest sessions if limit exceeded
         if len(sessions) >= max_sessions:
-            for session in sessions[max_sessions - 1 :]:
+            for session in sessions[max_sessions - 1:]:
                 cursor.execute(
                     """
                     UPDATE user_sessions

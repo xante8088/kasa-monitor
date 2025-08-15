@@ -20,10 +20,8 @@ along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 
 import base64
 import io
-import json
 import secrets
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pyotp

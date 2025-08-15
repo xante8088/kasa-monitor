@@ -496,7 +496,7 @@ class BackupManager:
             # Try to get backup metadata if it exists
             cursor.execute(
                 """
-                SELECT name FROM sqlite_master 
+                SELECT name FROM sqlite_master
                 WHERE type='table' AND name='backup_metadata'
             """
             )

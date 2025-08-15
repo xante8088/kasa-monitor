@@ -9,9 +9,19 @@ import os
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI, Request, WebSocket
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+
+from data_management_api import router as data_management_router
+from database_api import router as database_router
+from database_pool import init_pool
+from health_monitor import health_monitor
+from health_monitor import router as health_router
+from prometheus_metrics import metrics_background_task
+from prometheus_metrics import router as metrics_router
+from redis_cache import close_redis_cache, init_redis_cache
+from websocket_manager import websocket_background_task, websocket_endpoint
 
 # Configure logging
 logging.basicConfig(
@@ -19,23 +29,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from data_management_api import router as data_management_router
-from database_api import router as database_router
-from database_pool import init_pool
-
-# Import all our modules
-from health_monitor import health_monitor
-from health_monitor import router as health_router
-from prometheus_metrics import metrics_background_task, metrics_collector
-from prometheus_metrics import router as metrics_router
-from redis_cache import close_redis_cache, init_redis_cache
-from websocket_manager import manager as ws_manager
-from websocket_manager import websocket_background_task, websocket_endpoint
-
 # Import existing server functionality
 try:
     from server import app as existing_app
-    from server import device_manager
 
     USE_EXISTING = True
 except ImportError:
@@ -154,7 +150,7 @@ async def test_page():
             }
             h1 { color: #333; }
             h2 { color: #666; }
-            .status { 
+            .status {
                 padding: 10px;
                 border-radius: 4px;
                 margin: 10px 0;
@@ -179,7 +175,7 @@ async def test_page():
                 margin: 5px;
             }
             button:hover { background: #0056b3; }
-            button:disabled { 
+            button:disabled {
                 background: #ccc;
                 cursor: not-allowed;
             }
@@ -232,7 +228,7 @@ async def test_page():
     </head>
     <body>
         <h1>🏠 Kasa Monitor Test Page</h1>
-        
+
         <div class="container">
             <h2>System Status</h2>
             <div class="metrics" id="metrics">
@@ -254,7 +250,7 @@ async def test_page():
                 </div>
             </div>
         </div>
-        
+
         <div class="container">
             <h2>API Endpoints</h2>
             <div class="endpoints">
@@ -276,9 +272,11 @@ async def test_page():
                 </div>
                 <div class="endpoint">
                     <strong>Data Management</strong><br>
-                    <a href="/api/data/export/devices/csv" target="_blank">Export Devices CSV</a><br>
+                    <a href="/api/data/export/devices/csv" target="_blank">
+                    Export Devices CSV</a><br>
                     <a href="/api/data/cache/stats" target="_blank">Cache Stats</a><br>
-                    <a href="/api/data/aggregation/status" target="_blank">Aggregation Status</a>
+                    <a href="/api/data/aggregation/status" target="_blank">
+                    Aggregation Status</a>
                 </div>
                 <div class="endpoint">
                     <strong>Documentation</strong><br>
@@ -287,7 +285,7 @@ async def test_page():
                 </div>
             </div>
         </div>
-        
+
         <div class="container">
             <h2>WebSocket Test</h2>
             <div class="status disconnected" id="status">Disconnected</div>
@@ -301,7 +299,7 @@ async def test_page():
             <h3>Messages</h3>
             <div id="messages"></div>
         </div>
-        
+
         <div class="container">
             <h2>Test Operations</h2>
             <div>
@@ -312,11 +310,11 @@ async def test_page():
             </div>
             <div id="testResults" style="margin-top: 20px;"></div>
         </div>
-        
+
         <script>
             let ws = null;
             let clientId = 'test-' + Math.random().toString(36).substr(2, 9);
-            
+
             function updateMetrics() {
                 // Fetch health status
                 fetch('/health/detailed')
@@ -324,16 +322,17 @@ async def test_page():
                     .then(data => {
                         document.getElementById('health').textContent = data.status;
                         if (data.uptime_human) {
-                            document.getElementById('uptime').textContent = data.uptime_human;
+                            document.getElementById('uptime').textContent =
+                                data.uptime_human;
                         }
                     });
-                
+
                 // Fetch cache stats
                 fetch('/api/data/cache/stats')
                     .then(r => r.json())
                     .then(data => {
                         if (data.hit_ratio !== undefined) {
-                            document.getElementById('cache').textContent = 
+                            document.getElementById('cache').textContent =
                                 (data.hit_ratio * 100).toFixed(1) + '%';
                         }
                     })
@@ -341,22 +340,25 @@ async def test_page():
                         document.getElementById('cache').textContent = 'N/A';
                     });
             }
-            
+
             function addMessage(message, type = 'message') {
                 const messagesDiv = document.getElementById('messages');
                 const messageDiv = document.createElement('div');
                 messageDiv.className = 'message';
-                messageDiv.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+                messageDiv.textContent = new Date().toLocaleTimeString() +
+                    ' - ' + message;
                 messagesDiv.appendChild(messageDiv);
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
             }
-            
+
             document.getElementById('connect').onclick = function() {
                 ws = new WebSocket('ws://localhost:8000/ws/' + clientId);
-                
+
                 ws.onopen = function() {
-                    document.getElementById('status').textContent = 'Connected (ID: ' + clientId + ')';
-                    document.getElementById('status').className = 'status connected';
+                    document.getElementById('status').textContent =
+                        'Connected (ID: ' + clientId + ')';
+                    document.getElementById('status').className =
+                        'status connected';
                     document.getElementById('connect').disabled = true;
                     document.getElementById('disconnect').disabled = false;
                     document.getElementById('subscribe').disabled = false;
@@ -364,19 +366,21 @@ async def test_page():
                     addMessage('Connected to WebSocket');
                     document.getElementById('connections').textContent = '1';
                 };
-                
+
                 ws.onmessage = function(event) {
                     const data = JSON.parse(event.data);
                     addMessage(JSON.stringify(data, null, 2));
                 };
-                
+
                 ws.onerror = function(error) {
                     addMessage('Error: ' + error, 'error');
                 };
-                
+
                 ws.onclose = function() {
-                    document.getElementById('status').textContent = 'Disconnected';
-                    document.getElementById('status').className = 'status disconnected';
+                    document.getElementById('status').textContent =
+                        'Disconnected';
+                    document.getElementById('status').className =
+                        'status disconnected';
                     document.getElementById('connect').disabled = false;
                     document.getElementById('disconnect').disabled = true;
                     document.getElementById('subscribe').disabled = true;
@@ -385,53 +389,55 @@ async def test_page():
                     document.getElementById('connections').textContent = '0';
                 };
             };
-            
+
             document.getElementById('disconnect').onclick = function() {
                 if (ws) {
                     ws.close();
                 }
             };
-            
+
             document.getElementById('subscribe').onclick = function() {
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({
                         type: 'subscribe',
-                        topics: ['devices:all', 'energy:all', 'alerts:all', 'system:events']
+                        topics: ['devices:all', 'energy:all', 'alerts:all',
+                                'system:events']
                     }));
                     addMessage('Subscribed to all topics');
                 }
             };
-            
+
             document.getElementById('ping').onclick = function() {
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({type: 'ping'}));
                     addMessage('Sent ping');
                 }
             };
-            
+
             document.getElementById('clear').onclick = function() {
                 document.getElementById('messages').innerHTML = '';
             };
-            
+
             function testHealthCheck() {
                 const results = document.getElementById('testResults');
                 results.innerHTML = '<p>Running health check...</p>';
-                
+
                 fetch('/health/detailed')
                     .then(r => r.json())
                     .then(data => {
-                        results.innerHTML = '<h3>Health Check Results</h3><pre>' + 
+                        results.innerHTML = '<h3>Health Check Results</h3><pre>' +
                             JSON.stringify(data, null, 2) + '</pre>';
                     })
                     .catch(err => {
-                        results.innerHTML = '<p style="color: red;">Error: ' + err + '</p>';
+                        results.innerHTML = '<p style="color: red;">Error: ' +
+                            err + '</p>';
                     });
             }
-            
+
             function testBackup() {
                 const results = document.getElementById('testResults');
                 results.innerHTML = '<p>Creating backup...</p>';
-                
+
                 fetch('/api/database/backup', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -444,46 +450,50 @@ async def test_page():
                 })
                 .then(r => r.json())
                 .then(data => {
-                    results.innerHTML = '<h3>Backup Created</h3><pre>' + 
+                    results.innerHTML = '<h3>Backup Created</h3><pre>' +
                         JSON.stringify(data, null, 2) + '</pre>';
                 })
                 .catch(err => {
-                    results.innerHTML = '<p style="color: red;">Error: ' + err + '</p>';
+                    results.innerHTML = '<p style="color: red;">Error: ' +
+                        err + '</p>';
                 });
             }
-            
+
             function testCache() {
                 const results = document.getElementById('testResults');
                 results.innerHTML = '<p>Testing cache...</p>';
-                
+
                 fetch('/api/data/cache/stats')
                     .then(r => r.json())
                     .then(data => {
-                        results.innerHTML = '<h3>Cache Statistics</h3><pre>' + 
+                        results.innerHTML = '<h3>Cache Statistics</h3><pre>' +
                             JSON.stringify(data, null, 2) + '</pre>';
                     })
                     .catch(err => {
-                        results.innerHTML = '<p style="color: red;">Error: ' + err + '</p>';
+                        results.innerHTML = '<p style="color: red;">Error: ' +
+                            err + '</p>';
                     });
             }
-            
+
             function testMetrics() {
                 const results = document.getElementById('testResults');
                 results.innerHTML = '<p>Fetching metrics...</p>';
-                
+
                 fetch('/metrics')
                     .then(r => r.text())
                     .then(data => {
                         // Show first 50 lines of metrics
-                        const lines = data.split('\n').slice(0, 50);
-                        results.innerHTML = '<h3>Prometheus Metrics (first 50 lines)</h3><pre>' + 
-                            lines.join('\n') + '\n...</pre>';
+                        const lines = data.split('\\n').slice(0, 50);
+                        results.innerHTML =
+                            '<h3>Prometheus Metrics (first 50 lines)</h3><pre>' +
+                            lines.join('\\n') + '\\n...</pre>';
                     })
                     .catch(err => {
-                        results.innerHTML = '<p style="color: red;">Error: ' + err + '</p>';
+                        results.innerHTML = '<p style="color: red;">Error: ' +
+                            err + '</p>';
                     });
             }
-            
+
             // Update metrics every 5 seconds
             updateMetrics();
             setInterval(updateMetrics, 5000);
@@ -527,4 +537,5 @@ if __name__ == "__main__":
     os.makedirs("backups", exist_ok=True)
 
     # Run the application
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True,
+                log_level="info")

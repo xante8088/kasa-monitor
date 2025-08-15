@@ -24,7 +24,6 @@ import secrets
 import sqlite3
 from datetime import datetime, timedelta
 from enum import Enum
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, Security, status
@@ -85,14 +84,14 @@ class APIKeyManager:
 
         cursor.execute(
             """
-            CREATE INDEX IF NOT EXISTS idx_api_keys_hash 
+            CREATE INDEX IF NOT EXISTS idx_api_keys_hash
             ON api_keys(key_hash)
         """
         )
 
         cursor.execute(
             """
-            CREATE INDEX IF NOT EXISTS idx_api_keys_user 
+            CREATE INDEX IF NOT EXISTS idx_api_keys_user
             ON api_keys(user_id)
         """
         )
@@ -142,7 +141,7 @@ class APIKeyManager:
         try:
             cursor.execute(
                 """
-                INSERT INTO api_keys 
+                INSERT INTO api_keys
                 (key_hash, key_prefix, name, user_id, scopes, expires_at, metadata)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
@@ -334,7 +333,7 @@ class APIKeyManager:
         try:
             cursor.execute(
                 """
-                SELECT id, key_prefix, name, scopes, created_at, 
+                SELECT id, key_prefix, name, scopes, created_at,
                        expires_at, last_used_at, is_active, metadata
                 FROM api_keys
                 WHERE user_id = ?
@@ -405,7 +404,7 @@ class APIKeyManager:
                 """
                 UPDATE api_keys
                 SET is_active = 0
-                WHERE expires_at IS NOT NULL 
+                WHERE expires_at IS NOT NULL
                 AND expires_at < CURRENT_TIMESTAMP
             """
             )

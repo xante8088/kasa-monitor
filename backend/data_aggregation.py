@@ -121,7 +121,7 @@ class DataAggregator:
 
             # Get readings for the hour
             query = """
-                SELECT 
+                SELECT
                     COUNT(*) as count,
                     AVG(power_w) as avg_power,
                     MAX(power_w) as max_power,
@@ -204,7 +204,7 @@ class DataAggregator:
 
             # Aggregate from daily summaries
             query = """
-                SELECT 
+                SELECT
                     COUNT(*) as days,
                     SUM(total_kwh) as total_energy,
                     AVG(average_power_w) as avg_power,
@@ -441,7 +441,7 @@ class DataAggregator:
 
         # Try to get from hourly summaries first
         query = """
-            SELECT 
+            SELECT
                 COUNT(*) as hours,
                 SUM(total_energy) as total_energy,
                 AVG(avg_power) as avg_power,
@@ -468,7 +468,7 @@ class DataAggregator:
 
         # Fall back to raw readings
         query = """
-            SELECT 
+            SELECT
                 SUM(energy_kwh) as total_energy,
                 AVG(power_w) as avg_power,
                 MAX(power_w) as peak_power,
@@ -671,7 +671,7 @@ class DataAggregator:
     ) -> List[Dict]:
         """Get weekly aggregated data"""
         query = """
-            SELECT 
+            SELECT
                 strftime('%Y-W%W', date) as week,
                 device_ip,
                 AVG(average_power_w) as avg_power,
@@ -708,7 +708,7 @@ class DataAggregator:
     ) -> List[Dict]:
         """Get monthly aggregated data"""
         query = """
-            SELECT 
+            SELECT
                 printf('%04d-%02d', year, month) as month,
                 device_ip,
                 avg_power,

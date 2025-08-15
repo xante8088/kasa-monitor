@@ -24,12 +24,11 @@ import sqlite3
 from datetime import datetime, time, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import geoip2.database
 import geoip2.errors
 import pytz
-from fastapi import HTTPException, Request, status
 
 
 class AccessRule(Enum):
@@ -175,7 +174,7 @@ class IPAccessControl:
 
             cursor.execute(
                 """
-                INSERT INTO ip_rules 
+                INSERT INTO ip_rules
                 (ip_address, cidr_range, rule_type, description, expires_at, created_by)
                 VALUES (?, ?, ?, ?, ?, ?)
             """,
@@ -302,7 +301,7 @@ class IPAccessControl:
                 if response.subdivisions
                 else None
             )
-            city = response.city.name
+            # city = response.city.name  # Not used currently
 
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -376,7 +375,7 @@ class IPAccessControl:
 
         cursor.execute(
             """
-            INSERT INTO geo_rules 
+            INSERT INTO geo_rules
             (country_code, region_code, city, rule_type, description)
             VALUES (?, ?, ?, ?, ?)
         """,
@@ -518,7 +517,7 @@ class TimeBasedAccessControl:
 
         cursor.execute(
             """
-            INSERT INTO access_schedules 
+            INSERT INTO access_schedules
             (name, user_id, role, timezone, schedule_data)
             VALUES (?, ?, ?, ?, ?)
         """,
@@ -720,7 +719,7 @@ class TimeBasedAccessControl:
 
         cursor.execute(
             """
-            INSERT INTO temporary_access 
+            INSERT INTO temporary_access
             (user_id, granted_by, start_time, end_time, permissions, reason)
             VALUES (?, ?, ?, ?, ?, ?)
         """,

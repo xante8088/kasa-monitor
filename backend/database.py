@@ -114,7 +114,7 @@ class DatabaseManager:
 
         await self.sqlite_conn.execute(
             """
-            CREATE INDEX IF NOT EXISTS idx_device_readings_timestamp 
+            CREATE INDEX IF NOT EXISTS idx_device_readings_timestamp
             ON device_readings(device_ip, timestamp DESC)
         """
         )
@@ -202,7 +202,7 @@ class DatabaseManager:
         # Update device info in SQLite
         await self.sqlite_conn.execute(
             """
-            INSERT OR REPLACE INTO device_info 
+            INSERT OR REPLACE INTO device_info
             (device_ip, alias, model, device_type, mac, last_seen)
             VALUES (?, ?, ?, ?, ?, ?)
         """,
@@ -219,8 +219,8 @@ class DatabaseManager:
         # Store reading in SQLite
         await self.sqlite_conn.execute(
             """
-            INSERT INTO device_readings 
-            (device_ip, timestamp, is_on, current_power_w, voltage, current, 
+            INSERT INTO device_readings
+            (device_ip, timestamp, is_on, current_power_w, voltage, current,
              today_energy_kwh, month_energy_kwh, total_energy_kwh, rssi)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
@@ -282,8 +282,8 @@ class DatabaseManager:
                 from(bucket: "{self.influx_bucket}")
                 |> range(start: {start_time.isoformat()}, stop: {end_time.isoformat()})
                 |> filter(fn: (r) => r["device_ip"] == "{device_ip}")
-                |> filter(fn: (r) => r["_field"] == "current_power_w" or 
-                                     r["_field"] == "voltage" or 
+                |> filter(fn: (r) => r["_field"] == "current_power_w" or
+                                     r["_field"] == "voltage" or
                                      r["_field"] == "today_energy_kwh")
                 |> aggregateWindow(every: {interval}, fn: mean, createEmpty: false)
                 |> yield(name: "mean")
@@ -295,7 +295,7 @@ class DatabaseManager:
             # Fallback to SQLite
             cursor = await self.sqlite_conn.execute(
                 """
-                SELECT timestamp, current_power_w, voltage, current, 
+                SELECT timestamp, current_power_w, voltage, current,
                        today_energy_kwh, month_energy_kwh, total_energy_kwh
                 FROM device_readings
                 WHERE device_ip = ? AND timestamp BETWEEN ? AND ?
@@ -323,7 +323,7 @@ class DatabaseManager:
         """Get statistics for a device."""
         cursor = await self.sqlite_conn.execute(
             """
-            SELECT 
+            SELECT
                 AVG(current_power_w) as avg_power,
                 MAX(current_power_w) as max_power,
                 MIN(current_power_w) as min_power,
@@ -391,7 +391,7 @@ class DatabaseManager:
 
         await self.sqlite_conn.execute(
             """
-            INSERT INTO electricity_rates 
+            INSERT INTO electricity_rates
             (name, rate_type, rate_config, currency)
             VALUES (?, ?, ?, ?)
         """,
@@ -412,7 +412,7 @@ class DatabaseManager:
     async def mark_device_inactive(self, device_ip: str):
         """Mark a device as inactive in the database."""
         async with self.sqlite_conn.execute(
-            """UPDATE devices SET is_active = 0, last_seen = CURRENT_TIMESTAMP 
+            """UPDATE devices SET is_active = 0, last_seen = CURRENT_TIMESTAMP
                WHERE device_ip = ?""",
             (device_ip,),
         ) as cursor:
@@ -421,7 +421,7 @@ class DatabaseManager:
     async def get_saved_devices(self) -> List[Dict[str, Any]]:
         """Get list of all saved devices from database."""
         async with self.sqlite_conn.execute(
-            """SELECT device_ip, device_name, device_type, is_active, last_seen 
+            """SELECT device_ip, device_name, device_type, is_active, last_seen
                FROM devices ORDER BY last_seen DESC"""
         ) as cursor:
             rows = await cursor.fetchall()
@@ -461,7 +461,7 @@ class DatabaseManager:
         # Get detailed consumption data for cost calculation
         cursor = await self.sqlite_conn.execute(
             """
-            SELECT 
+            SELECT
                 device_ip,
                 timestamp,
                 current_power_w,
@@ -563,7 +563,7 @@ class DatabaseManager:
         """Get all saved devices from the database."""
         cursor = await self.sqlite_conn.execute(
             """
-            SELECT device_ip, alias, model, device_type, mac, last_seen, 
+            SELECT device_ip, alias, model, device_type, mac, last_seen,
                    is_monitored, discovered_at, user_notes
             FROM device_info
             ORDER BY alias
@@ -621,7 +621,7 @@ class DatabaseManager:
         try:
             await self.sqlite_conn.execute(
                 """
-                UPDATE device_info 
+                UPDATE device_info
                 SET is_monitored = ?
                 WHERE device_ip = ?
             """,
@@ -647,7 +647,7 @@ class DatabaseManager:
             # Update device IP in device_info
             await self.sqlite_conn.execute(
                 """
-                UPDATE device_info 
+                UPDATE device_info
                 SET device_ip = ?
                 WHERE device_ip = ?
             """,
@@ -657,7 +657,7 @@ class DatabaseManager:
             # Update device IP in device_readings
             await self.sqlite_conn.execute(
                 """
-                UPDATE device_readings 
+                UPDATE device_readings
                 SET device_ip = ?
                 WHERE device_ip = ?
             """,
@@ -667,7 +667,7 @@ class DatabaseManager:
             # Update device IP in device_costs
             await self.sqlite_conn.execute(
                 """
-                UPDATE device_costs 
+                UPDATE device_costs
                 SET device_ip = ?
                 WHERE device_ip = ?
             """,
@@ -711,7 +711,7 @@ class DatabaseManager:
         try:
             await self.sqlite_conn.execute(
                 """
-                UPDATE device_info 
+                UPDATE device_info
                 SET user_notes = ?
                 WHERE device_ip = ?
             """,
@@ -756,7 +756,7 @@ class DatabaseManager:
         try:
             cursor = await self.sqlite_conn.execute(
                 """
-                SELECT id, username, email, full_name, role, is_active, is_admin, 
+                SELECT id, username, email, full_name, role, is_active, is_admin,
                        created_at, last_login, permissions
                 FROM users WHERE username = ? AND is_active = 1
             """,
@@ -983,7 +983,7 @@ class DatabaseManager:
 
             await self.sqlite_conn.execute(
                 f"""
-                UPDATE users 
+                UPDATE users
                 SET {set_clause}
                 WHERE id = ?
             """,
@@ -1000,7 +1000,7 @@ class DatabaseManager:
         try:
             await self.sqlite_conn.execute(
                 """
-                UPDATE users 
+                UPDATE users
                 SET password_hash = ?, last_login = CURRENT_TIMESTAMP
                 WHERE id = ?
             """,
@@ -1043,7 +1043,7 @@ class DatabaseManager:
         try:
             await self.sqlite_conn.execute(
                 """
-                UPDATE users 
+                UPDATE users
                 SET temp_totp_secret = ?
                 WHERE id = ?
             """,
@@ -1072,7 +1072,7 @@ class DatabaseManager:
         try:
             await self.sqlite_conn.execute(
                 """
-                UPDATE users 
+                UPDATE users
                 SET totp_secret = ?, temp_totp_secret = NULL
                 WHERE id = ?
             """,
@@ -1096,7 +1096,7 @@ class DatabaseManager:
 
             await self.sqlite_conn.execute(
                 """
-                UPDATE users 
+                UPDATE users
                 SET totp_secret = NULL, temp_totp_secret = NULL
                 WHERE id = ?
             """,

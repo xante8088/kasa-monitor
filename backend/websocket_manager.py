@@ -9,10 +9,9 @@ import logging
 import os
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
-from fastapi import Depends, HTTPException, WebSocket, WebSocketDisconnect, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import WebSocket, WebSocketDisconnect
 from jose import jwt
 
 logger = logging.getLogger(__name__)
@@ -248,7 +247,7 @@ class WebSocketEventHandler:
         """Handle device command"""
         device_id = message.get("device_id")
         command = message.get("command")
-        params = message.get("params", {})
+        # params = message.get("params", {})  # Not used currently
 
         # Check authorization
         user_info = self.manager.authenticated_clients.get(client_id)
@@ -277,11 +276,11 @@ class WebSocketEventHandler:
 
     async def handle_get_status(self, client_id: str, message: Dict[str, Any]):
         """Handle status request"""
-        status = self.manager.get_statistics()
+        ws_status = self.manager.get_statistics()
         await self.manager.send_personal_message(
             {
                 "type": "status_response",
-                "status": status,
+                "status": ws_status,
                 "timestamp": datetime.now().isoformat(),
             },
             client_id,

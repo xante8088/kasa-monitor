@@ -21,11 +21,10 @@ along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 import fnmatch
 import json
 import sqlite3
-from collections import defaultdict
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional
 
 
 class PermissionScope(Enum):
@@ -392,8 +391,8 @@ class AdvancedPermissionManager:
         try:
             cursor.execute(
                 """
-                INSERT OR REPLACE INTO user_permissions 
-                (user_id, permission_name, resource_id, conditions, 
+                INSERT OR REPLACE INTO user_permissions
+                (user_id, permission_name, resource_id, conditions,
                  granted_by, expires_at, is_active)
                 VALUES (?, ?, ?, ?, ?, ?, 1)
             """,
@@ -472,7 +471,7 @@ class AdvancedPermissionManager:
         try:
             cursor.execute(
                 """
-                INSERT OR REPLACE INTO device_permissions 
+                INSERT OR REPLACE INTO device_permissions
                 (user_id, device_id, actions, granted_by, expires_at, is_active)
                 VALUES (?, ?, ?, ?, ?, 1)
             """,
@@ -641,7 +640,7 @@ class AdvancedPermissionManager:
 
         cursor.execute(
             """
-            INSERT INTO device_groups 
+            INSERT INTO device_groups
             (name, description, parent_group_id, created_by)
             VALUES (?, ?, ?, ?)
         """,
@@ -697,7 +696,7 @@ class AdvancedPermissionManager:
             True if granted successfully
         """
         conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        # cursor = conn.cursor()  # Not used in this function
 
         # Get all devices in group (including hierarchy)
         devices = self._get_group_devices(group_id, include_subgroups=True)
@@ -740,7 +739,7 @@ class AdvancedPermissionManager:
 
             cursor.execute(
                 """
-                INSERT OR IGNORE INTO permission_templates 
+                INSERT OR IGNORE INTO permission_templates
                 (name, description, permissions, is_system)
                 VALUES (?, ?, ?, ?)
             """,
@@ -829,7 +828,7 @@ class AdvancedPermissionManager:
         try:
             cursor.execute(
                 """
-                INSERT OR REPLACE INTO permission_inheritance 
+                INSERT OR REPLACE INTO permission_inheritance
                 (parent_role_id, child_role_id, inherit_all, specific_permissions)
                 VALUES (?, ?, ?, ?)
             """,
@@ -877,7 +876,7 @@ class AdvancedPermissionManager:
 
         cursor.execute(
             """
-            INSERT INTO temporary_permissions 
+            INSERT INTO temporary_permissions
             (user_id, permission_name, resource_id, reason, granted_by, expires_at)
             VALUES (?, ?, ?, ?, ?, ?)
         """,
@@ -1075,8 +1074,9 @@ class AdvancedPermissionManager:
                             return True
                 elif specific_perms:
                     # Check specific inherited permissions
-                    perm_list = json.loads(specific_perms)
+                    # perm_list = json.loads(specific_perms)  # Not used currently
                     # TODO: Check if requested permission is in list
+                    pass
 
         conn.close()
         return False

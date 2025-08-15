@@ -192,35 +192,35 @@ class AuditLogger:
         # Indexes for common queries
         cursor.execute(
             """
-            CREATE INDEX IF NOT EXISTS idx_audit_timestamp 
+            CREATE INDEX IF NOT EXISTS idx_audit_timestamp
             ON audit_log(timestamp DESC)
         """
         )
 
         cursor.execute(
             """
-            CREATE INDEX IF NOT EXISTS idx_audit_user 
+            CREATE INDEX IF NOT EXISTS idx_audit_user
             ON audit_log(user_id, timestamp DESC)
         """
         )
 
         cursor.execute(
             """
-            CREATE INDEX IF NOT EXISTS idx_audit_event_type 
+            CREATE INDEX IF NOT EXISTS idx_audit_event_type
             ON audit_log(event_type, timestamp DESC)
         """
         )
 
         cursor.execute(
             """
-            CREATE INDEX IF NOT EXISTS idx_audit_severity 
+            CREATE INDEX IF NOT EXISTS idx_audit_severity
             ON audit_log(severity, timestamp DESC)
         """
         )
 
         cursor.execute(
             """
-            CREATE INDEX IF NOT EXISTS idx_audit_resource 
+            CREATE INDEX IF NOT EXISTS idx_audit_resource
             ON audit_log(resource_type, resource_id)
         """
         )
@@ -291,7 +291,7 @@ class AuditLogger:
 
         cursor.execute(
             """
-            INSERT INTO audit_log 
+            INSERT INTO audit_log
             (event_type, severity, user_id, username, ip_address, user_agent,
              session_id, resource_type, resource_id, action, details, success,
              error_message, timestamp, checksum)
@@ -667,10 +667,10 @@ class AuditLogger:
         # Get paginated results
         offset = (page - 1) * limit
         query = """
-        SELECT id, event_type, severity, user_id, username, ip_address, 
-               user_agent, session_id, resource_type, resource_id, action, 
+        SELECT id, event_type, severity, user_id, username, ip_address,
+               user_agent, session_id, resource_type, resource_id, action,
                details, success, error_message, timestamp, checksum
-        FROM audit_log 
+        FROM audit_log
         WHERE timestamp >= ? AND timestamp <= ?
         """
         params = [start_date.isoformat(), end_date.isoformat()]
@@ -707,7 +707,8 @@ class AuditLogger:
 
         logger.debug(f"Query: {query[:200]}...")  # Log first 200 chars of query
         logger.info(
-            f"Filter params - category: {category}, severity: {severity}, search: {search}"
+            f"Filter params - category: {category}, severity: {severity}, "
+            f"search: {search}"
         )
         cursor.execute(query, params)
 
@@ -736,7 +737,8 @@ class AuditLogger:
 
         conn.close()
         logger.info(
-            f"Returning {len(logs)} logs for filters - category: {category}, severity: {severity}"
+            f"Returning {len(logs)} logs for filters - category: {category}, "
+            f"severity: {severity}"
         )
         return logs, max(1, total_pages)  # Ensure at least 1 page
 
@@ -896,7 +898,7 @@ class AuditLogger:
         # Get summary statistics
         cursor.execute(
             """
-            SELECT 
+            SELECT
                 COUNT(*) as total_events,
                 COUNT(DISTINCT user_id) as unique_users,
                 COUNT(DISTINCT ip_address) as unique_ips,
@@ -1020,7 +1022,7 @@ class AuditLogger:
                 cutoff_date = datetime.now() - timedelta(days=retention_days)
                 cursor.execute(
                     """
-                    DELETE FROM audit_log 
+                    DELETE FROM audit_log
                     WHERE timestamp < ? AND event_type LIKE ?
                 """,
                     (cutoff_date, pattern),

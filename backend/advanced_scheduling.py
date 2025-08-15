@@ -23,12 +23,11 @@ import json
 import random
 import sqlite3
 from dataclasses import asdict, dataclass
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import croniter
-import holidays
 import pytz
 from astral import LocationInfo
 from astral.sun import sun
@@ -253,13 +252,16 @@ class AdvancedScheduler:
             "CREATE INDEX IF NOT EXISTS idx_schedule_enabled ON schedule_rules(enabled)"
         )
         cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_schedule_type ON schedule_rules(schedule_type)"
+            "CREATE INDEX IF NOT EXISTS idx_schedule_type ON "
+            "schedule_rules(schedule_type)"
         )
         cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_execution_schedule ON schedule_executions(schedule_id)"
+            "CREATE INDEX IF NOT EXISTS idx_execution_schedule ON "
+            "schedule_executions(schedule_id)"
         )
         cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_execution_time ON schedule_executions(triggered_at)"
+            "CREATE INDEX IF NOT EXISTS idx_execution_time ON "
+            "schedule_executions(triggered_at)"
         )
 
         # Insert default templates
@@ -334,7 +336,7 @@ class AdvancedScheduler:
         for template in templates:
             cursor.execute(
                 """
-                INSERT OR IGNORE INTO schedule_templates 
+                INSERT OR IGNORE INTO schedule_templates
                 (name, description, category, rules, icon)
                 VALUES (?, ?, ?, ?, ?)
             """,
@@ -362,7 +364,7 @@ class AdvancedScheduler:
         try:
             cursor.execute(
                 """
-                INSERT INTO schedule_rules 
+                INSERT INTO schedule_rules
                 (name, description, schedule_type, trigger_type, trigger_config,
                  action_type, action_config, devices, groups, conditions,
                  random_delay, retry_on_failure, retry_count, enabled, priority,
@@ -629,7 +631,7 @@ class AdvancedScheduler:
         cursor.execute(
             """
             SELECT triggered_at FROM schedule_executions
-            WHERE schedule_id = ? 
+            WHERE schedule_id = ?
             ORDER BY triggered_at DESC LIMIT 1
         """,
             (schedule.name,),
@@ -677,7 +679,7 @@ class AdvancedScheduler:
 
         cursor.execute(
             """
-            INSERT INTO schedule_executions 
+            INSERT INTO schedule_executions
             (schedule_id, triggered_at, action_type, devices_affected)
             VALUES (?, ?, ?, ?)
         """,
@@ -718,7 +720,7 @@ class AdvancedScheduler:
         # Update execution record
         cursor.execute(
             """
-            UPDATE schedule_executions 
+            UPDATE schedule_executions
             SET executed_at = ?, success = ?, error_message = ?, retry_count = ?
             WHERE id = ?
         """,
@@ -781,7 +783,7 @@ class AdvancedScheduler:
                 # Record conflict
                 cursor.execute(
                     """
-                    INSERT OR IGNORE INTO schedule_conflicts 
+                    INSERT OR IGNORE INTO schedule_conflicts
                     (schedule1_id, schedule2_id, conflict_type)
                     VALUES (?, ?, ?)
                 """,
@@ -815,7 +817,7 @@ class AdvancedScheduler:
         try:
             cursor.execute(
                 """
-                INSERT INTO holiday_schedules 
+                INSERT INTO holiday_schedules
                 (holiday_name, country_code, schedule_id, year, enabled)
                 VALUES (?, ?, ?, ?, 1)
             """,
@@ -848,7 +850,7 @@ class AdvancedScheduler:
         # Get execution counts
         cursor.execute(
             """
-            SELECT 
+            SELECT
                 COUNT(*) as total,
                 SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful,
                 SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failed,

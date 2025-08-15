@@ -19,6 +19,7 @@ along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
 import asyncio
+import base64
 import hashlib
 import hmac
 import json
@@ -29,8 +30,7 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
-from urllib.parse import urlparse
+from typing import Any, Dict, List, Optional
 
 import aiohttp
 import backoff
@@ -220,7 +220,7 @@ class WebhookManager:
 
         cursor.execute(
             """
-            INSERT INTO webhook_configs 
+            INSERT INTO webhook_configs
             (name, url, events, enabled, auth_type, auth_config, headers,
              retry_count, retry_delay, timeout, validate_ssl, secret, metadata)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -417,7 +417,7 @@ class WebhookManager:
 
         cursor.execute(
             """
-            INSERT INTO webhook_deliveries 
+            INSERT INTO webhook_deliveries
             (webhook_id, event, payload, status)
             VALUES (?, ?, ?, 'pending')
         """,
@@ -591,8 +591,8 @@ class WebhookManager:
         if status == WebhookStatus.SUCCESS:
             cursor.execute(
                 """
-                UPDATE webhook_deliveries 
-                SET status = ?, response_code = ?, response_body = ?, 
+                UPDATE webhook_deliveries
+                SET status = ?, response_code = ?, response_body = ?,
                     delivered_at = CURRENT_TIMESTAMP
                 WHERE webhook_id = ? AND event = ? AND status IN ('pending', 'retry')
                 ORDER BY created_at DESC LIMIT 1
@@ -602,7 +602,7 @@ class WebhookManager:
         else:
             cursor.execute(
                 """
-                UPDATE webhook_deliveries 
+                UPDATE webhook_deliveries
                 SET status = ?, attempts = attempts + 1, error_message = ?
                 WHERE webhook_id = ? AND event = ? AND status IN ('pending', 'retry')
                 ORDER BY created_at DESC LIMIT 1
@@ -615,7 +615,7 @@ class WebhookManager:
 
         cursor.execute(
             """
-            INSERT OR IGNORE INTO webhook_metrics 
+            INSERT OR IGNORE INTO webhook_metrics
             (webhook_id, date, total_deliveries, successful_deliveries, failed_deliveries, avg_response_time)
             VALUES (?, ?, 0, 0, 0, 0)
         """,
@@ -625,7 +625,7 @@ class WebhookManager:
         if status == WebhookStatus.SUCCESS:
             cursor.execute(
                 """
-                UPDATE webhook_metrics 
+                UPDATE webhook_metrics
                 SET total_deliveries = total_deliveries + 1,
                     successful_deliveries = successful_deliveries + 1,
                     avg_response_time = (avg_response_time * total_deliveries + ?) / (total_deliveries + 1)
@@ -636,7 +636,7 @@ class WebhookManager:
         else:
             cursor.execute(
                 """
-                UPDATE webhook_metrics 
+                UPDATE webhook_metrics
                 SET total_deliveries = total_deliveries + 1,
                     failed_deliveries = failed_deliveries + 1
                 WHERE webhook_id = ? AND date = ?
@@ -662,7 +662,7 @@ class WebhookManager:
 
         cursor.execute(
             """
-            SELECT event, payload, status, attempts, response_code, 
+            SELECT event, payload, status, attempts, response_code,
                    error_message, created_at, delivered_at
             FROM webhook_deliveries
             WHERE webhook_id = ?
@@ -707,7 +707,7 @@ class WebhookManager:
 
         cursor.execute(
             """
-            SELECT 
+            SELECT
                 SUM(total_deliveries) as total,
                 SUM(successful_deliveries) as successful,
                 SUM(failed_deliveries) as failed,
