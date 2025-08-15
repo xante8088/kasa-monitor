@@ -53,18 +53,30 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Stage 3: Final Runtime Image
 FROM python:3.11-slim AS runtime
 
-# Install Node.js and runtime dependencies
+# Install Node.js and runtime dependencies for ARM64/Raspberry Pi
 RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
     gnupg \
-    && mkdir -p /etc/apt/keyrings \
-    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
-    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_18.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
-    && apt-get update \
-    && apt-get install -y nodejs \
+    wget \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
+
+# Install Node.js 18 directly from official binaries for ARM64
+RUN ARCH=$(dpkg --print-architecture) \
+    && if [ "$ARCH" = "arm64" ]; then \
+        NODE_ARCH="arm64"; \
+    elif [ "$ARCH" = "amd64" ]; then \
+        NODE_ARCH="x64"; \
+    else \
+        NODE_ARCH="$ARCH"; \
+    fi \
+    && curl -fsSL https://nodejs.org/dist/v18.19.0/node-v18.19.0-linux-${NODE_ARCH}.tar.xz | tar -xJ -C /usr/local --strip-components=1 \
+    && ln -s /usr/local/bin/node /usr/bin/node \
+    && ln -s /usr/local/bin/npm /usr/bin/npm \
+    && ln -s /usr/local/bin/npx /usr/bin/npx \
+    && node --version \
+    && npm --version
 
 # Create app user for security
 RUN groupadd -r appuser && useradd -r -g appuser appuser
@@ -84,6 +96,7 @@ COPY README.md ./
 COPY --from=frontend-builder /app/.next ./frontend/.next
 COPY --from=frontend-builder /app/public ./frontend/public
 COPY --from=frontend-builder /app/package.json ./frontend/
+COPY --from=frontend-builder /app/next.config.js ./frontend/
 COPY --from=frontend-builder /app/node_modules ./frontend/node_modules
 
 # Copy startup scripts
@@ -106,6 +119,7 @@ ENV PYTHONPATH=/app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV SQLITE_PATH=/app/data/kasa_monitor.db
+ENV PATH="/usr/local/bin:$PATH"
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
