@@ -220,7 +220,11 @@ class PluginSandbox:
         self.plugin_id = plugin_id
         self.restrictions = restrictions or {}
         self.allowed_modules = set(restrictions.get("allowed_modules", []))
-        self.blocked_modules = set(restrictions.get("blocked_modules", ["os", "sys", "subprocess", "__builtins__"]))
+        self.blocked_modules = set(
+            restrictions.get(
+                "blocked_modules", ["os", "sys", "subprocess", "__builtins__"]
+            )
+        )
         self.max_memory_mb = restrictions.get("max_memory_mb", 100)
         self.max_cpu_percent = restrictions.get("max_cpu_percent", 25)
         self.network_access = restrictions.get("network_access", False)
@@ -540,7 +544,9 @@ class PluginLoader:
                 raise FileNotFoundError(f"Plugin main file not found: {main_file}")
 
             # Load module
-            spec = importlib.util.spec_from_file_location(f"plugin_{plugin_id}", main_file)
+            spec = importlib.util.spec_from_file_location(
+                f"plugin_{plugin_id}", main_file
+            )
             module = importlib.util.module_from_spec(spec)
 
             # Add to sys.modules
@@ -781,15 +787,23 @@ class PluginLoader:
         # Get install path
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT install_path FROM plugin_registry WHERE plugin_id = ?", (plugin_id,))
+        cursor.execute(
+            "SELECT install_path FROM plugin_registry WHERE plugin_id = ?", (plugin_id,)
+        )
         row = cursor.fetchone()
 
         if row:
             install_path = row[0]
             # Remove from database
-            cursor.execute("DELETE FROM plugin_registry WHERE plugin_id = ?", (plugin_id,))
-            cursor.execute("DELETE FROM plugin_dependencies WHERE plugin_id = ?", (plugin_id,))
-            cursor.execute("DELETE FROM plugin_permissions WHERE plugin_id = ?", (plugin_id,))
+            cursor.execute(
+                "DELETE FROM plugin_registry WHERE plugin_id = ?", (plugin_id,)
+            )
+            cursor.execute(
+                "DELETE FROM plugin_dependencies WHERE plugin_id = ?", (plugin_id,)
+            )
+            cursor.execute(
+                "DELETE FROM plugin_permissions WHERE plugin_id = ?", (plugin_id,)
+            )
             conn.commit()
 
             # Remove files
@@ -981,7 +995,9 @@ class PluginLoader:
             except subprocess.CalledProcessError:
                 pass
 
-    def _update_plugin_state(self, plugin_id: str, state: PluginState, error_message: Optional[str] = None):
+    def _update_plugin_state(
+        self, plugin_id: str, state: PluginState, error_message: Optional[str] = None
+    ):
         """Update plugin state in database.
 
         Args:

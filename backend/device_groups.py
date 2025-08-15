@@ -175,9 +175,15 @@ class DeviceGroupManager:
         )
 
         # Create indexes
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_group_parent ON device_groups(parent_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_group_type ON device_groups(group_type)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_member_device ON group_members(device_ip)")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_group_parent ON device_groups(parent_id)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_group_type ON device_groups(group_type)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_member_device ON group_members(device_ip)"
+        )
 
         conn.commit()
         conn.close()
@@ -207,8 +213,16 @@ class DeviceGroupManager:
                     group_data.get("description", ""),
                     "manual",  # Default group type
                     group_data.get("parent_id"),
-                    (json.dumps(group_data.get("rules")) if group_data.get("rules") else None),
-                    (json.dumps(group_data.get("metadata")) if group_data.get("metadata") else None),
+                    (
+                        json.dumps(group_data.get("rules"))
+                        if group_data.get("rules")
+                        else None
+                    ),
+                    (
+                        json.dumps(group_data.get("metadata"))
+                        if group_data.get("metadata")
+                        else None
+                    ),
                     group_data.get("icon"),
                     group_data.get("color"),
                     group_data.get("sort_order", 0),
@@ -297,7 +311,9 @@ class DeviceGroupManager:
 
         return success
 
-    def delete_group(self, group_id: int, reassign_children_to: Optional[int] = None) -> bool:
+    def delete_group(
+        self, group_id: int, reassign_children_to: Optional[int] = None
+    ) -> bool:
         """Delete device group.
 
         Args:
@@ -331,7 +347,9 @@ class DeviceGroupManager:
         finally:
             conn.close()
 
-    def add_device_to_group(self, group_id: int, device_ip: str, added_by: str = "system") -> bool:
+    def add_device_to_group(
+        self, group_id: int, device_ip: str, added_by: str = "system"
+    ) -> bool:
         """Add device to group.
 
         Args:
@@ -399,7 +417,9 @@ class DeviceGroupManager:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        cursor.execute("SELECT device_ip FROM group_members WHERE group_id = ?", (group_id,))
+        cursor.execute(
+            "SELECT device_ip FROM group_members WHERE group_id = ?", (group_id,)
+        )
 
         devices = [row[0] for row in cursor.fetchall()]
         conn.close()
@@ -634,7 +654,9 @@ class DeviceGroupManager:
             }
 
             # Get device count
-            cursor.execute("SELECT COUNT(*) FROM group_members WHERE group_id = ?", (row[0],))
+            cursor.execute(
+                "SELECT COUNT(*) FROM group_members WHERE group_id = ?", (row[0],)
+            )
             group["device_count"] = cursor.fetchone()[0]
 
             groups.append(group)
@@ -642,7 +664,9 @@ class DeviceGroupManager:
         conn.close()
         return groups
 
-    def execute_group_action(self, group_id: int, action: GroupAction, executed_by: str = "system") -> Dict[str, Any]:
+    def execute_group_action(
+        self, group_id: int, action: GroupAction, executed_by: str = "system"
+    ) -> Dict[str, Any]:
         """Execute action on all devices in a group.
 
         Args:
@@ -696,7 +720,9 @@ class DeviceGroupManager:
         # This would check device properties against the conditions
         return devices
 
-    def _record_group_action(self, group_id: int, action: GroupAction, executed_by: str, results: Dict):
+    def _record_group_action(
+        self, group_id: int, action: GroupAction, executed_by: str, results: Dict
+    ):
         """Record group action in history.
 
         Args:
@@ -797,7 +823,9 @@ class DeviceGroupManager:
         finally:
             conn.close()
 
-    def revoke_group_permission(self, group_id: int, user_id: int, permission: GroupPermission) -> bool:
+    def revoke_group_permission(
+        self, group_id: int, user_id: int, permission: GroupPermission
+    ) -> bool:
         """Revoke permission from user for a group.
 
         Args:
@@ -872,11 +900,15 @@ class DeviceGroupManager:
         cursor = conn.cursor()
 
         # Get device count
-        cursor.execute("SELECT COUNT(*) FROM group_members WHERE group_id = ?", (group_id,))
+        cursor.execute(
+            "SELECT COUNT(*) FROM group_members WHERE group_id = ?", (group_id,)
+        )
         device_count = cursor.fetchone()[0]
 
         # Get subgroup count
-        cursor.execute("SELECT COUNT(*) FROM device_groups WHERE parent_id = ?", (group_id,))
+        cursor.execute(
+            "SELECT COUNT(*) FROM device_groups WHERE parent_id = ?", (group_id,)
+        )
         subgroup_count = cursor.fetchone()[0]
 
         # Get recent actions

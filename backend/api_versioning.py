@@ -205,7 +205,11 @@ class VersionRegistry:
                 version_info.deprecated,
                 version_info.sunset,
                 str(version_info.changes) if version_info.changes else None,
-                (str(version_info.breaking_changes) if version_info.breaking_changes else None),
+                (
+                    str(version_info.breaking_changes)
+                    if version_info.breaking_changes
+                    else None
+                ),
                 version_info.migration_guide,
             ),
         )
@@ -378,7 +382,9 @@ class APIVersionMiddleware(BaseHTTPMiddleware):
             response.headers["X-API-Sunset"] = version_info.sunset.isoformat()
 
             if version_info.days_until_sunset():
-                response.headers["X-API-Sunset-Days"] = str(version_info.days_until_sunset())
+                response.headers["X-API-Sunset-Days"] = str(
+                    version_info.days_until_sunset()
+                )
 
             if version_info.migration_guide:
                 response.headers["X-API-Migration-Guide"] = version_info.migration_guide
@@ -428,7 +434,9 @@ class ResponseTransformer:
         """Initialize transformer."""
         self.transformers = {}
 
-    def register(self, from_version: str, to_version: str, transformer: Callable[[Dict], Dict]):
+    def register(
+        self, from_version: str, to_version: str, transformer: Callable[[Dict], Dict]
+    ):
         """Register a response transformer.
 
         Args:

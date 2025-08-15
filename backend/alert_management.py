@@ -609,7 +609,9 @@ class AlertManager:
         # Check escalation
         self._check_escalation(alert)
 
-    def acknowledge_alert(self, alert_id: str, user: str, notes: Optional[str] = None) -> bool:
+    def acknowledge_alert(
+        self, alert_id: str, user: str, notes: Optional[str] = None
+    ) -> bool:
         """Acknowledge alert.
 
         Args:
@@ -658,7 +660,9 @@ class AlertManager:
 
         return success
 
-    def resolve_alert(self, alert_id: str, user: str, resolution: Optional[str] = None) -> bool:
+    def resolve_alert(
+        self, alert_id: str, user: str, resolution: Optional[str] = None
+    ) -> bool:
         """Resolve alert.
 
         Args:
@@ -915,7 +919,9 @@ class AlertManager:
             "average_resolution_time_minutes": avg_resolution_time or 0,
         }
 
-    def register_callback(self, callback: Callable, severity: Optional[AlertSeverity] = None):
+    def register_callback(
+        self, callback: Callable, severity: Optional[AlertSeverity] = None
+    ):
         """Register alert callback.
 
         Args:
@@ -1021,7 +1027,9 @@ class AlertManager:
 
         # Clean old entries
         cutoff = now - timedelta(seconds=rule.threshold_window)
-        self.alert_history[rule_name] = [t for t in self.alert_history[rule_name] if t > cutoff]
+        self.alert_history[rule_name] = [
+            t for t in self.alert_history[rule_name] if t > cutoff
+        ]
 
         # Add current trigger
         self.alert_history[rule_name].append(now)

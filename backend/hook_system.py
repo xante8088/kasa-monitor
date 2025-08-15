@@ -84,7 +84,11 @@ class Hook:
         """Check hook equality."""
         if not isinstance(other, Hook):
             return False
-        return self.name == other.name and self.plugin_id == other.plugin_id and self.callback == other.callback
+        return (
+            self.name == other.name
+            and self.plugin_id == other.plugin_id
+            and self.callback == other.callback
+        )
 
 
 @dataclass
@@ -190,10 +194,18 @@ class HookRegistry:
         )
 
         # Create indexes
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_hook_name ON hook_definitions(name)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_hook_plugin ON hook_definitions(plugin_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_hook_exec_name ON hook_executions(hook_name)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_hook_exec_time ON hook_executions(triggered_at)")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_hook_name ON hook_definitions(name)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_hook_plugin ON hook_definitions(plugin_id)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_hook_exec_name ON hook_executions(hook_name)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_hook_exec_time ON hook_executions(triggered_at)"
+        )
 
         conn.commit()
         conn.close()
@@ -421,7 +433,9 @@ class HookExecutor:
                 continue
 
             # Check conditions
-            if hook.conditions and not self._check_conditions(hook.conditions, *args, **kwargs):
+            if hook.conditions and not self._check_conditions(
+                hook.conditions, *args, **kwargs
+            ):
                 continue
 
             # Execute hook
@@ -432,7 +446,11 @@ class HookExecutor:
             self._record_execution(hook, result, args, kwargs)
 
             # For filter hooks, pass result to next hook
-            if hook.hook_type == HookType.FILTER and result.success and result.result is not None:
+            if (
+                hook.hook_type == HookType.FILTER
+                and result.success
+                and result.result is not None
+            ):
                 if len(args) > 0:
                     args = (result.result,) + args[1:]
 
@@ -462,7 +480,9 @@ class HookExecutor:
                 continue
 
             # Check conditions
-            if hook.conditions and not self._check_conditions(hook.conditions, filtered_value, *args, **kwargs):
+            if hook.conditions and not self._check_conditions(
+                hook.conditions, filtered_value, *args, **kwargs
+            ):
                 continue
 
             # Execute hook
@@ -476,7 +496,9 @@ class HookExecutor:
 
         return filtered_value
 
-    async def execute_pre_post(self, hook_name: str, func: Callable, *args, **kwargs) -> Any:
+    async def execute_pre_post(
+        self, hook_name: str, func: Callable, *args, **kwargs
+    ) -> Any:
         """Execute pre/post hooks around a function.
 
         Args:
@@ -527,7 +549,9 @@ class HookExecutor:
             else:
                 # Run sync hook in executor
                 loop = asyncio.get_event_loop()
-                result = await loop.run_in_executor(None, hook.callback, *args, **kwargs)
+                result = await loop.run_in_executor(
+                    None, hook.callback, *args, **kwargs
+                )
 
             execution_time = time.time() - start_time
 
@@ -565,7 +589,9 @@ class HookExecutor:
         # This could include checking argument values, system state, etc.
         return True
 
-    def _record_execution(self, hook: Hook, result: HookResult, args: tuple, kwargs: dict):
+    def _record_execution(
+        self, hook: Hook, result: HookResult, args: tuple, kwargs: dict
+    ):
         """Record hook execution in database.
 
         Args:
@@ -677,7 +703,9 @@ class EventEmitter:
         if handler is None:
             del self.event_handlers[event_name]
         else:
-            self.event_handlers[event_name] = [(p, h) for p, h in self.event_handlers[event_name] if h != handler]
+            self.event_handlers[event_name] = [
+                (p, h) for p, h in self.event_handlers[event_name] if h != handler
+            ]
 
     async def _process_events(self):
         """Process events from queue."""
@@ -711,7 +739,9 @@ class EventEmitter:
                         if asyncio.iscoroutinefunction(handler):
                             await handler(event)
                         else:
-                            await asyncio.get_event_loop().run_in_executor(None, handler, event)
+                            await asyncio.get_event_loop().run_in_executor(
+                                None, handler, event
+                            )
                     except Exception as e:
                         # Log error but continue processing
                         print(f"Error in event handler for {event.name}: {e}")
@@ -873,7 +903,9 @@ class HookManager:
         """
         self.emitter.off(event_name, handler)
 
-    def get_statistics(self, hook_name: Optional[str] = None, days: int = 7) -> Dict[str, Any]:
+    def get_statistics(
+        self, hook_name: Optional[str] = None, days: int = 7
+    ) -> Dict[str, Any]:
         """Get hook execution statistics.
 
         Args:

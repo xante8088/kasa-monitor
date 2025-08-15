@@ -311,7 +311,9 @@ class EmailTemplateEngine:
         """
         return markdown.markdown(text, extensions=["extra", "nl2br"])
 
-    def _format_date_filter(self, date: Union[str, datetime], format: str = "%Y-%m-%d %H:%M:%S") -> str:
+    def _format_date_filter(
+        self, date: Union[str, datetime], format: str = "%Y-%m-%d %H:%M:%S"
+    ) -> str:
         """Format date for display.
 
         Args:
@@ -424,7 +426,9 @@ class EmailQueue:
         conn.commit()
         conn.close()
 
-    def enqueue(self, message: EmailMessage, scheduled_at: Optional[datetime] = None) -> str:
+    def enqueue(
+        self, message: EmailMessage, scheduled_at: Optional[datetime] = None
+    ) -> str:
         """Add email to queue.
 
         Args:
@@ -479,7 +483,9 @@ class EmailQueue:
             return
 
         self.running = True
-        self.worker_thread = threading.Thread(target=self._worker_loop, args=(smtp_config, interval), daemon=True)
+        self.worker_thread = threading.Thread(
+            target=self._worker_loop, args=(smtp_config, interval), daemon=True
+        )
         self.worker_thread.start()
 
     def stop_worker(self):
@@ -584,7 +590,9 @@ class EmailQueue:
 
         conn.close()
 
-    def _send_email(self, sender: "EmailSender", message_id: str, message: EmailMessage):
+    def _send_email(
+        self, sender: "EmailSender", message_id: str, message: EmailMessage
+    ):
         """Send email and update status.
 
         Args:
@@ -796,9 +804,13 @@ class EmailSender:
             recipients: List of recipients
         """
         if self.config.use_ssl:
-            server = smtplib.SMTP_SSL(self.config.host, self.config.port, timeout=self.config.timeout)
+            server = smtplib.SMTP_SSL(
+                self.config.host, self.config.port, timeout=self.config.timeout
+            )
         else:
-            server = smtplib.SMTP(self.config.host, self.config.port, timeout=self.config.timeout)
+            server = smtplib.SMTP(
+                self.config.host, self.config.port, timeout=self.config.timeout
+            )
 
             if self.config.use_tls:
                 server.starttls()

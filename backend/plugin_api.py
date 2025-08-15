@@ -112,7 +112,9 @@ class PluginAPIRouter:
         """Setup API routes."""
 
         @self.app.get("/api/plugins")
-        async def list_plugins(plugin_type: Optional[str] = None, state: Optional[str] = None):
+        async def list_plugins(
+            plugin_type: Optional[str] = None, state: Optional[str] = None
+        ):
             """List installed plugins."""
             type_filter = PluginType(plugin_type) if plugin_type else None
             state_filter = PluginState(state) if state else None
@@ -198,7 +200,9 @@ class PluginAPIRouter:
                     await reload_plugin(plugin_id)
                     return {"message": "Configuration updated"}
 
-            raise HTTPException(status_code=500, detail="Failed to update configuration")
+            raise HTTPException(
+                status_code=500, detail="Failed to update configuration"
+            )
 
         @self.app.get("/api/plugins/{plugin_id}/config")
         async def get_plugin_config(plugin_id: str):
@@ -211,7 +215,9 @@ class PluginAPIRouter:
             return info.get("config", {})
 
         @self.app.post("/api/plugins/{plugin_id}/permissions")
-        async def update_plugin_permission(plugin_id: str, update: PluginPermissionUpdate):
+        async def update_plugin_permission(
+            plugin_id: str, update: PluginPermissionUpdate
+        ):
             """Update plugin permission."""
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -270,12 +276,16 @@ class PluginAPIRouter:
             return permissions
 
         @self.app.get("/api/plugins/{plugin_id}/logs")
-        async def get_plugin_logs(plugin_id: str, limit: int = 100, level: Optional[str] = None):
+        async def get_plugin_logs(
+            plugin_id: str, limit: int = 100, level: Optional[str] = None
+        ):
             """Get plugin logs."""
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
 
-            query = "SELECT level, message, timestamp FROM plugin_logs WHERE plugin_id = ?"
+            query = (
+                "SELECT level, message, timestamp FROM plugin_logs WHERE plugin_id = ?"
+            )
             params = [plugin_id]
 
             if level:
@@ -301,7 +311,9 @@ class PluginAPIRouter:
             return metrics
 
         @self.app.post("/api/plugins/install")
-        async def install_plugin(request: PluginInstallRequest, background_tasks: BackgroundTasks):
+        async def install_plugin(
+            request: PluginInstallRequest, background_tasks: BackgroundTasks
+        ):
             """Install a plugin."""
             background_tasks.add_task(
                 self._install_plugin_task,
@@ -328,9 +340,13 @@ class PluginAPIRouter:
                 f.write(content)
 
             # Install plugin
-            background_tasks.add_task(self._install_plugin_task, str(temp_file), True, enable_after_install)
+            background_tasks.add_task(
+                self._install_plugin_task, str(temp_file), True, enable_after_install
+            )
 
-            return {"message": f"Plugin {file.filename} uploaded and installation started"}
+            return {
+                "message": f"Plugin {file.filename} uploaded and installation started"
+            }
 
         @self.app.delete("/api/plugins/{plugin_id}")
         async def uninstall_plugin(plugin_id: str):
@@ -338,7 +354,9 @@ class PluginAPIRouter:
             success = self.plugin_loader.uninstall_plugin(plugin_id)
 
             if not success:
-                raise HTTPException(status_code=500, detail="Failed to uninstall plugin")
+                raise HTTPException(
+                    status_code=500, detail="Failed to uninstall plugin"
+                )
 
             return {"message": f"Plugin {plugin_id} uninstalled"}
 
@@ -354,20 +372,28 @@ class PluginAPIRouter:
             details = await self._get_marketplace_plugin(plugin_id)
 
             if not details:
-                raise HTTPException(status_code=404, detail="Plugin not found in marketplace")
+                raise HTTPException(
+                    status_code=404, detail="Plugin not found in marketplace"
+                )
 
             return details
 
         @self.app.post("/api/plugins/marketplace/{plugin_id}/install")
-        async def install_from_marketplace(plugin_id: str, background_tasks: BackgroundTasks):
+        async def install_from_marketplace(
+            plugin_id: str, background_tasks: BackgroundTasks
+        ):
             """Install plugin from marketplace."""
             # Get plugin URL from marketplace
             details = await self._get_marketplace_plugin(plugin_id)
 
             if not details:
-                raise HTTPException(status_code=404, detail="Plugin not found in marketplace")
+                raise HTTPException(
+                    status_code=404, detail="Plugin not found in marketplace"
+                )
 
-            background_tasks.add_task(self._install_plugin_task, details["download_url"], True, False)
+            background_tasks.add_task(
+                self._install_plugin_task, details["download_url"], True, False
+            )
 
             return {"message": f"Installing {details['name']} from marketplace"}
 
@@ -425,9 +451,13 @@ class PluginAPIRouter:
             if not update_info:
                 return {"message": "Plugin is up to date"}
 
-            background_tasks.add_task(self._update_plugin_task, plugin_id, update_info["latest_version"])
+            background_tasks.add_task(
+                self._update_plugin_task, plugin_id, update_info["latest_version"]
+            )
 
-            return {"message": f"Updating {plugin_id} to version {update_info['latest_version']}"}
+            return {
+                "message": f"Updating {plugin_id} to version {update_info['latest_version']}"
+            }
 
     async def _enable_plugin_task(self, plugin_id: str):
         """Background task to enable a plugin.
@@ -454,7 +484,9 @@ class PluginAPIRouter:
                 },
             )
 
-    async def _install_plugin_task(self, source: str, install_dependencies: bool, enable_after_install: bool):
+    async def _install_plugin_task(
+        self, source: str, install_dependencies: bool, enable_after_install: bool
+    ):
         """Background task to install a plugin.
 
         Args:
@@ -626,7 +658,9 @@ class PluginAPIRouter:
         # Check marketplace for newer version
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.marketplace_url}/{plugin_id}/version") as response:
+                async with session.get(
+                    f"{self.marketplace_url}/{plugin_id}/version"
+                ) as response:
                     if response.status == 200:
                         data = await response.json()
                         latest_version = data.get("version")

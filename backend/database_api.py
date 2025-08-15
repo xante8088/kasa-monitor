@@ -106,7 +106,9 @@ async def create_backup(
     )
 
     if result["status"] == "failed":
-        raise HTTPException(status_code=500, detail=result.get("error", "Backup failed"))
+        raise HTTPException(
+            status_code=500, detail=result.get("error", "Backup failed")
+        )
 
     return result
 
@@ -120,7 +122,9 @@ async def list_backups(backup_type: Optional[str] = None, limit: Optional[int] =
 
 
 @router.post("/restore/{backup_name}")
-async def restore_backup(backup_name: str, target_path: Optional[str] = None, verify_checksum: bool = True):
+async def restore_backup(
+    backup_name: str, target_path: Optional[str] = None, verify_checksum: bool = True
+):
     """Restore a database backup"""
     bm = get_backup_manager()
 
@@ -131,7 +135,9 @@ async def restore_backup(backup_name: str, target_path: Optional[str] = None, ve
     )
 
     if result["status"] == "failed":
-        raise HTTPException(status_code=500, detail=result.get("error", "Restore failed"))
+        raise HTTPException(
+            status_code=500, detail=result.get("error", "Restore failed")
+        )
 
     return result
 
@@ -143,7 +149,9 @@ async def verify_backup(backup_name: str):
     result = await bm.verify_backup(backup_name)
 
     if result["status"] == "failed":
-        raise HTTPException(status_code=400, detail=result.get("error", "Verification failed"))
+        raise HTTPException(
+            status_code=400, detail=result.get("error", "Verification failed")
+        )
 
     return result
 
@@ -162,7 +170,9 @@ async def delete_backup(backup_name: str):
                 backup_file.unlink()
 
                 # Update metadata
-                bm.metadata["backups"] = [b for b in bm.metadata["backups"] if b["name"] != backup_name]
+                bm.metadata["backups"] = [
+                    b for b in bm.metadata["backups"] if b["name"] != backup_name
+                ]
                 bm._save_metadata()
 
                 return {"message": f"Backup {backup_name} deleted successfully"}
@@ -285,7 +295,9 @@ async def list_migrations():
 
 
 @router.post("/migrate")
-async def run_migration(revision: str = "head", background_tasks: BackgroundTasks = None):
+async def run_migration(
+    revision: str = "head", background_tasks: BackgroundTasks = None
+):
     """Run database migrations"""
     try:
         # Create backup before migration
@@ -409,7 +421,9 @@ async def vacuum_database(db: AsyncSession = Depends(get_async_session)):
 
         # Get database size after vacuum
         db_path = os.getenv("DATABASE_PATH", "data/kasa_monitor.db")
-        size_after = os.path.getsize(db_path) / (1024 * 1024) if os.path.exists(db_path) else 0
+        size_after = (
+            os.path.getsize(db_path) / (1024 * 1024) if os.path.exists(db_path) else 0
+        )
 
         return {"message": "Database vacuum completed", "size_mb": size_after}
     except Exception as e:

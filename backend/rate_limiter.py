@@ -254,7 +254,9 @@ class RateLimiter:
             # Fall back to allowing request on Redis error
             return True
 
-    def get_rate_limit_headers(self, key: str, limit: int, window: int) -> Dict[str, str]:
+    def get_rate_limit_headers(
+        self, key: str, limit: int, window: int
+    ) -> Dict[str, str]:
         """Generate rate limit headers for response.
 
         Args:
@@ -383,11 +385,15 @@ class IPBasedRateLimiter:
             ip: IP address
             endpoint: Requested endpoint
         """
-        self.request_history[ip].append({"endpoint": endpoint, "timestamp": datetime.now()})
+        self.request_history[ip].append(
+            {"endpoint": endpoint, "timestamp": datetime.now()}
+        )
 
         # Keep only last hour of history
         cutoff = datetime.now() - timedelta(hours=1)
-        self.request_history[ip] = [r for r in self.request_history[ip] if r["timestamp"] > cutoff]
+        self.request_history[ip] = [
+            r for r in self.request_history[ip] if r["timestamp"] > cutoff
+        ]
 
     def detect_suspicious_activity(self, ip: str) -> bool:
         """Detect suspicious request patterns.
@@ -415,7 +421,11 @@ class IPBasedRateLimiter:
             "/api/auth/register",
             "/api/auth/reset-password",
         ]
-        auth_requests = [r for r in recent_requests if any(endpoint in r["endpoint"] for endpoint in auth_endpoints)]
+        auth_requests = [
+            r
+            for r in recent_requests
+            if any(endpoint in r["endpoint"] for endpoint in auth_endpoints)
+        ]
         if len(auth_requests) > 10:
             return True
 
@@ -472,6 +482,8 @@ class UserBasedRateLimiter:
 
         # Clean old windows (keep last hour)
         current_window = int(time.time() // 60)
-        old_windows = [w for w in self.user_request_counts[user_id] if w < current_window - 60]
+        old_windows = [
+            w for w in self.user_request_counts[user_id] if w < current_window - 60
+        ]
         for window in old_windows:
             del self.user_request_counts[user_id][window]

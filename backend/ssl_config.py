@@ -52,7 +52,9 @@ class SSLConfig:
             logger.error(f"Failed to create SSL context: {e}")
             return None
 
-    def install_certificate(self, cert_content: str, key_content: str, ca_content: Optional[str] = None) -> bool:
+    def install_certificate(
+        self, cert_content: str, key_content: str, ca_content: Optional[str] = None
+    ) -> bool:
         """Install SSL certificate files."""
         try:
             cert_path = self.cert_dir / "cert.pem"
@@ -115,7 +117,9 @@ class SSLConfig:
             cert_builder = cert_builder.public_key(private_key.public_key())
             cert_builder = cert_builder.serial_number(x509.random_serial_number())
             cert_builder = cert_builder.not_valid_before(datetime.utcnow())
-            cert_builder = cert_builder.not_valid_after(datetime.utcnow() + timedelta(days=365))
+            cert_builder = cert_builder.not_valid_after(
+                datetime.utcnow() + timedelta(days=365)
+            )
 
             # Add SAN (Subject Alternative Names)
             san_list = [x509.DNSName(hostname)]
@@ -135,7 +139,9 @@ class SSLConfig:
             except Exception:
                 pass
 
-            cert_builder = cert_builder.add_extension(x509.SubjectAlternativeName(san_list), critical=False)
+            cert_builder = cert_builder.add_extension(
+                x509.SubjectAlternativeName(san_list), critical=False
+            )
 
             # Sign certificate
             certificate = cert_builder.sign(private_key, hashes.SHA256())

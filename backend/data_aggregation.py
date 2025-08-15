@@ -37,8 +37,12 @@ class DataAggregator:
         self.is_running = True
 
         # Schedule aggregation tasks
-        self.aggregation_tasks["hourly"] = asyncio.create_task(self._hourly_aggregation_loop())
-        self.aggregation_tasks["daily"] = asyncio.create_task(self._daily_aggregation_loop())
+        self.aggregation_tasks["hourly"] = asyncio.create_task(
+            self._hourly_aggregation_loop()
+        )
+        self.aggregation_tasks["daily"] = asyncio.create_task(
+            self._daily_aggregation_loop()
+        )
         self.aggregation_tasks["cleanup"] = asyncio.create_task(self._cleanup_loop())
 
         logger.info("Data aggregation service started")
@@ -101,7 +105,9 @@ class DataAggregator:
             target_hour = force_date.replace(minute=0, second=0, microsecond=0)
         else:
             # Aggregate the previous hour
-            target_hour = (datetime.now() - timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+            target_hour = (datetime.now() - timedelta(hours=1)).replace(
+                minute=0, second=0, microsecond=0
+            )
 
         next_hour = target_hour + timedelta(hours=1)
 
@@ -170,10 +176,14 @@ class DataAggregator:
 
             if summary:
                 # Calculate cost based on energy consumption
-                cost = await self._calculate_daily_cost(device_ip, summary["total_energy"], target_date)
+                cost = await self._calculate_daily_cost(
+                    device_ip, summary["total_energy"], target_date
+                )
 
                 # Insert or update daily summary
-                await self._insert_daily_summary(device_ip=device_ip, date=target_date, **summary, cost=cost)
+                await self._insert_daily_summary(
+                    device_ip=device_ip, date=target_date, **summary, cost=cost
+                )
 
     async def aggregate_monthly_data(self, year: int, month: int):
         """Aggregate data into monthly summaries"""
@@ -272,7 +282,9 @@ class DataAggregator:
                 AND power_w IS NOT NULL
         """
 
-        results = await self.db_manager.execute_query(query, [device_ip, start_date.isoformat(), end_date.isoformat()])
+        results = await self.db_manager.execute_query(
+            query, [device_ip, start_date.isoformat(), end_date.isoformat()]
+        )
 
         if not results:
             return {}
@@ -286,19 +298,39 @@ class DataAggregator:
             "power": {
                 "mean": statistics.mean(power_values),
                 "median": statistics.median(power_values),
-                "mode": (statistics.mode(power_values) if len(set(power_values)) < len(power_values) else None),
+                "mode": (
+                    statistics.mode(power_values)
+                    if len(set(power_values)) < len(power_values)
+                    else None
+                ),
                 "stdev": statistics.stdev(power_values) if len(power_values) > 1 else 0,
-                "variance": (statistics.variance(power_values) if len(power_values) > 1 else 0),
+                "variance": (
+                    statistics.variance(power_values) if len(power_values) > 1 else 0
+                ),
                 "min": min(power_values),
                 "max": max(power_values),
                 "range": max(power_values) - min(power_values),
                 "percentiles": {
-                    "25": (statistics.quantiles(power_values, n=4)[0] if len(power_values) > 1 else power_values[0]),
+                    "25": (
+                        statistics.quantiles(power_values, n=4)[0]
+                        if len(power_values) > 1
+                        else power_values[0]
+                    ),
                     "50": statistics.median(power_values),
-                    "75": (statistics.quantiles(power_values, n=4)[2] if len(power_values) > 1 else power_values[0]),
-                    "90": (statistics.quantiles(power_values, n=10)[8] if len(power_values) > 9 else max(power_values)),
+                    "75": (
+                        statistics.quantiles(power_values, n=4)[2]
+                        if len(power_values) > 1
+                        else power_values[0]
+                    ),
+                    "90": (
+                        statistics.quantiles(power_values, n=10)[8]
+                        if len(power_values) > 9
+                        else max(power_values)
+                    ),
                     "95": (
-                        statistics.quantiles(power_values, n=20)[18] if len(power_values) > 19 else max(power_values)
+                        statistics.quantiles(power_values, n=20)[18]
+                        if len(power_values) > 19
+                        else max(power_values)
                     ),
                 },
             },
@@ -421,7 +453,9 @@ class DataAggregator:
                 AND DATE(hour) = ?
         """
 
-        result = await self.db_manager.execute_query(query, [device_ip, date.isoformat()])
+        result = await self.db_manager.execute_query(
+            query, [device_ip, date.isoformat()]
+        )
 
         if result and result[0][0] > 0:
             return {
@@ -445,7 +479,9 @@ class DataAggregator:
                 AND DATE(timestamp) = ?
         """
 
-        result = await self.db_manager.execute_query(query, [device_ip, date.isoformat()])
+        result = await self.db_manager.execute_query(
+            query, [device_ip, date.isoformat()]
+        )
 
         if result and result[0][0] is not None:
             return {
@@ -458,7 +494,9 @@ class DataAggregator:
 
         return None
 
-    async def _calculate_daily_cost(self, device_ip: str, energy_kwh: float, date) -> float:
+    async def _calculate_daily_cost(
+        self, device_ip: str, energy_kwh: float, date
+    ) -> float:
         """Calculate cost for daily energy consumption"""
         # This is a simplified calculation - should use actual rate structure
         # Default to $0.12/kWh if no rate is configured
@@ -567,7 +605,9 @@ class DataAggregator:
             ],
         )
 
-    async def _get_hourly_data(self, device_ip: Optional[str], start_date: datetime, end_date: datetime) -> List[Dict]:
+    async def _get_hourly_data(
+        self, device_ip: Optional[str], start_date: datetime, end_date: datetime
+    ) -> List[Dict]:
         """Get hourly aggregated data"""
         query = """
             SELECT hour, device_ip, avg_power, max_power, total_energy
@@ -595,7 +635,9 @@ class DataAggregator:
             for row in results
         ]
 
-    async def _get_daily_data(self, device_ip: Optional[str], start_date: datetime, end_date: datetime) -> List[Dict]:
+    async def _get_daily_data(
+        self, device_ip: Optional[str], start_date: datetime, end_date: datetime
+    ) -> List[Dict]:
         """Get daily aggregated data"""
         query = """
             SELECT date, device_ip, average_power_w, peak_power_w, total_kwh, cost
@@ -624,7 +666,9 @@ class DataAggregator:
             for row in results
         ]
 
-    async def _get_weekly_data(self, device_ip: Optional[str], start_date: datetime, end_date: datetime) -> List[Dict]:
+    async def _get_weekly_data(
+        self, device_ip: Optional[str], start_date: datetime, end_date: datetime
+    ) -> List[Dict]:
         """Get weekly aggregated data"""
         query = """
             SELECT 
@@ -659,7 +703,9 @@ class DataAggregator:
             for row in results
         ]
 
-    async def _get_monthly_data(self, device_ip: Optional[str], start_date: datetime, end_date: datetime) -> List[Dict]:
+    async def _get_monthly_data(
+        self, device_ip: Optional[str], start_date: datetime, end_date: datetime
+    ) -> List[Dict]:
         """Get monthly aggregated data"""
         query = """
             SELECT 

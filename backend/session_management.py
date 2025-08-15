@@ -326,7 +326,9 @@ class SessionManager:
             timeout_minutes = self.config.timeout_minutes
 
         expires_at = datetime.now() + timedelta(minutes=timeout_minutes)
-        absolute_expires = datetime.now() + timedelta(hours=self.config.absolute_timeout_hours)
+        absolute_expires = datetime.now() + timedelta(
+            hours=self.config.absolute_timeout_hours
+        )
 
         # Use the earlier expiration
         if absolute_expires < expires_at:
@@ -378,7 +380,9 @@ class SessionManager:
         conn.close()
 
         # Log session creation
-        self._log_activity(session_id, "created", f"New session from {ip_address}", ip_address)
+        self._log_activity(
+            session_id, "created", f"New session from {ip_address}", ip_address
+        )
 
         result = {
             "session_id": session_id,
@@ -424,7 +428,9 @@ class SessionManager:
 
         # Check inactivity timeout
         last_activity = datetime.fromisoformat(session_data["last_activity"])
-        inactivity_limit = datetime.now() - timedelta(minutes=self.config.inactivity_timeout_minutes)
+        inactivity_limit = datetime.now() - timedelta(
+            minutes=self.config.inactivity_timeout_minutes
+        )
 
         if last_activity < inactivity_limit:
             self.invalidate_session(session_id)
@@ -446,7 +452,9 @@ class SessionManager:
 
             if self.config.require_same_user_agent and user_agent:
                 if session_data["user_agent"] != user_agent:
-                    self._log_activity(session_id, "agent_mismatch", "User agent changed", ip_address)
+                    self._log_activity(
+                        session_id, "agent_mismatch", "User agent changed", ip_address
+                    )
                     self.invalidate_session(session_id)
                     return None
 
@@ -683,7 +691,9 @@ class SessionManager:
         if len(sessions) >= self.config.concurrent_sessions_limit:
             for session in sessions[self.config.concurrent_sessions_limit - 1 :]:
                 self.invalidate_session(session[0])
-                self._log_activity(session[0], "limit_exceeded", "Concurrent session limit exceeded")
+                self._log_activity(
+                    session[0], "limit_exceeded", "Concurrent session limit exceeded"
+                )
 
         conn.close()
 

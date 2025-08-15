@@ -62,7 +62,9 @@ class TwoFactorAuth:
             Base64 encoded QR code image
         """
         # Create TOTP URI
-        totp_uri = pyotp.totp.TOTP(secret).provisioning_uri(name=username, issuer_name=self.issuer_name)
+        totp_uri = pyotp.totp.TOTP(secret).provisioning_uri(
+            name=username, issuer_name=self.issuer_name
+        )
 
         # Generate QR code
         qr = qrcode.QRCode(
@@ -112,7 +114,8 @@ class TwoFactorAuth:
         for _ in range(self.backup_codes_count):
             # Generate alphanumeric backup code
             code = "".join(
-                secrets.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") for _ in range(self.backup_code_length)
+                secrets.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+                for _ in range(self.backup_code_length)
             )
             # Add hyphen for readability (XXXX-XXXX)
             formatted_code = f"{code[:4]}-{code[4:]}"
@@ -283,7 +286,9 @@ class TwoFactorSession:
 
         # Check for lockout
         if session["attempts"] >= self.max_attempts:
-            session["locked_until"] = datetime.now() + timedelta(seconds=self.lockout_duration)
+            session["locked_until"] = datetime.now() + timedelta(
+                seconds=self.lockout_duration
+            )
             return False
 
         return True
@@ -291,6 +296,8 @@ class TwoFactorSession:
     def clear_expired_sessions(self):
         """Remove expired sessions."""
         now = datetime.now()
-        expired = [sid for sid, session in self.sessions.items() if now > session["expires_at"]]
+        expired = [
+            sid for sid, session in self.sessions.items() if now > session["expires_at"]
+        ]
         for sid in expired:
             del self.sessions[sid]

@@ -270,7 +270,9 @@ class WebhookManager:
         for key, value in updates.items():
             fields.append(f"{key} = ?")
             if key == "events":
-                values.append(json.dumps([e.value if isinstance(e, Enum) else e for e in value]))
+                values.append(
+                    json.dumps([e.value if isinstance(e, Enum) else e for e in value])
+                )
             elif key in ["auth_config", "headers", "metadata"]:
                 values.append(json.dumps(value) if value else None)
             elif key == "auth_type":
@@ -318,7 +320,9 @@ class WebhookManager:
 
         return success
 
-    def trigger(self, event: WebhookEvent, data: Dict[str, Any], metadata: Optional[Dict] = None):
+    def trigger(
+        self, event: WebhookEvent, data: Dict[str, Any], metadata: Optional[Dict] = None
+    ):
         """Trigger webhook for event.
 
         Args:
@@ -326,7 +330,9 @@ class WebhookManager:
             data: Event data
             metadata: Optional metadata
         """
-        payload = WebhookPayload(event=event, timestamp=datetime.now(), data=data, metadata=metadata)
+        payload = WebhookPayload(
+            event=event, timestamp=datetime.now(), data=data, metadata=metadata
+        )
 
         # Find matching webhooks
         for webhook_id, config in self.webhooks.items():
@@ -337,7 +343,9 @@ class WebhookManager:
                 # Queue delivery
                 self._queue_delivery(webhook_id, payload)
 
-    async def trigger_async(self, event: WebhookEvent, data: Dict[str, Any], metadata: Optional[Dict] = None):
+    async def trigger_async(
+        self, event: WebhookEvent, data: Dict[str, Any], metadata: Optional[Dict] = None
+    ):
         """Trigger webhook asynchronously.
 
         Args:
@@ -345,7 +353,9 @@ class WebhookManager:
             data: Event data
             metadata: Optional metadata
         """
-        payload = WebhookPayload(event=event, timestamp=datetime.now(), data=data, metadata=metadata)
+        payload = WebhookPayload(
+            event=event, timestamp=datetime.now(), data=data, metadata=metadata
+        )
 
         tasks = []
         for webhook_id, config in self.webhooks.items():
@@ -426,7 +436,9 @@ class WebhookManager:
         max_tries=3,
         max_time=60,
     )
-    async def _deliver_async(self, webhook_id: int, config: WebhookConfig, payload: WebhookPayload):
+    async def _deliver_async(
+        self, webhook_id: int, config: WebhookConfig, payload: WebhookPayload
+    ):
         """Deliver webhook asynchronously with retry.
 
         Args:
@@ -469,7 +481,11 @@ class WebhookManager:
                     self._record_delivery(
                         webhook_id=webhook_id,
                         event=payload.event,
-                        status=(WebhookStatus.SUCCESS if response.status < 400 else WebhookStatus.FAILED),
+                        status=(
+                            WebhookStatus.SUCCESS
+                            if response.status < 400
+                            else WebhookStatus.FAILED
+                        ),
                         response_code=response.status,
                         response_body=response_body,
                         response_time=response_time,
@@ -492,7 +508,9 @@ class WebhookManager:
                 )
                 raise
 
-    def _add_authentication(self, headers: Dict, config: WebhookConfig, payload: WebhookPayload) -> Dict:
+    def _add_authentication(
+        self, headers: Dict, config: WebhookConfig, payload: WebhookPayload
+    ) -> Dict:
         """Add authentication to headers.
 
         Args:
@@ -538,7 +556,9 @@ class WebhookManager:
             HMAC signature
         """
         payload_json = json.dumps(payload.to_dict(), sort_keys=True)
-        signature = hmac.new(secret.encode(), payload_json.encode(), hashlib.sha256).hexdigest()
+        signature = hmac.new(
+            secret.encode(), payload_json.encode(), hashlib.sha256
+        ).hexdigest()
 
         return f"sha256={signature}"
 

@@ -85,7 +85,9 @@ class CalibrationProfile:
             data["expires_at"] = self.expires_at.isoformat()
         return data
 
-    def apply_calibration(self, measurement_type: MeasurementType, value: float) -> float:
+    def apply_calibration(
+        self, measurement_type: MeasurementType, value: float
+    ) -> float:
         """Apply calibration to a measurement.
 
         Args:
@@ -255,10 +257,18 @@ class DeviceCalibrationManager:
         )
 
         # Create indexes
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cal_device ON calibration_profiles(device_ip)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cal_active ON calibration_profiles(active)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cal_data_profile ON calibration_data(profile_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cal_history_device ON calibration_history(device_ip)")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cal_device ON calibration_profiles(device_ip)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cal_active ON calibration_profiles(active)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cal_data_profile ON calibration_data(profile_id)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cal_history_device ON calibration_history(device_ip)"
+        )
 
         conn.commit()
         conn.close()
@@ -388,7 +398,9 @@ class DeviceCalibrationManager:
 
         if method == "linear":
             # Linear regression
-            slope, intercept, r_value, p_value, std_err = stats.linregress(raw_values, ref_values)
+            slope, intercept, r_value, p_value, std_err = stats.linregress(
+                raw_values, ref_values
+            )
 
             factor = slope
             offset = intercept
@@ -442,7 +454,9 @@ class DeviceCalibrationManager:
 
         return False
 
-    def validate_calibration(self, profile_id: int, validation_data: List[CalibrationPoint]) -> Dict[str, Any]:
+    def validate_calibration(
+        self, profile_id: int, validation_data: List[CalibrationPoint]
+    ) -> Dict[str, Any]:
         """Validate calibration accuracy.
 
         Args:
@@ -528,7 +542,9 @@ class DeviceCalibrationManager:
 
         return None
 
-    def apply_calibration(self, device_ip: str, measurement_type: MeasurementType, value: float) -> float:
+    def apply_calibration(
+        self, device_ip: str, measurement_type: MeasurementType, value: float
+    ) -> float:
         """Apply calibration to a measurement.
 
         Args:
@@ -671,7 +687,11 @@ class DeviceCalibrationManager:
             offsets=profile_dict["offsets"],
             valid_range=profile_dict.get("valid_range", {}),
             confidence_level=profile_dict.get("confidence_level", 0.95),
-            expires_at=(datetime.fromisoformat(profile_dict["expires_at"]) if profile_dict.get("expires_at") else None),
+            expires_at=(
+                datetime.fromisoformat(profile_dict["expires_at"])
+                if profile_dict.get("expires_at")
+                else None
+            ),
             reference_device=profile_dict.get("reference_device"),
             metadata=profile_dict.get("metadata"),
         )
@@ -693,7 +713,9 @@ class DeviceCalibrationManager:
 
         return profile_id
 
-    def _get_calibration_data(self, device_ip: str, measurement_type: MeasurementType) -> List[CalibrationPoint]:
+    def _get_calibration_data(
+        self, device_ip: str, measurement_type: MeasurementType
+    ) -> List[CalibrationPoint]:
         """Get calibration data points for device.
 
         Args:

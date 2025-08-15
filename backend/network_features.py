@@ -153,7 +153,9 @@ class mDNSListener(ServiceListener):
 
             # Notify discovery manager
             for address in self.discovered_services[name]["addresses"]:
-                self.discovery_manager._process_mdns_device(address, self.discovered_services[name])
+                self.discovery_manager._process_mdns_device(
+                    address, self.discovered_services[name]
+                )
 
     def remove_service(self, zeroconf, service_type, name):
         """Service removed."""
@@ -290,10 +292,18 @@ class NetworkDiscoveryManager:
         )
 
         # Create indexes
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_disc_ip ON discovered_devices(ip_address)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_disc_mac ON discovered_devices(mac_address)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_disc_vlan ON discovered_devices(vlan_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_disc_time ON discovered_devices(discovered_at)")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_disc_ip ON discovered_devices(ip_address)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_disc_mac ON discovered_devices(mac_address)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_disc_vlan ON discovered_devices(vlan_id)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_disc_time ON discovered_devices(discovered_at)"
+        )
 
         conn.commit()
         conn.close()
@@ -322,7 +332,9 @@ class NetworkDiscoveryManager:
                             mac = addrs[netifaces.AF_LINK][0].get("addr")
 
                         # Check if wireless
-                        is_wireless = "wlan" in iface_name.lower() or "wi" in iface_name.lower()
+                        is_wireless = (
+                            "wlan" in iface_name.lower() or "wi" in iface_name.lower()
+                        )
 
                         interface = NetworkInterface(
                             name=iface_name,
@@ -553,7 +565,9 @@ class NetworkDiscoveryManager:
 
         return results
 
-    async def _scan_subnet(self, subnet: str, interface: NetworkInterface) -> List[DiscoveryResult]:
+    async def _scan_subnet(
+        self, subnet: str, interface: NetworkInterface
+    ) -> List[DiscoveryResult]:
         """Scan subnet for devices.
 
         Args:
@@ -669,7 +683,9 @@ class NetworkDiscoveryManager:
 
             elif system == "Darwin":
                 # Use arp command on macOS
-                output = subprocess.run(["arp", "-a"], capture_output=True, text=True, timeout=10).stdout
+                output = subprocess.run(
+                    ["arp", "-a"], capture_output=True, text=True, timeout=10
+                ).stdout
 
                 for line in output.split("\n"):
                     if "(" in line and ")" in line:
@@ -810,7 +826,9 @@ class NetworkDiscoveryManager:
         # Try to get from ARP cache
         try:
             if platform.system() == "Linux":
-                output = subprocess.run(["arp", "-n", ip_address], capture_output=True, text=True).stdout
+                output = subprocess.run(
+                    ["arp", "-n", ip_address], capture_output=True, text=True
+                ).stdout
 
                 for line in output.split("\n"):
                     if ip_address in line:
@@ -819,7 +837,9 @@ class NetworkDiscoveryManager:
                             return parts[2]
 
             elif platform.system() == "Darwin":
-                output = subprocess.run(["arp", ip_address], capture_output=True, text=True).stdout
+                output = subprocess.run(
+                    ["arp", ip_address], capture_output=True, text=True
+                ).stdout
 
                 parts = output.split()
                 if len(parts) >= 4:
@@ -885,7 +905,9 @@ class NetworkDiscoveryManager:
         finally:
             conn.close()
 
-    def _record_discovery_start(self, discovery_id: str, interfaces: List[str], protocols: List[NetworkProtocol]):
+    def _record_discovery_start(
+        self, discovery_id: str, interfaces: List[str], protocols: List[NetworkProtocol]
+    ):
         """Record discovery start.
 
         Args:
@@ -937,7 +959,9 @@ class NetworkDiscoveryManager:
         conn.commit()
         conn.close()
 
-    def get_discovered_devices(self, interface: Optional[str] = None, vlan_id: Optional[int] = None) -> List[Dict]:
+    def get_discovered_devices(
+        self, interface: Optional[str] = None, vlan_id: Optional[int] = None
+    ) -> List[Dict]:
         """Get discovered devices.
 
         Args:

@@ -181,7 +181,9 @@ class FirmwareUpdate:
 class FirmwareManager:
     """Manages firmware updates and version tracking."""
 
-    def __init__(self, db_path: str = "kasa_monitor.db", firmware_dir: str = "./firmware"):
+    def __init__(
+        self, db_path: str = "kasa_monitor.db", firmware_dir: str = "./firmware"
+    ):
         """Initialize firmware manager.
 
         Args:
@@ -320,10 +322,18 @@ class FirmwareManager:
         )
 
         # Create indexes
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_fw_model ON firmware_versions(model)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_fw_channel ON firmware_versions(channel)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_fw_update_device ON firmware_updates(device_ip)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_fw_update_status ON firmware_updates(status)")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_fw_model ON firmware_versions(model)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_fw_channel ON firmware_versions(channel)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_fw_update_device ON firmware_updates(device_ip)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_fw_update_status ON firmware_updates(status)"
+        )
 
         conn.commit()
         conn.close()
@@ -401,7 +411,11 @@ class FirmwareManager:
                     firmware.release_notes,
                     firmware.min_hardware_version,
                     firmware.max_hardware_version,
-                    (json.dumps(firmware.dependencies) if firmware.dependencies else None),
+                    (
+                        json.dumps(firmware.dependencies)
+                        if firmware.dependencies
+                        else None
+                    ),
                     firmware.critical,
                     json.dumps(firmware.metadata) if firmware.metadata else None,
                 ),
@@ -442,7 +456,9 @@ class FirmwareManager:
         # Filter compatible and newer versions
         compatible = []
         for fw in available:
-            if fw.is_newer_than(device.current_version) and fw.is_compatible_with(device.hardware_version):
+            if fw.is_newer_than(device.current_version) and fw.is_compatible_with(
+                device.hardware_version
+            ):
                 compatible.append(fw)
 
         if not compatible:
@@ -451,7 +467,9 @@ class FirmwareManager:
         # Return latest version
         return max(compatible, key=lambda x: x.version)
 
-    async def download_firmware(self, firmware: FirmwareVersion, progress_callback: Optional[callable] = None) -> str:
+    async def download_firmware(
+        self, firmware: FirmwareVersion, progress_callback: Optional[callable] = None
+    ) -> str:
         """Download firmware file.
 
         Args:
@@ -507,7 +525,9 @@ class FirmwareManager:
             Path(temp_file.name).unlink(missing_ok=True)
             raise e
 
-    async def install_update(self, device_ip: str, firmware: FirmwareVersion, backup_current: bool = True) -> bool:
+    async def install_update(
+        self, device_ip: str, firmware: FirmwareVersion, backup_current: bool = True
+    ) -> bool:
         """Install firmware update on device.
 
         Args:
@@ -549,7 +569,9 @@ class FirmwareManager:
 
             # Install firmware
             update.status = FirmwareStatus.INSTALLING
-            success = await self._install_firmware_on_device(device_ip, firmware_path, firmware)
+            success = await self._install_firmware_on_device(
+                device_ip, firmware_path, firmware
+            )
 
             if success:
                 update.status = FirmwareStatus.INSTALLED
@@ -645,7 +667,9 @@ class FirmwareManager:
 
         return True
 
-    async def _install_firmware_on_device(self, device_ip: str, firmware_path: str, firmware: FirmwareVersion) -> bool:
+    async def _install_firmware_on_device(
+        self, device_ip: str, firmware_path: str, firmware: FirmwareVersion
+    ) -> bool:
         """Install firmware on physical device.
 
         Args:
@@ -763,7 +787,9 @@ class FirmwareManager:
         conn.close()
         return history
 
-    def verify_compatibility(self, device_ip: str, firmware: FirmwareVersion) -> Dict[str, Any]:
+    def verify_compatibility(
+        self, device_ip: str, firmware: FirmwareVersion
+    ) -> Dict[str, Any]:
         """Verify firmware compatibility with device.
 
         Args:
@@ -782,12 +808,16 @@ class FirmwareManager:
         # Check model match
         if firmware.model != device.model:
             results["compatible"] = False
-            results["errors"].append(f"Model mismatch: device is {device.model}, firmware is for {firmware.model}")
+            results["errors"].append(
+                f"Model mismatch: device is {device.model}, firmware is for {firmware.model}"
+            )
 
         # Check hardware compatibility
         if not firmware.is_compatible_with(device.hardware_version):
             results["compatible"] = False
-            results["errors"].append(f"Hardware version {device.hardware_version} not compatible")
+            results["errors"].append(
+                f"Hardware version {device.hardware_version} not compatible"
+            )
 
         # Check dependencies
         if firmware.dependencies:

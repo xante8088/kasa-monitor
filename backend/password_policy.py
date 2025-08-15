@@ -236,10 +236,14 @@ class PasswordPolicy:
 
         # Length checks
         if len(password) < policy["min_length"]:
-            errors.append(f"Password must be at least {policy['min_length']} characters long")
+            errors.append(
+                f"Password must be at least {policy['min_length']} characters long"
+            )
 
         if len(password) > policy["max_length"]:
-            errors.append(f"Password must be no more than {policy['max_length']} characters long")
+            errors.append(
+                f"Password must be no more than {policy['max_length']} characters long"
+            )
 
         # Character type requirements
         uppercase_count = sum(1 for c in password if c.isupper())
@@ -248,16 +252,24 @@ class PasswordPolicy:
         special_count = sum(1 for c in password if c in policy["special_chars"])
 
         if policy["require_uppercase"] and uppercase_count < policy["min_uppercase"]:
-            errors.append(f"Password must contain at least {policy['min_uppercase']} uppercase letter(s)")
+            errors.append(
+                f"Password must contain at least {policy['min_uppercase']} uppercase letter(s)"
+            )
 
         if policy["require_lowercase"] and lowercase_count < policy["min_lowercase"]:
-            errors.append(f"Password must contain at least {policy['min_lowercase']} lowercase letter(s)")
+            errors.append(
+                f"Password must contain at least {policy['min_lowercase']} lowercase letter(s)"
+            )
 
         if policy["require_digits"] and digit_count < policy["min_digits"]:
-            errors.append(f"Password must contain at least {policy['min_digits']} digit(s)")
+            errors.append(
+                f"Password must contain at least {policy['min_digits']} digit(s)"
+            )
 
         if policy["require_special"] and special_count < policy["min_special"]:
-            errors.append(f"Password must contain at least {policy['min_special']} special character(s)")
+            errors.append(
+                f"Password must contain at least {policy['min_special']} special character(s)"
+            )
 
         # Common password check
         if policy["disallow_common"] and password.lower() in self.common_passwords:
@@ -272,12 +284,16 @@ class PasswordPolicy:
                 email_parts = email.lower().split("@")[0].split(".")
                 for part in email_parts:
                     if len(part) > 3 and part in password.lower():
-                        errors.append("Password cannot contain parts of your email address")
+                        errors.append(
+                            "Password cannot contain parts of your email address"
+                        )
 
         # Check password strength
         strength = self.calculate_strength(password)
         if strength.value < policy["min_strength"]:
-            errors.append(f"Password strength is too weak (minimum: {PasswordStrength(policy['min_strength']).name})")
+            errors.append(
+                f"Password strength is too weak (minimum: {PasswordStrength(policy['min_strength']).name})"
+            )
 
         return len(errors) == 0, errors
 
@@ -315,7 +331,9 @@ class PasswordPolicy:
         # Pattern checks (reduce score for patterns)
         if re.search(r"(.)\1{2,}", password):  # Repeated characters
             score -= 1
-        if re.search(r"(012|123|234|345|456|567|678|789|890)", password):  # Sequential numbers
+        if re.search(
+            r"(012|123|234|345|456|567|678|789|890)", password
+        ):  # Sequential numbers
             score -= 1
         if re.search(
             r"(abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz)",
@@ -341,7 +359,9 @@ class PasswordPolicy:
         else:
             return PasswordStrength.VERY_STRONG
 
-    def check_password_history(self, user_id: int, new_password: str, history_count: Optional[int] = None) -> bool:
+    def check_password_history(
+        self, user_id: int, new_password: str, history_count: Optional[int] = None
+    ) -> bool:
         """Check if password was recently used.
 
         Args:
@@ -371,7 +391,9 @@ class PasswordPolicy:
 
         for row in cursor.fetchall():
             stored_hash = row[0]
-            if bcrypt.checkpw(new_password.encode("utf-8"), stored_hash.encode("utf-8")):
+            if bcrypt.checkpw(
+                new_password.encode("utf-8"), stored_hash.encode("utf-8")
+            ):
                 conn.close()
                 return False
 
@@ -597,7 +619,9 @@ class PasswordPolicy:
         conn.commit()
         conn.close()
 
-    def generate_secure_password(self, length: int = 16, policy_name: str = "default") -> str:
+    def generate_secure_password(
+        self, length: int = 16, policy_name: str = "default"
+    ) -> str:
         """Generate a secure password that meets policy requirements.
 
         Args:

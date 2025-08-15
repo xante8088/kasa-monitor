@@ -201,7 +201,9 @@ class RedisCache:
             self.stats["errors"] += 1
             return {}
 
-    async def set_many(self, mapping: Dict[str, Any], ttl: Optional[int] = None) -> bool:
+    async def set_many(
+        self, mapping: Dict[str, Any], ttl: Optional[int] = None
+    ) -> bool:
         """Set multiple values at once"""
         if not self.connected:
             return False
@@ -297,7 +299,9 @@ class RedisCache:
 
 
 # Cache decorators
-def cache_key_builder(func: Callable, prefix: Optional[str] = None, include_kwargs: bool = True) -> str:
+def cache_key_builder(
+    func: Callable, prefix: Optional[str] = None, include_kwargs: bool = True
+) -> str:
     """Build cache key from function and arguments"""
     parts = [prefix or func.__name__]
 
@@ -363,7 +367,9 @@ def cached(
 
             # Try to get from cache
             cached_value = await cache.get(cache_key)
-            if cached_value is not None or (cache_none and await cache.exists(cache_key)):
+            if cached_value is not None or (
+                cache_none and await cache.exists(cache_key)
+            ):
                 logger.debug(f"Cache hit for {cache_key}")
                 return cached_value
 

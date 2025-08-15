@@ -30,7 +30,9 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -65,7 +67,9 @@ class DatabaseMaintenance:
             space_saved = initial_size - final_size
             percentage = (space_saved / initial_size) * 100 if initial_size > 0 else 0
 
-            logger.info(f"Vacuum complete. Space saved: {space_saved:,} bytes ({percentage:.1f}%)")
+            logger.info(
+                f"Vacuum complete. Space saved: {space_saved:,} bytes ({percentage:.1f}%)"
+            )
             logger.info(f"Database size: {initial_size:,} -> {final_size:,} bytes")
 
         finally:
@@ -300,20 +304,26 @@ class DatabaseMaintenance:
 
         # Compare statistics
         logger.info("Maintenance Summary:")
-        logger.info(f"  Size reduction: {initial_stats['size_mb'] - final_stats['size_mb']:.2f} MB")
+        logger.info(
+            f"  Size reduction: {initial_stats['size_mb'] - final_stats['size_mb']:.2f} MB"
+        )
 
         return True
 
 
 def main():
     """Main entry point for database maintenance script."""
-    parser = argparse.ArgumentParser(description="Database maintenance for Kasa Monitor")
+    parser = argparse.ArgumentParser(
+        description="Database maintenance for Kasa Monitor"
+    )
     parser.add_argument("--db", default="kasa_monitor.db", help="Database path")
     parser.add_argument("--vacuum", action="store_true", help="Vacuum database")
     parser.add_argument("--analyze", action="store_true", help="Analyze database")
     parser.add_argument("--check", action="store_true", help="Check integrity")
     parser.add_argument("--optimize", action="store_true", help="Optimize indexes")
-    parser.add_argument("--clean", type=int, metavar="DAYS", help="Clean data older than DAYS")
+    parser.add_argument(
+        "--clean", type=int, metavar="DAYS", help="Clean data older than DAYS"
+    )
     parser.add_argument("--stats", action="store_true", help="Show statistics")
     parser.add_argument("--repair", action="store_true", help="Repair foreign keys")
     parser.add_argument("--full", action="store_true", help="Full maintenance")

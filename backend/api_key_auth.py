@@ -448,13 +448,17 @@ def require_api_key(scope: Optional[APIKeyScope] = None):
 
     async def verify_key(api_key: Optional[str] = Security(get_api_key)):
         if not api_key:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="API key required")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="API key required"
+            )
 
         manager = APIKeyManager()
         key_details = manager.verify_api_key(api_key)
 
         if not key_details:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key"
+            )
 
         if scope and not manager.check_scope(key_details, scope):
             raise HTTPException(

@@ -32,7 +32,9 @@ from typing import List, Dict, Any, Optional
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -129,7 +131,9 @@ class MigrationManager:
         """
         conn = sqlite3.connect(self.db_path)
         try:
-            cursor = conn.execute("SELECT version FROM schema_migrations ORDER BY version")
+            cursor = conn.execute(
+                "SELECT version FROM schema_migrations ORDER BY version"
+            )
             return [row[0] for row in cursor.fetchall()]
         finally:
             conn.close()
@@ -191,7 +195,9 @@ class MigrationManager:
         Args:
             migration: Migration to rollback
         """
-        logger.info(f"Rolling back migration {migration.version}: {migration.description}")
+        logger.info(
+            f"Rolling back migration {migration.version}: {migration.description}"
+        )
 
         conn = sqlite3.connect(self.db_path)
         try:
@@ -202,7 +208,9 @@ class MigrationManager:
             migration.down(conn)
 
             # Remove migration record
-            conn.execute("DELETE FROM schema_migrations WHERE version = ?", (migration.version,))
+            conn.execute(
+                "DELETE FROM schema_migrations WHERE version = ?", (migration.version,)
+            )
 
             # Commit transaction
             conn.commit()
@@ -271,7 +279,9 @@ class MigrationManager:
         if applied:
             logger.info("\nApplied Migrations:")
             for version in applied:
-                migration = next((m for m in self.migrations if m.version == version), None)
+                migration = next(
+                    (m for m in self.migrations if m.version == version), None
+                )
                 if migration:
                     logger.info(f"  {version}: {migration.description}")
                 else:
@@ -487,9 +497,13 @@ def main():
     """Main entry point for migration script."""
     parser = argparse.ArgumentParser(description="Database migrations for Kasa Monitor")
     parser.add_argument("--db", default="kasa_monitor.db", help="Database path")
-    parser.add_argument("command", choices=["migrate", "rollback", "status"], help="Migration command")
+    parser.add_argument(
+        "command", choices=["migrate", "rollback", "status"], help="Migration command"
+    )
     parser.add_argument("--target", help="Target version for migration")
-    parser.add_argument("--steps", type=int, default=1, help="Number of migrations to rollback")
+    parser.add_argument(
+        "--steps", type=int, default=1, help="Number of migrations to rollback"
+    )
 
     args = parser.parse_args()
 

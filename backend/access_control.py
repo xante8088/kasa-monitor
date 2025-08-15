@@ -42,7 +42,9 @@ class AccessRule(Enum):
 class IPAccessControl:
     """IP-based access control with whitelist/blacklist and geo-blocking."""
 
-    def __init__(self, db_path: str = "kasa_monitor.db", geoip_db_path: Optional[str] = None):
+    def __init__(
+        self, db_path: str = "kasa_monitor.db", geoip_db_path: Optional[str] = None
+    ):
         """Initialize IP access control.
 
         Args:
@@ -294,7 +296,11 @@ class IPAccessControl:
         try:
             response = self.geoip_reader.city(ip)
             country_code = response.country.iso_code
-            region_code = response.subdivisions.most_specific.iso_code if response.subdivisions else None
+            region_code = (
+                response.subdivisions.most_specific.iso_code
+                if response.subdivisions
+                else None
+            )
             city = response.city.name
 
             conn = sqlite3.connect(self.db_path)
@@ -608,7 +614,9 @@ class TimeBasedAccessControl:
 
         return result is not None
 
-    def _check_schedules(self, user_id: Optional[int], role: Optional[str], check_time: datetime) -> bool:
+    def _check_schedules(
+        self, user_id: Optional[int], role: Optional[str], check_time: datetime
+    ) -> bool:
         """Check access schedules.
 
         Args:

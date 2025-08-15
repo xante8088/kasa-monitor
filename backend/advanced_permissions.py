@@ -414,7 +414,9 @@ class AdvancedPermissionManager:
         finally:
             conn.close()
 
-    def revoke_permission(self, user_id: int, permission_name: str, resource_id: Optional[str] = None) -> bool:
+    def revoke_permission(
+        self, user_id: int, permission_name: str, resource_id: Optional[str] = None
+    ) -> bool:
         """Revoke permission from user.
 
         Args:
@@ -528,7 +530,9 @@ class AdvancedPermissionManager:
                 return True
 
         # Check inherited permissions
-        if self._check_inherited_permission(user_id, action, resource_type, resource_id):
+        if self._check_inherited_permission(
+            user_id, action, resource_type, resource_id
+        ):
             return True
 
         return False
@@ -679,7 +683,9 @@ class AdvancedPermissionManager:
         finally:
             conn.close()
 
-    def grant_group_permission(self, user_id: int, group_id: int, actions: List[PermissionAction]) -> bool:
+    def grant_group_permission(
+        self, user_id: int, group_id: int, actions: List[PermissionAction]
+    ) -> bool:
         """Grant permission for all devices in a group.
 
         Args:
@@ -751,7 +757,9 @@ class AdvancedPermissionManager:
         finally:
             conn.close()
 
-    def apply_template(self, user_id: int, template_name: str, resource_id: Optional[str] = None) -> bool:
+    def apply_template(
+        self, user_id: int, template_name: str, resource_id: Optional[str] = None
+    ) -> bool:
         """Apply permission template to user.
 
         Args:
@@ -1112,7 +1120,9 @@ class AdvancedPermissionManager:
         conn.close()
         return permissions
 
-    def _get_group_devices(self, group_id: int, include_subgroups: bool = False) -> List[str]:
+    def _get_group_devices(
+        self, group_id: int, include_subgroups: bool = False
+    ) -> List[str]:
         """Get all devices in a group.
 
         Args:

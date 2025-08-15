@@ -174,14 +174,22 @@ class HealthMonitor:
                     {
                         "path": str(backup_dir),
                         "exists": backup_dir.exists(),
-                        "total_gb": (backup_usage.total / (1024**3) if backup_usage else None),
-                        "free_gb": (backup_usage.free / (1024**3) if backup_usage else None),
+                        "total_gb": (
+                            backup_usage.total / (1024**3) if backup_usage else None
+                        ),
+                        "free_gb": (
+                            backup_usage.free / (1024**3) if backup_usage else None
+                        ),
                         "percent_used": backup_usage.percent if backup_usage else None,
                     }
                     if backup_usage
                     else None
                 ),
-                "message": ("Filesystem healthy" if disk_usage.percent < 90 else "Low disk space warning"),
+                "message": (
+                    "Filesystem healthy"
+                    if disk_usage.percent < 90
+                    else "Low disk space warning"
+                ),
             }
         except Exception as e:
             logger.error(f"Filesystem health check failed: {e}")
@@ -214,11 +222,15 @@ class HealthMonitor:
             }
 
             return {
-                "status": ("healthy" if cpu_percent < 80 and memory.percent < 90 else "warning"),
+                "status": (
+                    "healthy" if cpu_percent < 80 and memory.percent < 90 else "warning"
+                ),
                 "cpu": {
                     "percent": cpu_percent,
                     "count": cpu_count,
-                    "load_average": (os.getloadavg() if hasattr(os, "getloadavg") else None),
+                    "load_average": (
+                        os.getloadavg() if hasattr(os, "getloadavg") else None
+                    ),
                 },
                 "memory": {
                     "total_gb": memory.total / (1024**3),
@@ -300,25 +312,39 @@ class HealthMonitor:
         # Process results
         components = {
             "database": (
-                checks[0] if not isinstance(checks[0], Exception) else {"status": "error", "error": str(checks[0])}
+                checks[0]
+                if not isinstance(checks[0], Exception)
+                else {"status": "error", "error": str(checks[0])}
             ),
             "redis": (
-                checks[1] if not isinstance(checks[1], Exception) else {"status": "error", "error": str(checks[1])}
+                checks[1]
+                if not isinstance(checks[1], Exception)
+                else {"status": "error", "error": str(checks[1])}
             ),
             "influxdb": (
-                checks[2] if not isinstance(checks[2], Exception) else {"status": "error", "error": str(checks[2])}
+                checks[2]
+                if not isinstance(checks[2], Exception)
+                else {"status": "error", "error": str(checks[2])}
             ),
             "filesystem": (
-                checks[3] if not isinstance(checks[3], Exception) else {"status": "error", "error": str(checks[3])}
+                checks[3]
+                if not isinstance(checks[3], Exception)
+                else {"status": "error", "error": str(checks[3])}
             ),
             "system": (
-                checks[4] if not isinstance(checks[4], Exception) else {"status": "error", "error": str(checks[4])}
+                checks[4]
+                if not isinstance(checks[4], Exception)
+                else {"status": "error", "error": str(checks[4])}
             ),
             "device_discovery": (
-                checks[5] if not isinstance(checks[5], Exception) else {"status": "error", "error": str(checks[5])}
+                checks[5]
+                if not isinstance(checks[5], Exception)
+                else {"status": "error", "error": str(checks[5])}
             ),
             "scheduler": (
-                checks[6] if not isinstance(checks[6], Exception) else {"status": "error", "error": str(checks[6])}
+                checks[6]
+                if not isinstance(checks[6], Exception)
+                else {"status": "error", "error": str(checks[6])}
             ),
         }
 
@@ -353,10 +379,17 @@ class HealthMonitor:
     async def get_readiness(self) -> Dict[str, Any]:
         """Check if application is ready to serve requests"""
         # Check critical components only
-        checks = await asyncio.gather(self.check_database(), self.check_filesystem(), return_exceptions=True)
+        checks = await asyncio.gather(
+            self.check_database(), self.check_filesystem(), return_exceptions=True
+        )
 
-        database_ok = not isinstance(checks[0], Exception) and checks[0].get("status") == "healthy"
-        filesystem_ok = not isinstance(checks[1], Exception) and checks[1].get("status") in ["healthy", "warning"]
+        database_ok = (
+            not isinstance(checks[0], Exception)
+            and checks[0].get("status") == "healthy"
+        )
+        filesystem_ok = not isinstance(checks[1], Exception) and checks[1].get(
+            "status"
+        ) in ["healthy", "warning"]
 
         ready = database_ok and filesystem_ok
 

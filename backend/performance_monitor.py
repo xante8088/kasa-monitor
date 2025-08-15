@@ -108,7 +108,8 @@ class PerformanceProfiler:
             result = {
                 "name": name,
                 "duration_ms": (end_time - profile["start_time"]) * 1000,
-                "memory_delta_mb": (end_memory - profile["start_memory"]) / (1024 * 1024),
+                "memory_delta_mb": (end_memory - profile["start_memory"])
+                / (1024 * 1024),
                 "timestamp": datetime.now(),
             }
 
@@ -248,7 +249,11 @@ class MemoryMonitor:
                 for stat in top_stats[:10]:
                     top_allocations.append(
                         {
-                            "file": (stat.traceback.format()[0] if stat.traceback else "unknown"),
+                            "file": (
+                                stat.traceback.format()[0]
+                                if stat.traceback
+                                else "unknown"
+                            ),
                             "size_mb": stat.size_diff / (1024 * 1024),
                             "count": stat.count_diff,
                         }
@@ -536,8 +541,12 @@ class PerformanceMonitor:
 
         # Memory metrics
         memory = psutil.virtual_memory()
-        self.record_metric("system.memory.percent", memory.percent, "%", MetricType.GAUGE)
-        self.record_metric("system.memory.used", memory.used / (1024 * 1024), "MB", MetricType.GAUGE)
+        self.record_metric(
+            "system.memory.percent", memory.percent, "%", MetricType.GAUGE
+        )
+        self.record_metric(
+            "system.memory.used", memory.used / (1024 * 1024), "MB", MetricType.GAUGE
+        )
 
         # Disk metrics
         disk = psutil.disk_usage("/")
@@ -545,19 +554,27 @@ class PerformanceMonitor:
 
         # Network metrics
         net_io = psutil.net_io_counters()
-        self.record_metric("system.network.bytes_sent", net_io.bytes_sent, "bytes", MetricType.COUNTER)
-        self.record_metric("system.network.bytes_recv", net_io.bytes_recv, "bytes", MetricType.COUNTER)
+        self.record_metric(
+            "system.network.bytes_sent", net_io.bytes_sent, "bytes", MetricType.COUNTER
+        )
+        self.record_metric(
+            "system.network.bytes_recv", net_io.bytes_recv, "bytes", MetricType.COUNTER
+        )
 
         # Process metrics
         process = psutil.Process()
-        self.record_metric("process.cpu.percent", process.cpu_percent(), "%", MetricType.GAUGE)
+        self.record_metric(
+            "process.cpu.percent", process.cpu_percent(), "%", MetricType.GAUGE
+        )
         self.record_metric(
             "process.memory.rss",
             process.memory_info().rss / (1024 * 1024),
             "MB",
             MetricType.GAUGE,
         )
-        self.record_metric("process.threads", process.num_threads(), "count", MetricType.GAUGE)
+        self.record_metric(
+            "process.threads", process.num_threads(), "count", MetricType.GAUGE
+        )
 
     def _check_performance_issues(self):
         """Check for performance issues and alert."""
@@ -597,7 +614,9 @@ class PerformanceMonitor:
             metric_type: Type of metric
             tags: Optional tags
         """
-        metric = PerformanceMetric(name=name, value=value, unit=unit, metric_type=metric_type, tags=tags)
+        metric = PerformanceMetric(
+            name=name, value=value, unit=unit, metric_type=metric_type, tags=tags
+        )
 
         self.metrics.append(metric)
 
@@ -641,9 +660,13 @@ class PerformanceMonitor:
         print(f"[PERFORMANCE ALERT] {alert_type}: {message}")
 
         # Store as metric
-        self.record_metric(f"alert.{alert_type}", 1, "count", MetricType.COUNTER, {"message": message})
+        self.record_metric(
+            f"alert.{alert_type}", 1, "count", MetricType.COUNTER, {"message": message}
+        )
 
-    def get_metrics(self, name: Optional[str] = None, hours: int = 24) -> List[Dict[str, Any]]:
+    def get_metrics(
+        self, name: Optional[str] = None, hours: int = 24
+    ) -> List[Dict[str, Any]]:
         """Get performance metrics.
 
         Args:
@@ -705,7 +728,10 @@ class PerformanceMonitor:
             },
             "memory": self.memory_monitor.get_stats(),
             "queries": self.query_monitor.analyze_queries(),
-            "profiles": {name: self.profiler.get_stats(name) for name in list(self.profiler.profiles.keys())[:10]},
+            "profiles": {
+                name: self.profiler.get_stats(name)
+                for name in list(self.profiler.profiles.keys())[:10]
+            },
         }
 
 

@@ -251,7 +251,9 @@ class DataExporter:
         story.append(Paragraph("Device Performance", self.styles["CustomHeading"]))
         devices_data = await self._get_device_performance(start_date, end_date)
 
-        device_table_data = [["Device", "Energy (kWh)", "Cost ($)", "Avg Power (W)", "Uptime (%)"]]
+        device_table_data = [
+            ["Device", "Energy (kWh)", "Cost ($)", "Avg Power (W)", "Uptime (%)"]
+        ]
         for device in devices_data:
             device_table_data.append(
                 [
@@ -282,14 +284,18 @@ class DataExporter:
         story.append(PageBreak())
 
         # Energy Consumption Chart
-        story.append(Paragraph("Energy Consumption Trends", self.styles["CustomHeading"]))
+        story.append(
+            Paragraph("Energy Consumption Trends", self.styles["CustomHeading"])
+        )
         chart_img = await self._generate_consumption_chart(start_date, end_date)
         if chart_img:
             story.append(chart_img)
 
         # Recommendations
         story.append(Paragraph("Recommendations", self.styles["CustomHeading"]))
-        recommendations = await self._generate_recommendations(summary_data, devices_data)
+        recommendations = await self._generate_recommendations(
+            summary_data, devices_data
+        )
         for rec in recommendations:
             story.append(Paragraph(f"• {rec}", self.styles["Normal"]))
 
@@ -355,7 +361,9 @@ class DataExporter:
             for row in results
         ]
 
-    async def _get_report_summary(self, start_date: datetime, end_date: datetime) -> Dict:
+    async def _get_report_summary(
+        self, start_date: datetime, end_date: datetime
+    ) -> Dict:
         """Get summary data for report"""
         # This is a simplified version - expand based on actual database schema
         devices = await self.db_manager.get_all_devices()
@@ -371,7 +379,9 @@ class DataExporter:
             FROM readings
             WHERE timestamp BETWEEN ? AND ?
         """
-        result = await self.db_manager.execute_query(query, [start_date.isoformat(), end_date.isoformat()])
+        result = await self.db_manager.execute_query(
+            query, [start_date.isoformat(), end_date.isoformat()]
+        )
 
         if result and result[0]:
             total_energy = result[0][0] or 0
@@ -392,7 +402,9 @@ class DataExporter:
             "peak_power": peak_power,
         }
 
-    async def _get_device_performance(self, start_date: datetime, end_date: datetime) -> List[Dict]:
+    async def _get_device_performance(
+        self, start_date: datetime, end_date: datetime
+    ) -> List[Dict]:
         """Get performance metrics for each device"""
         query = """
             SELECT 
@@ -407,7 +419,9 @@ class DataExporter:
             GROUP BY d.device_ip, d.device_name
         """
 
-        results = await self.db_manager.execute_query(query, [start_date.isoformat(), end_date.isoformat()])
+        results = await self.db_manager.execute_query(
+            query, [start_date.isoformat(), end_date.isoformat()]
+        )
 
         performance_data = []
         for row in results:
@@ -424,7 +438,9 @@ class DataExporter:
 
         return performance_data
 
-    async def _generate_consumption_chart(self, start_date: datetime, end_date: datetime):
+    async def _generate_consumption_chart(
+        self, start_date: datetime, end_date: datetime
+    ):
         """Generate consumption chart for PDF report"""
         # Get daily consumption data
         query = """
@@ -437,7 +453,9 @@ class DataExporter:
             ORDER BY date
         """
 
-        results = await self.db_manager.execute_query(query, [start_date.isoformat(), end_date.isoformat()])
+        results = await self.db_manager.execute_query(
+            query, [start_date.isoformat(), end_date.isoformat()]
+        )
 
         if not results:
             return None
@@ -472,7 +490,9 @@ class DataExporter:
         # This is simplified for the example
         return None  # Placeholder - actual implementation would return Image object
 
-    async def _generate_recommendations(self, summary_data: Dict, devices_data: List[Dict]) -> List[str]:
+    async def _generate_recommendations(
+        self, summary_data: Dict, devices_data: List[Dict]
+    ) -> List[str]:
         """Generate recommendations based on data analysis"""
         recommendations = []
 
@@ -491,7 +511,9 @@ class DataExporter:
                 )
 
         # Cost saving opportunities
-        high_cost_devices = [d for d in devices_data if d["cost"] > summary_data["total_cost"] * 0.3]
+        high_cost_devices = [
+            d for d in devices_data if d["cost"] > summary_data["total_cost"] * 0.3
+        ]
         if high_cost_devices:
             recommendations.append(
                 f"{len(high_cost_devices)} device(s) account for over 30% of total cost. "

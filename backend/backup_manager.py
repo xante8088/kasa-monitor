@@ -119,7 +119,9 @@ class BackupManager:
                                 },
                             )
                         except Exception as e:
-                            logger.error(f"Failed to log incomplete restore to audit system: {e}")
+                            logger.error(
+                                f"Failed to log incomplete restore to audit system: {e}"
+                            )
 
         except Exception as e:
             logger.error(f"Error checking for incomplete restores: {e}")
@@ -231,7 +233,9 @@ class BackupManager:
             # Add to metadata
             self.metadata["backups"].append(backup_info)
             self.metadata["last_backup"] = timestamp.isoformat()
-            self.metadata["total_size"] = sum(b.get("size", 0) for b in self.metadata["backups"])
+            self.metadata["total_size"] = sum(
+                b.get("size", 0) for b in self.metadata["backups"]
+            )
             self._save_metadata()
 
             # Clean old backups
@@ -258,7 +262,9 @@ class BackupManager:
             # Use SQLite's backup API for consistency
             # Open with a shorter timeout to avoid locking issues
             source_conn = sqlite3.connect(str(self.db_path), timeout=5.0)
-            source_conn.execute("PRAGMA journal_mode=WAL")  # Use WAL mode for better concurrency
+            source_conn.execute(
+                "PRAGMA journal_mode=WAL"
+            )  # Use WAL mode for better concurrency
             backup_conn = sqlite3.connect(str(backup_file))
 
             try:
@@ -267,7 +273,9 @@ class BackupManager:
 
                 # Perform backup with progress callback
                 with backup_conn:
-                    source_conn.backup(backup_conn, pages=10, progress=self._backup_progress_callback)
+                    source_conn.backup(
+                        backup_conn, pages=10, progress=self._backup_progress_callback
+                    )
 
             finally:
                 source_conn.close()
@@ -361,7 +369,9 @@ class BackupManager:
                 "restored_at": restore_timestamp.isoformat(),
                 "target_path": target_path or str(self.db_path),
                 "status": "in_progress",
-                "user": (user_info.get("username", "unknown") if user_info else "unknown"),
+                "user": (
+                    user_info.get("username", "unknown") if user_info else "unknown"
+                ),
             }
 
             # Create pre-restore audit log entry in a separate file
@@ -370,7 +380,9 @@ class BackupManager:
                 "timestamp": restore_timestamp.isoformat(),
                 "event": "BACKUP_RESTORE_INITIATED",
                 "backup_file": original_filename,
-                "user": (user_info.get("username", "unknown") if user_info else "unknown"),
+                "user": (
+                    user_info.get("username", "unknown") if user_info else "unknown"
+                ),
                 "user_id": user_info.get("id") if user_info else None,
                 "ip_address": user_info.get("ip_address") if user_info else None,
                 "target_database": str(target_path or self.db_path),
@@ -441,11 +453,15 @@ class BackupManager:
                 "backup_metadata": backup_metadata,
             }
 
-            post_restore_log_file = self.backup_dir / f"restore_complete_{restore_id}.json"
+            post_restore_log_file = (
+                self.backup_dir / f"restore_complete_{restore_id}.json"
+            )
             with open(post_restore_log_file, "w") as f:
                 json.dump(post_restore_log, f, indent=2)
 
-            logger.info(f"Backup restored successfully from upload: {original_filename}")
+            logger.info(
+                f"Backup restored successfully from upload: {original_filename}"
+            )
             return result
 
         except Exception as e:
@@ -459,7 +475,9 @@ class BackupManager:
                     "event": "BACKUP_RESTORE_FAILED",
                     "backup_file": original_filename,
                     "error": str(e),
-                    "user": (user_info.get("username", "unknown") if user_info else "unknown"),
+                    "user": (
+                        user_info.get("username", "unknown") if user_info else "unknown"
+                    ),
                 }
 
                 failure_log_file = self.backup_dir / f"restore_failed_{restore_id}.json"
@@ -483,7 +501,9 @@ class BackupManager:
             )
 
             if cursor.fetchone():
-                cursor.execute("SELECT * FROM backup_metadata ORDER BY created_at DESC LIMIT 1")
+                cursor.execute(
+                    "SELECT * FROM backup_metadata ORDER BY created_at DESC LIMIT 1"
+                )
                 row = cursor.fetchone()
                 if row:
                     columns = [description[0] for description in cursor.description]
@@ -507,7 +527,9 @@ class BackupManager:
             logger.info(f"Restore audit log verified for restore_id: {restore_id}")
             return True
         elif pre_restore_log_file.exists():
-            logger.warning(f"Restore completed but post-restore log missing for restore_id: {restore_id}")
+            logger.warning(
+                f"Restore completed but post-restore log missing for restore_id: {restore_id}"
+            )
             # Create post-restore log from pre-restore data
             with open(pre_restore_log_file, "r") as f:
                 pre_log = json.load(f)
@@ -749,7 +771,9 @@ class BackupManager:
         file_path = self.backup_dir / filename
 
         # Remove from metadata
-        self.metadata["backups"] = [b for b in self.metadata.get("backups", []) if b.get("filename") != filename]
+        self.metadata["backups"] = [
+            b for b in self.metadata.get("backups", []) if b.get("filename") != filename
+        ]
         self._save_metadata()
 
         # Delete the file
@@ -963,7 +987,9 @@ class BackupManager:
             logger.error(f"Failed to create schedule: {e}")
             raise
 
-    async def update_schedule(self, schedule_id: int, update_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def update_schedule(
+        self, schedule_id: int, update_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Update an existing backup schedule"""
         try:
             schedules = self.metadata.get("schedules", [])
@@ -983,7 +1009,9 @@ class BackupManager:
                         schedule["enabled"] = update_data["enabled"]
 
                     # Recalculate next run
-                    schedule["next_run"] = self._calculate_next_run(schedule["frequency"], schedule["time"])
+                    schedule["next_run"] = self._calculate_next_run(
+                        schedule["frequency"], schedule["time"]
+                    )
 
                     # Update metadata
                     self.metadata["schedules"][i] = schedule
@@ -1113,9 +1141,13 @@ class BackupManager:
             # Update schedule metadata
             for i, s in enumerate(self.metadata.get("schedules", [])):
                 if s.get("id") == schedule["id"]:
-                    self.metadata["schedules"][i]["last_run"] = datetime.now().isoformat()
-                    self.metadata["schedules"][i]["next_run"] = self._calculate_next_run(
-                        schedule["frequency"], schedule["time"]
+                    self.metadata["schedules"][i][
+                        "last_run"
+                    ] = datetime.now().isoformat()
+                    self.metadata["schedules"][i]["next_run"] = (
+                        self._calculate_next_run(
+                            schedule["frequency"], schedule["time"]
+                        )
                     )
                     self._save_metadata()
                     break
@@ -1172,8 +1204,14 @@ class BackupManager:
             "total_size": self.metadata.get("total_size", 0),
             "total_size_mb": self.metadata.get("total_size", 0) / (1024 * 1024),
             "last_backup": self.metadata.get("last_backup"),
-            "oldest_backup": (sorted_backups[0].get("timestamp") if sorted_backups else None),
-            "newest_backup": (sorted_backups[-1].get("timestamp") if sorted_backups else None),
+            "oldest_backup": (
+                sorted_backups[0].get("timestamp") if sorted_backups else None
+            ),
+            "newest_backup": (
+                sorted_backups[-1].get("timestamp") if sorted_backups else None
+            ),
             "by_type": by_type,
-            "average_size": (self.metadata.get("total_size", 0) / len(backups) if backups else 0),
+            "average_size": (
+                self.metadata.get("total_size", 0) / len(backups) if backups else 0
+            ),
         }

@@ -83,10 +83,18 @@ class User(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     # Relationships
-    devices = relationship("Device", secondary=user_device_permissions, back_populates="users")
-    api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
-    audit_logs = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
-    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+    devices = relationship(
+        "Device", secondary=user_device_permissions, back_populates="users"
+    )
+    api_keys = relationship(
+        "APIKey", back_populates="user", cascade="all, delete-orphan"
+    )
+    audit_logs = relationship(
+        "AuditLog", back_populates="user", cascade="all, delete-orphan"
+    )
+    sessions = relationship(
+        "UserSession", back_populates="user", cascade="all, delete-orphan"
+    )
 
     @validates("email")
     def validate_email(self, key, email):
@@ -133,11 +141,19 @@ class Device(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     # Relationships
-    users = relationship("User", secondary=user_device_permissions, back_populates="devices")
+    users = relationship(
+        "User", secondary=user_device_permissions, back_populates="devices"
+    )
     groups = relationship("Group", secondary=device_groups, back_populates="devices")
-    energy_readings = relationship("EnergyReading", back_populates="device", cascade="all, delete-orphan")
-    schedules = relationship("Schedule", back_populates="device", cascade="all, delete-orphan")
-    alerts = relationship("Alert", back_populates="device", cascade="all, delete-orphan")
+    energy_readings = relationship(
+        "EnergyReading", back_populates="device", cascade="all, delete-orphan"
+    )
+    schedules = relationship(
+        "Schedule", back_populates="device", cascade="all, delete-orphan"
+    )
+    alerts = relationship(
+        "Alert", back_populates="device", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("idx_device_status", "is_online", "is_enabled"),
@@ -175,7 +191,9 @@ class EnergyReading(Base):
     __tablename__ = "energy_readings"
 
     id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id = Column(
+        Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False
+    )
     timestamp = Column(DateTime, default=func.now(), nullable=False, index=True)
 
     # Power metrics
@@ -207,7 +225,9 @@ class EnergyAggregation(Base):
     __tablename__ = "energy_aggregations"
 
     id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id = Column(
+        Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False
+    )
     aggregation_type = Column(String(20), nullable=False)  # hourly, daily, monthly
     period_start = Column(DateTime, nullable=False, index=True)
     period_end = Column(DateTime, nullable=False)
@@ -230,8 +250,12 @@ class EnergyAggregation(Base):
     created_at = Column(DateTime, default=func.now())
 
     __table_args__ = (
-        Index("idx_aggregation_lookup", "device_id", "aggregation_type", "period_start"),
-        UniqueConstraint("device_id", "aggregation_type", "period_start", name="uq_aggregation"),
+        Index(
+            "idx_aggregation_lookup", "device_id", "aggregation_type", "period_start"
+        ),
+        UniqueConstraint(
+            "device_id", "aggregation_type", "period_start", name="uq_aggregation"
+        ),
     )
 
 
@@ -241,7 +265,9 @@ class Schedule(Base):
     __tablename__ = "schedules"
 
     id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id = Column(
+        Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False
+    )
     name = Column(String(100), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
 
@@ -280,7 +306,9 @@ class Alert(Base):
     __tablename__ = "alerts"
 
     id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=True)
+    device_id = Column(
+        Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=True
+    )
     alert_type = Column(String(30), nullable=False)  # threshold, offline, error, custom
     severity = Column(String(20), nullable=False)  # info, warning, error, critical
     is_active = Column(Boolean, default=True, nullable=False)
@@ -323,7 +351,9 @@ class APIKey(Base):
     __tablename__ = "api_keys"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     key_hash = Column(String(255), unique=True, nullable=False, index=True)
     name = Column(String(100), nullable=False)
 
@@ -358,7 +388,9 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     timestamp = Column(DateTime, default=func.now(), nullable=False, index=True)
 
     # Action details
@@ -398,7 +430,9 @@ class UserSession(Base):
     __tablename__ = "user_sessions"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     session_token = Column(String(255), unique=True, nullable=False, index=True)
 
     # Session details

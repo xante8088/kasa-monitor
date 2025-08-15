@@ -64,19 +64,29 @@ class RateCalculator:
             result["energy_charge"] = RateCalculator._calculate_flat_rate(kwh, rate)
 
         elif rate.rate_type == RateType.TIME_OF_USE:
-            result["energy_charge"] = RateCalculator._calculate_tou_rate(kwh, rate, timestamp)
+            result["energy_charge"] = RateCalculator._calculate_tou_rate(
+                kwh, rate, timestamp
+            )
 
         elif rate.rate_type == RateType.TIERED:
-            result["energy_charge"] = RateCalculator._calculate_tiered_rate(kwh, rate, monthly_kwh)
+            result["energy_charge"] = RateCalculator._calculate_tiered_rate(
+                kwh, rate, monthly_kwh
+            )
 
         elif rate.rate_type == RateType.SEASONAL:
-            result["energy_charge"] = RateCalculator._calculate_seasonal_rate(kwh, rate, timestamp, monthly_kwh)
+            result["energy_charge"] = RateCalculator._calculate_seasonal_rate(
+                kwh, rate, timestamp, monthly_kwh
+            )
 
         elif rate.rate_type == RateType.COMBINED:
-            result["energy_charge"] = RateCalculator._calculate_combined_rate(kwh, rate, timestamp, monthly_kwh)
+            result["energy_charge"] = RateCalculator._calculate_combined_rate(
+                kwh, rate, timestamp, monthly_kwh
+            )
 
         elif rate.rate_type == RateType.SEASONAL_TIERED:
-            result["energy_charge"] = RateCalculator._calculate_seasonal_tiered_rate(kwh, rate, timestamp, monthly_kwh)
+            result["energy_charge"] = RateCalculator._calculate_seasonal_tiered_rate(
+                kwh, rate, timestamp, monthly_kwh
+            )
 
         # Add demand charge if applicable
         if rate.demand_charge_per_kw and peak_demand_kw:
@@ -85,10 +95,14 @@ class RateCalculator:
         # Add monthly service charge (prorated for partial consumption)
         if rate.monthly_service_charge:
             # Prorate based on consumption period
-            result["service_charge"] = rate.monthly_service_charge * (kwh / (monthly_kwh or kwh))
+            result["service_charge"] = rate.monthly_service_charge * (
+                kwh / (monthly_kwh or kwh)
+            )
 
         # Calculate subtotal
-        subtotal = result["energy_charge"] + result["demand_charge"] + result["service_charge"]
+        subtotal = (
+            result["energy_charge"] + result["demand_charge"] + result["service_charge"]
+        )
 
         # Apply taxes
         if rate.tax_rate:
@@ -118,7 +132,9 @@ class RateCalculator:
         return kwh * rate.flat_rate
 
     @staticmethod
-    def _calculate_tou_rate(kwh: float, rate: ElectricityRate, timestamp: datetime) -> float:
+    def _calculate_tou_rate(
+        kwh: float, rate: ElectricityRate, timestamp: datetime
+    ) -> float:
         """Calculate cost for time-of-use rate structure."""
         if not rate.time_of_use_rates:
             return 0.0
@@ -152,7 +168,9 @@ class RateCalculator:
         return kwh * rate.time_of_use_rates[0].rate_per_kwh
 
     @staticmethod
-    def _calculate_tiered_rate(kwh: float, rate: ElectricityRate, monthly_kwh: Optional[float] = None) -> float:
+    def _calculate_tiered_rate(
+        kwh: float, rate: ElectricityRate, monthly_kwh: Optional[float] = None
+    ) -> float:
         """Calculate cost for tiered rate structure with usage ranges."""
         if not rate.tier_rates:
             return 0.0
@@ -281,7 +299,11 @@ class RateCalculator:
 
         # Apply TOU multiplier (assuming TOU rate is a multiplier, not absolute)
         # If TOU rates are absolute, use them directly
-        return base_cost * (tou_rate if tou_rate < 2.0 else 1.0) if base_cost > 0 else kwh * tou_rate
+        return (
+            base_cost * (tou_rate if tou_rate < 2.0 else 1.0)
+            if base_cost > 0
+            else kwh * tou_rate
+        )
 
     @staticmethod
     def _calculate_seasonal_tiered_rate(
@@ -352,7 +374,9 @@ class RateCalculator:
             return 0.0
 
     @staticmethod
-    def estimate_monthly_cost(daily_kwh: float, rate: ElectricityRate, days_in_month: int = 30) -> Dict[str, float]:
+    def estimate_monthly_cost(
+        daily_kwh: float, rate: ElectricityRate, days_in_month: int = 30
+    ) -> Dict[str, float]:
         """
         Estimate monthly cost based on daily consumption.
 
@@ -376,7 +400,9 @@ class RateCalculator:
             for hour in range(24):
                 hourly_kwh = daily_kwh / 24
                 timestamp = now.replace(hour=hour)
-                cost = RateCalculator.calculate_cost(hourly_kwh * days_in_month, rate, timestamp, monthly_kwh)
+                cost = RateCalculator.calculate_cost(
+                    hourly_kwh * days_in_month, rate, timestamp, monthly_kwh
+                )
                 total_cost += cost["total"]
 
             return {
@@ -386,4 +412,6 @@ class RateCalculator:
                 "total": total_cost,
             }
         else:
-            return RateCalculator.calculate_cost(monthly_kwh, rate, monthly_kwh=monthly_kwh)
+            return RateCalculator.calculate_cost(
+                monthly_kwh, rate, monthly_kwh=monthly_kwh
+            )

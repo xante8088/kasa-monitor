@@ -88,7 +88,9 @@ try:
 
     data_management_available = True
 except ImportError:
-    logger.warning("Data management modules not available. Some features will be disabled.")
+    logger.warning(
+        "Data management modules not available. Some features will be disabled."
+    )
     data_management_available = False
 
 # Import additional modules
@@ -240,7 +242,9 @@ class KasaMonitorApp:
             self.prometheus_metrics = PrometheusMetrics()
             self.alert_manager = AlertManager(db_path="kasa_monitor.db")
             self.device_group_manager = DeviceGroupManager(db_path="kasa_monitor.db")
-            self.audit_logger = AuditLogger(db_path="kasa_monitor.db", log_dir="./logs/audit")
+            self.audit_logger = AuditLogger(
+                db_path="kasa_monitor.db", log_dir="./logs/audit"
+            )
             self.backup_manager = BackupManager(
                 db_path="kasa_monitor.db",
                 backup_dir="./backups",
@@ -321,7 +325,9 @@ class KasaMonitorApp:
         @self.app.post("/api/discover")
         async def discover_devices(
             credentials: Optional[Dict[str, str]] = None,
-            current_user: User = Depends(require_permission(Permission.DEVICES_DISCOVER)),
+            current_user: User = Depends(
+                require_permission(Permission.DEVICES_DISCOVER)
+            ),
         ):
             """Trigger device discovery and save to database."""
             username = credentials.get("username") if credentials else None
@@ -407,7 +413,9 @@ class KasaMonitorApp:
 
                         return {"status": "success", "device": device_data.dict()}
                 else:
-                    raise HTTPException(status_code=404, detail=f"Cannot connect to device at {ip}")
+                    raise HTTPException(
+                        status_code=404, detail=f"Cannot connect to device at {ip}"
+                    )
             except Exception as e:
                 logger.error(f"Error adding manual device {ip}: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
@@ -459,8 +467,12 @@ class KasaMonitorApp:
             """Get network configuration settings."""
             return {
                 "network_mode": os.getenv("NETWORK_MODE", "bridge"),
-                "discovery_enabled": os.getenv("DISCOVERY_ENABLED", "false").lower() == "true",
-                "manual_devices_enabled": os.getenv("MANUAL_DEVICES_ENABLED", "true").lower() == "true",
+                "discovery_enabled": os.getenv("DISCOVERY_ENABLED", "false").lower()
+                == "true",
+                "manual_devices_enabled": os.getenv(
+                    "MANUAL_DEVICES_ENABLED", "true"
+                ).lower()
+                == "true",
                 "host_ip": os.getenv("DOCKER_HOST_IP", None),
             }
 
@@ -480,7 +492,9 @@ class KasaMonitorApp:
             interval: str = "1h",
         ):
             """Get historical data for a device."""
-            history = await self.db_manager.get_device_history(device_ip, start_time, end_time, interval)
+            history = await self.db_manager.get_device_history(
+                device_ip, start_time, end_time, interval
+            )
             return history
 
         @self.app.get("/api/device/{device_ip}/stats")
@@ -493,7 +507,9 @@ class KasaMonitorApp:
         async def control_device(
             device_ip: str,
             action: str = Query(...),
-            current_user: User = Depends(require_permission(Permission.DEVICES_CONTROL)),
+            current_user: User = Depends(
+                require_permission(Permission.DEVICES_CONTROL)
+            ),
         ):
             """Control a device (turn on/off)."""
             device = self.device_manager.devices.get(device_ip)
@@ -550,7 +566,9 @@ class KasaMonitorApp:
             return {"status": "success"}
 
         @self.app.get("/api/costs")
-        async def get_electricity_costs(start_date: Optional[datetime] = None, end_date: Optional[datetime] = None):
+        async def get_electricity_costs(
+            start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
+        ):
             """Calculate electricity costs for all devices."""
             costs = await self.db_manager.calculate_costs(start_date, end_date)
             return costs
@@ -595,9 +613,13 @@ class KasaMonitorApp:
                 await self.audit_logger.log_event_async(audit_event)
 
             if success:
-                return {"message": f"Monitoring {'enabled' if enabled else 'disabled'} for device {device_ip}"}
+                return {
+                    "message": f"Monitoring {'enabled' if enabled else 'disabled'} for device {device_ip}"
+                }
             else:
-                raise HTTPException(status_code=400, detail="Failed to update monitoring status")
+                raise HTTPException(
+                    status_code=400, detail="Failed to update monitoring status"
+                )
 
         @self.app.put("/api/devices/{device_ip}/ip")
         async def update_device_ip(
@@ -638,7 +660,9 @@ class KasaMonitorApp:
                     self.device_manager.devices[new_ip] = device
                 return {"message": f"Device IP updated from {device_ip} to {new_ip}"}
             else:
-                raise HTTPException(status_code=400, detail="Failed to update IP (may already exist)")
+                raise HTTPException(
+                    status_code=400, detail="Failed to update IP (may already exist)"
+                )
 
         @self.app.delete("/api/devices/{device_ip}")
         async def remove_device(device_ip: str):
@@ -696,7 +720,10 @@ class KasaMonitorApp:
             """Authenticate user and return JWT token."""
 
             # Check for test credentials in development mode (not production)
-            is_development = os.getenv("NODE_ENV") != "production" and os.getenv("ENVIRONMENT") != "production"
+            is_development = (
+                os.getenv("NODE_ENV") != "production"
+                and os.getenv("ENVIRONMENT") != "production"
+            )
             test_creds_path = os.path.join(
                 os.path.dirname(os.path.dirname(__file__)),
                 ".auth",
@@ -728,12 +755,18 @@ class KasaMonitorApp:
                             )
 
                             # Create access token for test user
-                            access_token = AuthManager.create_access_token(data={"user": test_user.model_dump()})
+                            access_token = AuthManager.create_access_token(
+                                data={"user": test_user.model_dump()}
+                            )
 
                             # Log successful test user authentication
                             if self.audit_logger:
-                                client_ip = request.client.host if request.client else "unknown"
-                                user_agent = request.headers.get("user-agent", "unknown")
+                                client_ip = (
+                                    request.client.host if request.client else "unknown"
+                                )
+                                user_agent = request.headers.get(
+                                    "user-agent", "unknown"
+                                )
 
                                 audit_event = AuditEvent(
                                     event_type=AuditEventType.LOGIN_SUCCESS,
@@ -755,7 +788,9 @@ class KasaMonitorApp:
                                 )
                                 await self.audit_logger.log_event_async(audit_event)
 
-                            logger.info(f"Test user authenticated: {login_data.username}")
+                            logger.info(
+                                f"Test user authenticated: {login_data.username}"
+                            )
                             return Token(
                                 access_token=access_token,
                                 expires_in=1800,  # 30 minutes
@@ -799,8 +834,12 @@ class KasaMonitorApp:
                     detail="Invalid username or password",
                 )
 
-            password_hash = await self.db_manager.get_user_password_hash(login_data.username)
-            if not password_hash or not AuthManager.verify_password(login_data.password, password_hash):
+            password_hash = await self.db_manager.get_user_password_hash(
+                login_data.username
+            )
+            if not password_hash or not AuthManager.verify_password(
+                login_data.password, password_hash
+            ):
                 # Log failed login attempt - invalid password
                 if self.audit_logger:
                     audit_event = AuditEvent(
@@ -890,16 +929,24 @@ class KasaMonitorApp:
                     resource_type=None,
                     resource_id=None,
                     action="User login successful",
-                    details={"login_method": ("password" if not totp_secret else "password+2fa")},
+                    details={
+                        "login_method": (
+                            "password" if not totp_secret else "password+2fa"
+                        )
+                    },
                     timestamp=datetime.now(timezone.utc),
                     success=True,
                 )
                 await self.audit_logger.log_event_async(audit_event)
 
             # Create access token
-            access_token = AuthManager.create_access_token(data={"user": user.model_dump()})
+            access_token = AuthManager.create_access_token(
+                data={"user": user.model_dump()}
+            )
 
-            return Token(access_token=access_token, expires_in=1800, user=user)  # 30 minutes
+            return Token(
+                access_token=access_token, expires_in=1800, user=user
+            )  # 30 minutes
 
         @self.app.post("/api/auth/setup", response_model=User)
         async def initial_setup(admin_data: UserCreate):
@@ -956,7 +1003,9 @@ class KasaMonitorApp:
 
         # Profile management endpoints
         @self.app.put("/api/auth/profile")
-        async def update_profile(updates: Dict[str, Any], user: User = Depends(require_auth)):
+        async def update_profile(
+            updates: Dict[str, Any], user: User = Depends(require_auth)
+        ):
             """Update user profile (name and email)."""
             allowed_fields = {"full_name", "email"}
             filtered_updates = {k: v for k, v in updates.items() if k in allowed_fields}
@@ -964,7 +1013,9 @@ class KasaMonitorApp:
             if not filtered_updates:
                 raise HTTPException(status_code=400, detail="No valid fields to update")
 
-            success = await self.db_manager.update_user_profile(user.id, filtered_updates)
+            success = await self.db_manager.update_user_profile(
+                user.id, filtered_updates
+            )
             if not success:
                 raise HTTPException(status_code=400, detail="Failed to update profile")
 
@@ -990,22 +1041,32 @@ class KasaMonitorApp:
             return {"message": "Profile updated successfully"}
 
         @self.app.post("/api/auth/change-password")
-        async def change_password(password_data: Dict[str, str], user: User = Depends(require_auth)):
+        async def change_password(
+            password_data: Dict[str, str], user: User = Depends(require_auth)
+        ):
             """Change user password."""
             current_password = password_data.get("current_password")
             new_password = password_data.get("new_password")
 
             if not current_password or not new_password:
-                raise HTTPException(status_code=400, detail="Both current and new passwords required")
+                raise HTTPException(
+                    status_code=400, detail="Both current and new passwords required"
+                )
 
             # Verify current password
             stored_user = await self.db_manager.get_user_by_username(user.username)
-            if not stored_user or not AuthManager.verify_password(current_password, stored_user.password):
-                raise HTTPException(status_code=401, detail="Current password is incorrect")
+            if not stored_user or not AuthManager.verify_password(
+                current_password, stored_user.password
+            ):
+                raise HTTPException(
+                    status_code=401, detail="Current password is incorrect"
+                )
 
             # Update password
             hashed_password = AuthManager.hash_password(new_password)
-            success = await self.db_manager.update_user_password(user.id, hashed_password)
+            success = await self.db_manager.update_user_password(
+                user.id, hashed_password
+            )
 
             if not success:
                 raise HTTPException(status_code=500, detail="Failed to update password")
@@ -1107,11 +1168,15 @@ class KasaMonitorApp:
             return {"qr_code": f"data:image/png;base64,{img_str}", "secret": secret}
 
         @self.app.post("/api/auth/2fa/verify")
-        async def verify_2fa(verification_data: Dict[str, str], user: User = Depends(require_auth)):
+        async def verify_2fa(
+            verification_data: Dict[str, str], user: User = Depends(require_auth)
+        ):
             """Verify 2FA setup."""
             token = verification_data.get("token")
             if not token:
-                raise HTTPException(status_code=400, detail="Verification token required")
+                raise HTTPException(
+                    status_code=400, detail="Verification token required"
+                )
 
             # Get temporary secret
             temp_secret = await self.db_manager.get_temp_totp_secret(user.id)
@@ -1355,7 +1420,9 @@ class KasaMonitorApp:
                 if isinstance(value, dict):
                     # Handle nested configs like ssl, network
                     for sub_key, sub_value in value.items():
-                        await self.db_manager.set_system_config(f"{key}.{sub_key}", str(sub_value))
+                        await self.db_manager.set_system_config(
+                            f"{key}.{sub_key}", str(sub_value)
+                        )
                 else:
                     await self.db_manager.set_system_config(key, str(value))
             return {"message": "Configuration updated successfully"}
@@ -1391,7 +1458,9 @@ class KasaMonitorApp:
                     resource = parts[0].title()
                     description = f"{action} {resource}"
                 else:
-                    description = perm.value.replace(".", " - ").replace("_", " ").title()
+                    description = (
+                        perm.value.replace(".", " - ").replace("_", " ").title()
+                    )
 
                 permissions.append(
                     {
@@ -1415,7 +1484,9 @@ class KasaMonitorApp:
                 role_perms.append(
                     {
                         "role": role.value,
-                        "permissions": [p.value for p in ROLE_PERMISSIONS.get(role, [])],
+                        "permissions": [
+                            p.value for p in ROLE_PERMISSIONS.get(role, [])
+                        ],
                     }
                 )
             return role_perms
@@ -1490,7 +1561,9 @@ class KasaMonitorApp:
         async def export_devices(format: str = "csv", include_energy: bool = True):
             """Export device data in various formats."""
             if not self.data_exporter:
-                raise HTTPException(status_code=503, detail="Export service not available")
+                raise HTTPException(
+                    status_code=503, detail="Export service not available"
+                )
 
             try:
                 if format == "csv":
@@ -1498,14 +1571,20 @@ class KasaMonitorApp:
                     return StreamingResponse(
                         io.BytesIO(content),
                         media_type="text/csv",
-                        headers={"Content-Disposition": "attachment; filename=devices.csv"},
+                        headers={
+                            "Content-Disposition": "attachment; filename=devices.csv"
+                        },
                     )
                 elif format == "excel":
-                    content = await self.data_exporter.export_devices_excel(include_energy=include_energy)
+                    content = await self.data_exporter.export_devices_excel(
+                        include_energy=include_energy
+                    )
                     return StreamingResponse(
                         io.BytesIO(content),
                         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        headers={"Content-Disposition": "attachment; filename=devices.xlsx"},
+                        headers={
+                            "Content-Disposition": "attachment; filename=devices.xlsx"
+                        },
                     )
                 else:
                     raise HTTPException(status_code=400, detail="Unsupported format")
@@ -1521,7 +1600,9 @@ class KasaMonitorApp:
         ):
             """Export energy consumption data."""
             if not self.data_exporter:
-                raise HTTPException(status_code=503, detail="Export service not available")
+                raise HTTPException(
+                    status_code=503, detail="Export service not available"
+                )
 
             try:
                 if format == "csv":
@@ -1531,7 +1612,9 @@ class KasaMonitorApp:
                     return StreamingResponse(
                         io.BytesIO(content),
                         media_type="text/csv",
-                        headers={"Content-Disposition": "attachment; filename=energy_data.csv"},
+                        headers={
+                            "Content-Disposition": "attachment; filename=energy_data.csv"
+                        },
                     )
                 else:
                     raise HTTPException(status_code=400, detail="Unsupported format")
@@ -1546,7 +1629,9 @@ class KasaMonitorApp:
         ):
             """Generate PDF report."""
             if not self.data_exporter:
-                raise HTTPException(status_code=503, detail="Export service not available")
+                raise HTTPException(
+                    status_code=503, detail="Export service not available"
+                )
 
             try:
                 content = await self.data_exporter.generate_pdf_report(
@@ -1555,7 +1640,9 @@ class KasaMonitorApp:
                 return StreamingResponse(
                     io.BytesIO(content),
                     media_type="application/pdf",
-                    headers={"Content-Disposition": f"attachment; filename={report_type}_report.pdf"},
+                    headers={
+                        "Content-Disposition": f"attachment; filename={report_type}_report.pdf"
+                    },
                 )
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
@@ -1570,7 +1657,9 @@ class KasaMonitorApp:
         ):
             """Get aggregated data for specified period."""
             if not self.data_aggregator:
-                raise HTTPException(status_code=503, detail="Aggregation service not available")
+                raise HTTPException(
+                    status_code=503, detail="Aggregation service not available"
+                )
 
             try:
                 from data_aggregation import AggregationPeriod
@@ -1584,7 +1673,9 @@ class KasaMonitorApp:
                 )
                 return data
             except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid aggregation period")
+                raise HTTPException(
+                    status_code=400, detail="Invalid aggregation period"
+                )
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
 
@@ -1596,7 +1687,9 @@ class KasaMonitorApp:
         ):
             """Get statistical analysis for a device."""
             if not self.data_aggregator:
-                raise HTTPException(status_code=503, detail="Aggregation service not available")
+                raise HTTPException(
+                    status_code=503, detail="Aggregation service not available"
+                )
 
             try:
                 stats = await self.data_aggregator.calculate_statistics(
@@ -1612,10 +1705,14 @@ class KasaMonitorApp:
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.get("/api/trends/{device_ip}")
-        async def get_trend_analysis(device_ip: str, period: str = "day", lookback: int = 30):
+        async def get_trend_analysis(
+            device_ip: str, period: str = "day", lookback: int = 30
+        ):
             """Get trend analysis for a device."""
             if not self.data_aggregator:
-                raise HTTPException(status_code=503, detail="Aggregation service not available")
+                raise HTTPException(
+                    status_code=503, detail="Aggregation service not available"
+                )
 
             try:
                 from data_aggregation import AggregationPeriod
@@ -1662,7 +1759,9 @@ class KasaMonitorApp:
 
             @self.app.get("/api/health/detailed")
             async def detailed_health(
-                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+                current_user: User = Depends(
+                    require_permission(Permission.SYSTEM_CONFIG)
+                ),
             ):
                 """Detailed health status with all components."""
                 return await self.health_monitor.perform_health_check()
@@ -1685,7 +1784,9 @@ class KasaMonitorApp:
             async def get_alerts(
                 severity: Optional[str] = None,
                 status: Optional[str] = None,
-                current_user: User = Depends(require_permission(Permission.DEVICES_VIEW)),
+                current_user: User = Depends(
+                    require_permission(Permission.DEVICES_VIEW)
+                ),
             ):
                 """Get active alerts."""
                 # Return empty list for now - AlertManager needs different parameters
@@ -1693,7 +1794,9 @@ class KasaMonitorApp:
 
             @self.app.get("/api/alerts/rules")
             async def get_alert_rules(
-                current_user: User = Depends(require_permission(Permission.DEVICES_VIEW)),
+                current_user: User = Depends(
+                    require_permission(Permission.DEVICES_VIEW)
+                ),
             ):
                 """Get configured alert rules."""
                 return await self.alert_manager.get_rules()
@@ -1701,7 +1804,9 @@ class KasaMonitorApp:
             @self.app.post("/api/alerts/rules")
             async def create_alert_rule(
                 rule: Dict[str, Any],
-                current_user: User = Depends(require_permission(Permission.DEVICES_EDIT)),
+                current_user: User = Depends(
+                    require_permission(Permission.DEVICES_EDIT)
+                ),
             ):
                 """Create a new alert rule."""
                 return await self.alert_manager.create_rule(rule)
@@ -1709,7 +1814,9 @@ class KasaMonitorApp:
             @self.app.delete("/api/alerts/rules/{rule_id}")
             async def delete_alert_rule(
                 rule_id: int,
-                current_user: User = Depends(require_permission(Permission.DEVICES_EDIT)),
+                current_user: User = Depends(
+                    require_permission(Permission.DEVICES_EDIT)
+                ),
             ):
                 """Delete an alert rule."""
                 success = await self.alert_manager.delete_rule(rule_id)
@@ -1720,10 +1827,14 @@ class KasaMonitorApp:
             @self.app.post("/api/alerts/{alert_id}/acknowledge")
             async def acknowledge_alert(
                 alert_id: int,
-                current_user: User = Depends(require_permission(Permission.DEVICES_EDIT)),
+                current_user: User = Depends(
+                    require_permission(Permission.DEVICES_EDIT)
+                ),
             ):
                 """Acknowledge an alert."""
-                success = await self.alert_manager.acknowledge_alert(alert_id, user_id=current_user.id)
+                success = await self.alert_manager.acknowledge_alert(
+                    alert_id, user_id=current_user.id
+                )
                 if success:
                     return {"status": "success"}
                 raise HTTPException(status_code=404, detail="Alert not found")
@@ -1732,7 +1843,9 @@ class KasaMonitorApp:
             async def get_alert_history(
                 start_date: Optional[datetime] = None,
                 end_date: Optional[datetime] = None,
-                current_user: User = Depends(require_permission(Permission.DEVICES_VIEW)),
+                current_user: User = Depends(
+                    require_permission(Permission.DEVICES_VIEW)
+                ),
             ):
                 """Get alert history."""
                 # Return empty list for now - AlertManager doesn't have get_history method
@@ -1743,7 +1856,9 @@ class KasaMonitorApp:
 
             @self.app.get("/api/device-groups")
             async def get_device_groups(
-                current_user: User = Depends(require_permission(Permission.DEVICES_VIEW)),
+                current_user: User = Depends(
+                    require_permission(Permission.DEVICES_VIEW)
+                ),
             ):
                 """Get all device groups."""
                 return self.device_group_manager.get_all_groups()
@@ -1751,7 +1866,9 @@ class KasaMonitorApp:
             @self.app.get("/api/device-groups/{group_id}")
             async def get_device_group(
                 group_id: int,
-                current_user: User = Depends(require_permission(Permission.DEVICES_VIEW)),
+                current_user: User = Depends(
+                    require_permission(Permission.DEVICES_VIEW)
+                ),
             ):
                 """Get a specific device group."""
                 group = self.device_group_manager.get_group(group_id)
@@ -1762,7 +1879,9 @@ class KasaMonitorApp:
             @self.app.post("/api/device-groups")
             async def create_device_group(
                 group_data: Dict[str, Any],
-                current_user: User = Depends(require_permission(Permission.DEVICES_EDIT)),
+                current_user: User = Depends(
+                    require_permission(Permission.DEVICES_EDIT)
+                ),
             ):
                 """Create a new device group."""
                 return self.device_group_manager.create_group(group_data)
@@ -1771,7 +1890,9 @@ class KasaMonitorApp:
             async def update_device_group(
                 group_id: int,
                 group_data: Dict[str, Any],
-                current_user: User = Depends(require_permission(Permission.DEVICES_EDIT)),
+                current_user: User = Depends(
+                    require_permission(Permission.DEVICES_EDIT)
+                ),
             ):
                 """Update a device group."""
                 success = self.device_group_manager.update_group(group_id, group_data)
@@ -1782,7 +1903,9 @@ class KasaMonitorApp:
             @self.app.delete("/api/device-groups/{group_id}")
             async def delete_device_group(
                 group_id: int,
-                current_user: User = Depends(require_permission(Permission.DEVICES_EDIT)),
+                current_user: User = Depends(
+                    require_permission(Permission.DEVICES_EDIT)
+                ),
             ):
                 """Delete a device group."""
                 success = self.device_group_manager.delete_group(group_id)
@@ -1794,10 +1917,14 @@ class KasaMonitorApp:
             async def control_device_group(
                 group_id: int,
                 action: Dict[str, str],
-                current_user: User = Depends(require_permission(Permission.DEVICES_CONTROL)),
+                current_user: User = Depends(
+                    require_permission(Permission.DEVICES_CONTROL)
+                ),
             ):
                 """Control all devices in a group."""
-                result = self.device_group_manager.control_group(group_id, action.get("action", "off"))
+                result = self.device_group_manager.control_group(
+                    group_id, action.get("action", "off")
+                )
                 return {"status": "success", "result": result}
 
         # Backup and restore endpoints
@@ -1805,14 +1932,18 @@ class KasaMonitorApp:
 
             @self.app.get("/api/backups")
             async def get_backups(
-                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+                current_user: User = Depends(
+                    require_permission(Permission.SYSTEM_CONFIG)
+                ),
             ):
                 """Get list of available backups."""
                 return await self.backup_manager.list_backups()
 
             @self.app.get("/api/backups/progress")
             async def get_backup_progress(
-                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+                current_user: User = Depends(
+                    require_permission(Permission.SYSTEM_CONFIG)
+                ),
             ):
                 """Get current backup progress."""
                 return self.backup_manager.get_backup_progress()
@@ -1820,7 +1951,9 @@ class KasaMonitorApp:
             @self.app.post("/api/backups/create")
             async def create_backup(
                 backup_options: Dict[str, Any],
-                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+                current_user: User = Depends(
+                    require_permission(Permission.SYSTEM_CONFIG)
+                ),
             ):
                 """Create a new backup."""
                 backup_info = await self.backup_manager.create_backup(
@@ -1843,7 +1976,9 @@ class KasaMonitorApp:
             @self.app.get("/api/backups/{filename}/download")
             async def download_backup(
                 filename: str,
-                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+                current_user: User = Depends(
+                    require_permission(Permission.SYSTEM_CONFIG)
+                ),
             ):
                 """Download a backup file."""
                 file_path = await self.backup_manager.get_backup_file_by_name(filename)
@@ -1860,7 +1995,9 @@ class KasaMonitorApp:
             @self.app.delete("/api/backups/{filename}")
             async def delete_backup(
                 filename: str,
-                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+                current_user: User = Depends(
+                    require_permission(Permission.SYSTEM_CONFIG)
+                ),
             ):
                 """Delete a backup."""
                 success = await self.backup_manager.delete_backup_by_name(filename)
@@ -1872,7 +2009,9 @@ class KasaMonitorApp:
             async def restore_backup(
                 request: Request,
                 backup: UploadFile,
-                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+                current_user: User = Depends(
+                    require_permission(Permission.SYSTEM_CONFIG)
+                ),
             ):
                 """Restore from a backup file."""
                 import tempfile
@@ -1880,7 +2019,9 @@ class KasaMonitorApp:
 
                 # Check if backup manager is available
                 if not self.backup_manager:
-                    raise HTTPException(status_code=503, detail="Backup service not available")
+                    raise HTTPException(
+                        status_code=503, detail="Backup service not available"
+                    )
 
                 # Get client IP for audit logging
                 client_ip = request.client.host if request.client else "unknown"
@@ -1909,7 +2050,9 @@ class KasaMonitorApp:
                         action="restore_initiated",
                         details={
                             "backup_file": backup.filename,
-                            "file_size": (backup.size if hasattr(backup, "size") else None),
+                            "file_size": (
+                                backup.size if hasattr(backup, "size") else None
+                            ),
                         },
                         timestamp=datetime.now(),
                         success=True,
@@ -1917,7 +2060,9 @@ class KasaMonitorApp:
                     await self.audit_logger.log_event_async(event)
 
                 # Save uploaded file temporarily
-                with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
+                with tempfile.NamedTemporaryFile(
+                    delete=False, suffix=file_ext
+                ) as tmp_file:
                     content = await backup.read()
                     tmp_file.write(content)
                     temp_path = tmp_file.name
@@ -1952,7 +2097,9 @@ class KasaMonitorApp:
                                 details={
                                     "backup_file": backup.filename,
                                     "restore_id": result.get("restore_id"),
-                                    "pre_restore_backup": result.get("pre_restore_backup"),
+                                    "pre_restore_backup": result.get(
+                                        "pre_restore_backup"
+                                    ),
                                 },
                                 timestamp=datetime.now(),
                                 success=True,
@@ -1961,7 +2108,9 @@ class KasaMonitorApp:
 
                         # Verify audit log was properly recorded
                         if result.get("restore_id") and self.backup_manager:
-                            await self.backup_manager.verify_restore_audit_log(result["restore_id"])
+                            await self.backup_manager.verify_restore_audit_log(
+                                result["restore_id"]
+                            )
 
                         return {
                             "status": "success",
@@ -2002,7 +2151,9 @@ class KasaMonitorApp:
 
             @self.app.get("/api/backups/schedules")
             async def get_backup_schedules(
-                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+                current_user: User = Depends(
+                    require_permission(Permission.SYSTEM_CONFIG)
+                ),
             ):
                 """Get backup schedules."""
                 return await self.backup_manager.get_schedules()
@@ -2010,7 +2161,9 @@ class KasaMonitorApp:
             @self.app.post("/api/backups/schedules")
             async def create_backup_schedule(
                 schedule_data: Dict[str, Any],
-                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+                current_user: User = Depends(
+                    require_permission(Permission.SYSTEM_CONFIG)
+                ),
             ):
                 """Create a new backup schedule."""
                 schedule = await self.backup_manager.create_schedule(schedule_data)
@@ -2020,10 +2173,14 @@ class KasaMonitorApp:
             async def update_backup_schedule(
                 schedule_id: int,
                 schedule_data: Dict[str, Any],
-                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+                current_user: User = Depends(
+                    require_permission(Permission.SYSTEM_CONFIG)
+                ),
             ):
                 """Update a backup schedule."""
-                success = await self.backup_manager.update_schedule(schedule_id, schedule_data)
+                success = await self.backup_manager.update_schedule(
+                    schedule_id, schedule_data
+                )
                 if success:
                     return {"status": "success"}
                 raise HTTPException(status_code=404, detail="Schedule not found")
@@ -2031,7 +2188,9 @@ class KasaMonitorApp:
             @self.app.delete("/api/backups/schedules/{schedule_id}")
             async def delete_backup_schedule(
                 schedule_id: int,
-                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+                current_user: User = Depends(
+                    require_permission(Permission.SYSTEM_CONFIG)
+                ),
             ):
                 """Delete a backup schedule."""
                 success = await self.backup_manager.delete_schedule(schedule_id)
@@ -2049,7 +2208,9 @@ class KasaMonitorApp:
                 severity: Optional[str] = None,
                 range: str = "7days",
                 search: Optional[str] = None,
-                current_user: User = Depends(require_permission(Permission.SYSTEM_LOGS)),
+                current_user: User = Depends(
+                    require_permission(Permission.SYSTEM_LOGS)
+                ),
             ):
                 """Get audit logs."""
                 logs, total_pages = await self.audit_logger.get_logs(
@@ -2064,7 +2225,9 @@ class KasaMonitorApp:
             @self.app.post("/api/audit-logs/export")
             async def export_audit_logs(
                 export_options: Dict[str, Any],
-                current_user: User = Depends(require_permission(Permission.SYSTEM_LOGS)),
+                current_user: User = Depends(
+                    require_permission(Permission.SYSTEM_LOGS)
+                ),
             ):
                 """Export audit logs."""
                 file_path = await self.audit_logger.export_logs(
@@ -2086,7 +2249,9 @@ class KasaMonitorApp:
             @self.app.delete("/api/audit-logs/clear")
             async def clear_audit_logs(
                 before_date: Optional[str] = None,
-                current_user: User = Depends(require_permission(Permission.SYSTEM_LOGS_CLEAR)),
+                current_user: User = Depends(
+                    require_permission(Permission.SYSTEM_LOGS_CLEAR)
+                ),
             ):
                 """Clear audit logs before specified date or all logs."""
                 try:
@@ -2094,9 +2259,13 @@ class KasaMonitorApp:
                     if before_date:
                         from datetime import datetime
 
-                        date_obj = datetime.fromisoformat(before_date.replace("Z", "+00:00"))
+                        date_obj = datetime.fromisoformat(
+                            before_date.replace("Z", "+00:00")
+                        )
 
-                    deleted_count = await self.audit_logger.clear_logs(before_date=date_obj)
+                    deleted_count = await self.audit_logger.clear_logs(
+                        before_date=date_obj
+                    )
 
                     # Log the clear action
                     if self.audit_logger:
@@ -2122,7 +2291,9 @@ class KasaMonitorApp:
 
                     return {"message": f"Cleared {deleted_count} audit log entries"}
                 except Exception as e:
-                    raise HTTPException(status_code=500, detail=f"Failed to clear logs: {str(e)}")
+                    raise HTTPException(
+                        status_code=500, detail=f"Failed to clear logs: {str(e)}"
+                    )
 
     async def load_saved_devices(self):
         """Load saved devices from database on startup."""
@@ -2139,7 +2310,9 @@ class KasaMonitorApp:
                     )
                     await device.update()
                     self.device_manager.devices[device_info["device_ip"]] = device
-                    logger.info(f"Connected to saved device: {device_info['alias']} ({device_info['device_ip']})")
+                    logger.info(
+                        f"Connected to saved device: {device_info['alias']} ({device_info['device_ip']})"
+                    )
                 except Exception as e:
                     logger.warning(
                         f"Could not connect to saved device {device_info['alias']} ({device_info['device_ip']}): {e}"
@@ -2167,7 +2340,9 @@ class KasaMonitorApp:
                 await self.db_manager.store_device_reading(device_data)
 
                 # Emit real-time update via Socket.IO
-                await self.sio.emit("device_update", device_data.dict(), room=f"device_{device_data.ip}")
+                await self.sio.emit(
+                    "device_update", device_data.dict(), room=f"device_{device_data.ip}"
+                )
 
             logger.info(f"Polled and stored data for {len(device_data_list)} devices")
         except Exception as e:

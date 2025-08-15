@@ -124,7 +124,9 @@ class TrendAnalysisResponse(BaseModel):
 
 
 @router.post("/export/devices")
-async def export_devices(request: ExportRequest, user: User = Depends(get_current_user)):
+async def export_devices(
+    request: ExportRequest, user: User = Depends(get_current_user)
+):
     """Export device data in various formats"""
     exporter = get_data_exporter()
 
@@ -138,7 +140,9 @@ async def export_devices(request: ExportRequest, user: User = Depends(get_curren
             )
 
         elif request.format == "excel":
-            content = await exporter.export_devices_excel(include_energy=request.include_energy)
+            content = await exporter.export_devices_excel(
+                include_energy=request.include_energy
+            )
             return StreamingResponse(
                 io.BytesIO(content),
                 media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -154,7 +158,9 @@ async def export_devices(request: ExportRequest, user: User = Depends(get_curren
             return StreamingResponse(
                 io.BytesIO(content),
                 media_type="application/pdf",
-                headers={"Content-Disposition": "attachment; filename=devices_report.pdf"},
+                headers={
+                    "Content-Disposition": "attachment; filename=devices_report.pdf"
+                },
             )
 
         else:
@@ -165,7 +171,9 @@ async def export_devices(request: ExportRequest, user: User = Depends(get_curren
 
 
 @router.post("/export/energy")
-async def export_energy_data(request: ExportRequest, user: User = Depends(get_current_user)):
+async def export_energy_data(
+    request: ExportRequest, user: User = Depends(get_current_user)
+):
     """Export energy consumption data"""
     exporter = get_data_exporter()
 
@@ -191,7 +199,9 @@ async def export_energy_data(request: ExportRequest, user: User = Depends(get_cu
             return StreamingResponse(
                 io.BytesIO(content),
                 media_type="application/pdf",
-                headers={"Content-Disposition": "attachment; filename=energy_report.pdf"},
+                headers={
+                    "Content-Disposition": "attachment; filename=energy_report.pdf"
+                },
             )
 
         else:
@@ -215,12 +225,16 @@ async def generate_report(
     exporter = get_data_exporter()
 
     try:
-        content = await exporter.generate_pdf_report(report_type=report_type, start_date=start_date, end_date=end_date)
+        content = await exporter.generate_pdf_report(
+            report_type=report_type, start_date=start_date, end_date=end_date
+        )
 
         return StreamingResponse(
             io.BytesIO(content),
             media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename={report_type}_report.pdf"},
+            headers={
+                "Content-Disposition": f"attachment; filename={report_type}_report.pdf"
+            },
         )
 
     except Exception as e:
@@ -334,7 +348,9 @@ async def get_device_statistics(
     aggregator = get_data_aggregator()
 
     try:
-        stats = await aggregator.calculate_statistics(device_ip=device_ip, start_date=start_date, end_date=end_date)
+        stats = await aggregator.calculate_statistics(
+            device_ip=device_ip, start_date=start_date, end_date=end_date
+        )
 
         return StatisticsResponse(
             device_ip=device_ip,

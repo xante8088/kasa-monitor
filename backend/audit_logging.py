@@ -269,7 +269,9 @@ class AuditLogger:
         handler = logging.FileHandler(log_file)
 
         # Set format
-        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+        formatter = logging.Formatter(
+            "%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+        )
         handler.setFormatter(formatter)
 
         self.file_logger.addHandler(handler)
@@ -359,7 +361,11 @@ class AuditLogger:
             error_message: Error message if failed
         """
         event = AuditEvent(
-            event_type=(AuditEventType.LOGIN_SUCCESS if success else AuditEventType.LOGIN_FAILURE),
+            event_type=(
+                AuditEventType.LOGIN_SUCCESS
+                if success
+                else AuditEventType.LOGIN_FAILURE
+            ),
             severity=AuditSeverity.INFO if success else AuditSeverity.WARNING,
             user_id=user_id if success else None,
             username=username,
@@ -474,11 +480,17 @@ class AuditLogger:
 
         if start_date:
             query += " AND timestamp >= ?"
-            params.append(start_date.isoformat() if hasattr(start_date, "isoformat") else start_date)
+            params.append(
+                start_date.isoformat()
+                if hasattr(start_date, "isoformat")
+                else start_date
+            )
 
         if end_date:
             query += " AND timestamp <= ?"
-            params.append(end_date.isoformat() if hasattr(end_date, "isoformat") else end_date)
+            params.append(
+                end_date.isoformat() if hasattr(end_date, "isoformat") else end_date
+            )
 
         if user_id:
             query += " AND user_id = ?"
@@ -577,16 +589,22 @@ class AuditLogger:
             }
             if category in category_prefixes:
                 event_type_pattern = category_prefixes[category]
-                logger.info(f"Single category filter: {category} -> {event_type_pattern}")
+                logger.info(
+                    f"Single category filter: {category} -> {event_type_pattern}"
+                )
             elif "," in category:
                 # Handle multiple categories
                 categories = category.split(",")
                 patterns = [
-                    category_prefixes.get(cat.strip(), "") for cat in categories if cat.strip() in category_prefixes
+                    category_prefixes.get(cat.strip(), "")
+                    for cat in categories
+                    if cat.strip() in category_prefixes
                 ]
                 if patterns:
                     event_type_pattern = patterns
-                    logger.info(f"Multiple category filters: {categories} -> {patterns}")
+                    logger.info(
+                        f"Multiple category filters: {categories} -> {patterns}"
+                    )
 
         # Convert severity (handle multiple values)
         severity_values = []
@@ -610,13 +628,17 @@ class AuditLogger:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        count_query = "SELECT COUNT(*) FROM audit_log WHERE timestamp >= ? AND timestamp <= ?"
+        count_query = (
+            "SELECT COUNT(*) FROM audit_log WHERE timestamp >= ? AND timestamp <= ?"
+        )
         count_params = [start_date.isoformat(), end_date.isoformat()]
 
         if event_type_pattern:
             if isinstance(event_type_pattern, list):
                 # Multiple patterns
-                pattern_conditions = " OR ".join(["event_type LIKE ?" for _ in event_type_pattern])
+                pattern_conditions = " OR ".join(
+                    ["event_type LIKE ?" for _ in event_type_pattern]
+                )
                 count_query += f" AND ({pattern_conditions})"
                 count_params.extend([f"{pattern}%" for pattern in event_type_pattern])
             else:
@@ -656,7 +678,9 @@ class AuditLogger:
         if event_type_pattern:
             if isinstance(event_type_pattern, list):
                 # Multiple patterns
-                pattern_conditions = " OR ".join(["event_type LIKE ?" for _ in event_type_pattern])
+                pattern_conditions = " OR ".join(
+                    ["event_type LIKE ?" for _ in event_type_pattern]
+                )
                 query += f" AND ({pattern_conditions})"
                 params.extend([f"{pattern}%" for pattern in event_type_pattern])
             else:
@@ -682,7 +706,9 @@ class AuditLogger:
         params.extend([limit, offset])
 
         logger.debug(f"Query: {query[:200]}...")  # Log first 200 chars of query
-        logger.info(f"Filter params - category: {category}, severity: {severity}, search: {search}")
+        logger.info(
+            f"Filter params - category: {category}, severity: {severity}, search: {search}"
+        )
         cursor.execute(query, params)
 
         logs = []
@@ -709,7 +735,9 @@ class AuditLogger:
             )
 
         conn.close()
-        logger.info(f"Returning {len(logs)} logs for filters - category: {category}, severity: {severity}")
+        logger.info(
+            f"Returning {len(logs)} logs for filters - category: {category}, severity: {severity}"
+        )
         return logs, max(1, total_pages)  # Ensure at least 1 page
 
     async def export_logs(
@@ -912,7 +940,9 @@ class AuditLogger:
 
         security_events = []
         for row in cursor.fetchall():
-            security_events.append({"event_type": row[0], "severity": row[1], "count": row[2]})
+            security_events.append(
+                {"event_type": row[0], "severity": row[1], "count": row[2]}
+            )
 
         conn.close()
 
@@ -934,7 +964,9 @@ class AuditLogger:
 
         return report
 
-    def export_logs_legacy(self, start_date: datetime, end_date: datetime, output_file: str):
+    def export_logs_legacy(
+        self, start_date: datetime, end_date: datetime, output_file: str
+    ):
         """Legacy export audit logs to file method.
 
         Args:
@@ -1017,7 +1049,9 @@ class AuditLogger:
         cursor = conn.cursor()
 
         if before_date:
-            cursor.execute("DELETE FROM audit_log WHERE timestamp < ?", (before_date.isoformat(),))
+            cursor.execute(
+                "DELETE FROM audit_log WHERE timestamp < ?", (before_date.isoformat(),)
+            )
         else:
             cursor.execute("DELETE FROM audit_log")
 
@@ -1062,7 +1096,9 @@ class AuditLogger:
             }
 
             # Calculate expected checksum
-            expected_checksum = hashlib.sha256(json.dumps(event_data, sort_keys=True).encode()).hexdigest()
+            expected_checksum = hashlib.sha256(
+                json.dumps(event_data, sort_keys=True).encode()
+            ).hexdigest()
 
             # Compare with stored checksum
             if row[15] != expected_checksum:
@@ -1090,7 +1126,9 @@ class AuditLogger:
             "timestamp": event.timestamp.isoformat(),
         }
 
-        return hashlib.sha256(json.dumps(event_data, sort_keys=True).encode()).hexdigest()
+        return hashlib.sha256(
+            json.dumps(event_data, sort_keys=True).encode()
+        ).hexdigest()
 
     def _format_log_message(self, event: AuditEvent) -> str:
         """Format audit event for file logging.
@@ -1196,7 +1234,9 @@ class AuditLogger:
 
         # Write summary section
         output.write("Compliance Report\n")
-        output.write(f"Period: {report['period']['start']} to {report['period']['end']}\n")
+        output.write(
+            f"Period: {report['period']['start']} to {report['period']['end']}\n"
+        )
         output.write("\nSummary\n")
 
         for key, value in report["summary"].items():
@@ -1209,6 +1249,8 @@ class AuditLogger:
         output.write("\nSecurity Events\n")
         output.write("Event Type,Severity,Count\n")
         for event in report["security_events"]:
-            output.write(f"{event['event_type']},{event['severity']},{event['count']}\n")
+            output.write(
+                f"{event['event_type']},{event['severity']},{event['count']}\n"
+            )
 
         return output.getvalue()

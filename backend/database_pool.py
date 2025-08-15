@@ -110,10 +110,14 @@ class DatabasePool:
                 "pool_pre_ping": True,  # Verify connections before using
             }
 
-        self.engine = create_engine(self.database_url, poolclass=poolclass, **pool_kwargs)
+        self.engine = create_engine(
+            self.database_url, poolclass=poolclass, **pool_kwargs
+        )
 
         # Create session factory
-        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+        self.SessionLocal = sessionmaker(
+            autocommit=False, autoflush=False, bind=self.engine
+        )
 
         # Create scoped session for thread safety
         self.Session = scoped_session(self.SessionLocal)
@@ -145,10 +149,14 @@ class DatabasePool:
                 }
             )
 
-        self.async_engine = create_async_engine(self.database_url, poolclass=poolclass, **pool_kwargs)
+        self.async_engine = create_async_engine(
+            self.database_url, poolclass=poolclass, **pool_kwargs
+        )
 
         # Create async session factory
-        self.AsyncSessionLocal = async_sessionmaker(self.async_engine, class_=AsyncSession, expire_on_commit=False)
+        self.AsyncSessionLocal = async_sessionmaker(
+            self.async_engine, class_=AsyncSession, expire_on_commit=False
+        )
 
     def _setup_event_listeners(self):
         """Setup SQLAlchemy event listeners for monitoring"""
@@ -188,7 +196,9 @@ class DatabasePool:
         def receive_checkin(dbapi_conn, connection_record):
             """Handle connection checkin to pool"""
             if "checkout_time" in connection_record.info:
-                duration = (datetime.now() - connection_record.info["checkout_time"]).total_seconds()
+                duration = (
+                    datetime.now() - connection_record.info["checkout_time"]
+                ).total_seconds()
                 self.connection_wait_time.append(duration)
 
                 # Keep only last 100 measurements
@@ -251,7 +261,9 @@ class DatabasePool:
             result = db.execute(text(query), params or {})
             return result.fetchall()
 
-    async def execute_async_query(self, query: str, params: Optional[Dict] = None) -> Any:
+    async def execute_async_query(
+        self, query: str, params: Optional[Dict] = None
+    ) -> Any:
         """
         Execute a raw SQL query (async)
 
@@ -295,7 +307,11 @@ class DatabasePool:
 
             # Calculate average wait time
             if self.connection_wait_time:
-                status["avg_wait_time_ms"] = sum(self.connection_wait_time) / len(self.connection_wait_time) * 1000
+                status["avg_wait_time_ms"] = (
+                    sum(self.connection_wait_time)
+                    / len(self.connection_wait_time)
+                    * 1000
+                )
 
             return status
 
@@ -342,14 +358,18 @@ class DatabasePool:
 
         # If average wait time is high, consider increasing pool size
         if avg_wait > 1.0:  # More than 1 second average wait
-            logger.warning(f"High connection wait time: {avg_wait:.2f}s. Consider increasing pool size.")
+            logger.warning(
+                f"High connection wait time: {avg_wait:.2f}s. Consider increasing pool size."
+            )
 
             # Auto-adjust if configured
             if hasattr(self.engine.pool, "size"):
                 current_size = self.engine.pool.size()
                 if current_size < 50:  # Max limit
                     new_size = min(current_size + 5, 50)
-                    logger.info(f"Adjusting pool size from {current_size} to {new_size}")
+                    logger.info(
+                        f"Adjusting pool size from {current_size} to {new_size}"
+                    )
                     # Note: Pool size adjustment requires recreation in SQLAlchemy
 
         # Check for connection leaks

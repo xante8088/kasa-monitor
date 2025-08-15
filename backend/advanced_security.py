@@ -38,7 +38,9 @@ from cryptography.hazmat.backends import default_backend
 class Fail2BanIntegration:
     """Integration with Fail2ban for automated IP banning."""
 
-    def __init__(self, db_path: str = "kasa_monitor.db", log_path: str = "/var/log/kasa_monitor"):
+    def __init__(
+        self, db_path: str = "kasa_monitor.db", log_path: str = "/var/log/kasa_monitor"
+    ):
         """Initialize Fail2ban integration.
 
         Args:
@@ -163,7 +165,9 @@ ignoreregex =
             f.write(log_entry)
 
         # Store in database
-        self._store_security_event("auth_failure", ip, username=username, details=reason, severity="warning")
+        self._store_security_event(
+            "auth_failure", ip, username=username, details=reason, severity="warning"
+        )
 
     def log_rate_limit(self, ip: str, endpoint: str):
         """Log rate limit violation for Fail2ban.
@@ -173,16 +177,22 @@ ignoreregex =
             endpoint: API endpoint
         """
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_entry = f"{timestamp} Rate limit exceeded from {ip} on endpoint {endpoint}\n"
+        log_entry = (
+            f"{timestamp} Rate limit exceeded from {ip} on endpoint {endpoint}\n"
+        )
 
         # Write to access log
         with open(self.access_log, "a") as f:
             f.write(log_entry)
 
         # Store in database
-        self._store_security_event("rate_limit", ip, details=f"Endpoint: {endpoint}", severity="info")
+        self._store_security_event(
+            "rate_limit", ip, details=f"Endpoint: {endpoint}", severity="info"
+        )
 
-    def log_suspicious_activity(self, ip: str, activity: str, severity: str = "warning"):
+    def log_suspicious_activity(
+        self, ip: str, activity: str, severity: str = "warning"
+    ):
         """Log suspicious activity for Fail2ban.
 
         Args:
@@ -198,7 +208,9 @@ ignoreregex =
             f.write(log_entry)
 
         # Store in database
-        self._store_security_event("suspicious_activity", ip, details=activity, severity=severity)
+        self._store_security_event(
+            "suspicious_activity", ip, details=activity, severity=severity
+        )
 
     def _store_security_event(
         self,
@@ -234,7 +246,9 @@ ignoreregex =
         conn.commit()
         conn.close()
 
-    def ban_ip(self, ip: str, duration_hours: Optional[int] = None, reason: str = "Manual ban"):
+    def ban_ip(
+        self, ip: str, duration_hours: Optional[int] = None, reason: str = "Manual ban"
+    ):
         """Manually ban an IP address.
 
         Args:
@@ -355,7 +369,9 @@ class SSLCertificateManager:
         self.cert_dir = Path(cert_dir)
         self.cert_dir.mkdir(parents=True, exist_ok=True)
 
-    def generate_self_signed_cert(self, domain: str, days: int = 365) -> Tuple[str, str]:
+    def generate_self_signed_cert(
+        self, domain: str, days: int = 365
+    ) -> Tuple[str, str]:
         """Generate self-signed certificate.
 
         Args:
@@ -366,7 +382,9 @@ class SSLCertificateManager:
             Tuple of (cert_path, key_path)
         """
         # Generate private key
-        key = rsa.generate_private_key(public_exponent=65537, key_size=2048, backend=default_backend())
+        key = rsa.generate_private_key(
+            public_exponent=65537, key_size=2048, backend=default_backend()
+        )
 
         # Generate certificate
         subject = issuer = x509.Name(
@@ -451,7 +469,9 @@ class SSLCertificateManager:
             # Get SANs
             sans = []
             try:
-                san_ext = cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
+                san_ext = cert.extensions.get_extension_for_oid(
+                    x509.oid.ExtensionOID.SUBJECT_ALTERNATIVE_NAME
+                )
                 sans = [san.value for san in san_ext.value]
             except x509.ExtensionNotFound:
                 pass
@@ -508,7 +528,9 @@ class SSLCertificateManager:
             Path to CSR file
         """
         # Generate private key
-        key = rsa.generate_private_key(public_exponent=65537, key_size=2048, backend=default_backend())
+        key = rsa.generate_private_key(
+            public_exponent=65537, key_size=2048, backend=default_backend()
+        )
 
         # Create CSR
         csr = (
@@ -659,7 +681,9 @@ class SessionManager:
 
         return session_id
 
-    def validate_session(self, session_id: str, ip: str, user_agent: str) -> Optional[int]:
+    def validate_session(
+        self, session_id: str, ip: str, user_agent: str
+    ) -> Optional[int]:
         """Validate session.
 
         Args:
@@ -703,7 +727,10 @@ class SessionManager:
             return None
 
         # Check user agent if required
-        if self._get_config("require_same_user_agent", True) and user_agent != stored_agent:
+        if (
+            self._get_config("require_same_user_agent", True)
+            and user_agent != stored_agent
+        ):
             self._invalidate_session(session_id)
             conn.close()
             return None

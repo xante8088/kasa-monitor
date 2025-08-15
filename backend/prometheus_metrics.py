@@ -30,7 +30,9 @@ logger = logging.getLogger(__name__)
 registry = CollectorRegistry()
 
 # System metrics
-system_info = Info("kasa_monitor_info", "Kasa Monitor application information", registry=registry)
+system_info = Info(
+    "kasa_monitor_info", "Kasa Monitor application information", registry=registry
+)
 
 uptime_seconds = Gauge(
     "kasa_monitor_uptime_seconds",
@@ -191,7 +193,9 @@ alerts_triggered_total = Counter(
 )
 
 # Schedule metrics
-schedules_active = Gauge("kasa_monitor_schedules_active", "Number of active schedules", registry=registry)
+schedules_active = Gauge(
+    "kasa_monitor_schedules_active", "Number of active schedules", registry=registry
+)
 
 schedule_executions_total = Counter(
     "kasa_monitor_schedule_executions_total",
@@ -258,15 +262,23 @@ class MetricsCollector:
         # Update metrics
         for device_type, count in by_type.items():
             devices_total.labels(device_type=device_type).set(count)
-            devices_online.labels(device_type=device_type).set(online_by_type.get(device_type, 0))
+            devices_online.labels(device_type=device_type).set(
+                online_by_type.get(device_type, 0)
+            )
 
-    def track_energy_metrics(self, device_id: str, device_name: str, data: Dict[str, Any]):
+    def track_energy_metrics(
+        self, device_id: str, device_name: str, data: Dict[str, Any]
+    ):
         """Update energy-related metrics"""
         if "power" in data:
-            energy_consumption_watts.labels(device_id=device_id, device_name=device_name).set(data["power"])
+            energy_consumption_watts.labels(
+                device_id=device_id, device_name=device_name
+            ).set(data["power"])
 
         if "total_energy" in data:
-            energy_total_kwh.labels(device_id=device_id, device_name=device_name).inc(data.get("energy_delta", 0))
+            energy_total_kwh.labels(device_id=device_id, device_name=device_name).inc(
+                data.get("energy_delta", 0)
+            )
 
         if "cost" in data:
             energy_cost_total.labels(
@@ -275,9 +287,13 @@ class MetricsCollector:
                 currency=data.get("currency", "USD"),
             ).inc(data["cost"])
 
-    def track_http_request(self, method: str, endpoint: str, status: int, duration: float):
+    def track_http_request(
+        self, method: str, endpoint: str, status: int, duration: float
+    ):
         """Track HTTP request metrics"""
-        http_requests_total.labels(method=method, endpoint=endpoint, status=str(status)).inc()
+        http_requests_total.labels(
+            method=method, endpoint=endpoint, status=str(status)
+        ).inc()
 
         http_request_duration.labels(method=method, endpoint=endpoint).observe(duration)
 
@@ -286,7 +302,9 @@ class MetricsCollector:
         websocket_connections.set(connections)
 
         for (direction, msg_type), count in messages.items():
-            websocket_messages_total.labels(direction=direction, type=msg_type).inc(count)
+            websocket_messages_total.labels(direction=direction, type=msg_type).inc(
+                count
+            )
 
     def track_database_metrics(self, pool_stats: Dict[str, Any]):
         """Track database metrics"""
@@ -322,7 +340,9 @@ class MetricsCollector:
             return
 
         try:
-            push_to_gateway(self.push_gateway_url, job="kasa_monitor", registry=registry)
+            push_to_gateway(
+                self.push_gateway_url, job="kasa_monitor", registry=registry
+            )
             logger.debug("Metrics pushed to Pushgateway")
         except Exception as e:
             logger.error(f"Failed to push metrics: {e}")
@@ -344,7 +364,9 @@ def track_request_metrics(endpoint: Optional[str] = None):
             method = kwargs.get("request", {}).method if "request" in kwargs else "GET"
 
             # Track in-progress requests
-            http_requests_in_progress.labels(method=method, endpoint=endpoint_name).inc()
+            http_requests_in_progress.labels(
+                method=method, endpoint=endpoint_name
+            ).inc()
 
             start_time = time.time()
             status = 200
@@ -359,11 +381,17 @@ def track_request_metrics(endpoint: Optional[str] = None):
                 duration = time.time() - start_time
 
                 # Update metrics
-                http_requests_total.labels(method=method, endpoint=endpoint_name, status=str(status)).inc()
+                http_requests_total.labels(
+                    method=method, endpoint=endpoint_name, status=str(status)
+                ).inc()
 
-                http_request_duration.labels(method=method, endpoint=endpoint_name).observe(duration)
+                http_request_duration.labels(
+                    method=method, endpoint=endpoint_name
+                ).observe(duration)
 
-                http_requests_in_progress.labels(method=method, endpoint=endpoint_name).dec()
+                http_requests_in_progress.labels(
+                    method=method, endpoint=endpoint_name
+                ).dec()
 
         return async_wrapper
 
@@ -411,9 +439,13 @@ def track_device_command(device_id: str, command: str):
             finally:
                 duration = time.time() - start_time
 
-                device_command_total.labels(device_id=device_id, command=command, status=status).inc()
+                device_command_total.labels(
+                    device_id=device_id, command=command, status=status
+                ).inc()
 
-                device_command_duration.labels(device_id=device_id, command=command).observe(duration)
+                device_command_duration.labels(
+                    device_id=device_id, command=command
+                ).observe(duration)
 
         return async_wrapper
 

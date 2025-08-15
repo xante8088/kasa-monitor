@@ -126,7 +126,9 @@ class ScheduleTemplate:
 class AdvancedScheduler:
     """Advanced scheduling system."""
 
-    def __init__(self, db_path: str = "kasa_monitor.db", location: Optional[LocationInfo] = None):
+    def __init__(
+        self, db_path: str = "kasa_monitor.db", location: Optional[LocationInfo] = None
+    ):
         """Initialize scheduler.
 
         Args:
@@ -246,10 +248,18 @@ class AdvancedScheduler:
         )
 
         # Create indexes
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_schedule_enabled ON schedule_rules(enabled)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_schedule_type ON schedule_rules(schedule_type)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_execution_schedule ON schedule_executions(schedule_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_execution_time ON schedule_executions(triggered_at)")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_schedule_enabled ON schedule_rules(enabled)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_schedule_type ON schedule_rules(schedule_type)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_execution_schedule ON schedule_executions(schedule_id)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_execution_time ON schedule_executions(triggered_at)"
+        )
 
         # Insert default templates
         self._create_default_templates(cursor)
@@ -516,7 +526,9 @@ class AdvancedScheduler:
             # Check if schedule should trigger
             if await self._should_trigger(schedule, now):
                 # Check conditions
-                if schedule.conditions and not self._evaluate_conditions(schedule.conditions):
+                if schedule.conditions and not self._evaluate_conditions(
+                    schedule.conditions
+                ):
                     continue
 
                 # Execute schedule
@@ -563,7 +575,9 @@ class AdvancedScheduler:
 
         return False
 
-    async def _check_solar_trigger(self, schedule: ScheduleRule, local_now: datetime) -> bool:
+    async def _check_solar_trigger(
+        self, schedule: ScheduleRule, local_now: datetime
+    ) -> bool:
         """Check solar-based trigger.
 
         Args:
@@ -687,7 +701,9 @@ class AdvancedScheduler:
                 # TODO: Execute actual device action
                 # This would integrate with the device control system
                 for device_ip in schedule.devices:
-                    await self._execute_device_action(device_ip, schedule.action_type, schedule.action_config)
+                    await self._execute_device_action(
+                        device_ip, schedule.action_type, schedule.action_config
+                    )
                 break
 
             except Exception as e:
@@ -711,7 +727,9 @@ class AdvancedScheduler:
         conn.commit()
         conn.close()
 
-    async def _execute_device_action(self, device_ip: str, action_type: ActionType, config: Dict[str, Any]):
+    async def _execute_device_action(
+        self, device_ip: str, action_type: ActionType, config: Dict[str, Any]
+    ):
         """Execute action on a device.
 
         Args:
@@ -749,8 +767,13 @@ class AdvancedScheduler:
             # Check for time conflicts
             conflict_type = None
 
-            if schedule.trigger_type == TriggerType.TIME and other_schedule.trigger_type == TriggerType.TIME:
-                if schedule.trigger_config.get("time") == other_schedule.trigger_config.get("time"):
+            if (
+                schedule.trigger_type == TriggerType.TIME
+                and other_schedule.trigger_type == TriggerType.TIME
+            ):
+                if schedule.trigger_config.get(
+                    "time"
+                ) == other_schedule.trigger_config.get("time"):
                     conflict_type = "same_time"
 
             if conflict_type:

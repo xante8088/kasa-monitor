@@ -49,10 +49,14 @@ class CacheManager:
         self.redis_client = None
         if redis_url:
             try:
-                self.redis_client = redis.from_url(redis_url, encoding="utf-8", decode_responses=False)
+                self.redis_client = redis.from_url(
+                    redis_url, encoding="utf-8", decode_responses=False
+                )
                 logger.info("Redis cache initialized")
             except Exception as e:
-                logger.warning(f"Failed to connect to Redis: {e}. Using memory cache only.")
+                logger.warning(
+                    f"Failed to connect to Redis: {e}. Using memory cache only."
+                )
 
         # Cache statistics
         self.stats = {
@@ -109,7 +113,9 @@ class CacheManager:
             self.stats["errors"] += 1
             return default
 
-    async def set(self, key: str, value: Any, ttl: Optional[int] = None, l1_only: bool = False) -> bool:
+    async def set(
+        self, key: str, value: Any, ttl: Optional[int] = None, l1_only: bool = False
+    ) -> bool:
         """
         Set value in cache
 
@@ -192,7 +198,9 @@ class CacheManager:
                     # Delete keys matching pattern
                     cursor = 0
                     while True:
-                        cursor, keys = await self.redis_client.scan(cursor, match=pattern, count=100)
+                        cursor, keys = await self.redis_client.scan(
+                            cursor, match=pattern, count=100
+                        )
                         if keys:
                             count += len(keys)
                             await self.redis_client.delete(*keys)
@@ -243,7 +251,9 @@ class CacheManager:
 
         return results
 
-    async def set_many(self, mapping: Dict[str, Any], ttl: Optional[int] = None) -> bool:
+    async def set_many(
+        self, mapping: Dict[str, Any], ttl: Optional[int] = None
+    ) -> bool:
         """
         Set multiple values in cache
 
@@ -284,7 +294,9 @@ class CacheManager:
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics"""
         total_requests = self.stats["hits"] + self.stats["misses"]
-        hit_rate = (self.stats["hits"] / total_requests * 100) if total_requests > 0 else 0
+        hit_rate = (
+            (self.stats["hits"] / total_requests * 100) if total_requests > 0 else 0
+        )
 
         return {
             **self.stats,
@@ -386,7 +398,9 @@ class QueryCache:
         # Add parameters to key
         if params:
             param_str = ":".join(str(p) for p in params)
-            key = f"query:{hashlib.md5(f'{normalized}:{param_str}'.encode()).hexdigest()}"
+            key = (
+                f"query:{hashlib.md5(f'{normalized}:{param_str}'.encode()).hexdigest()}"
+            )
         else:
             key = f"query:{hashlib.md5(normalized.encode()).hexdigest()}"
 
@@ -407,12 +421,16 @@ class QueryCache:
         else:
             return 30  # Default TTL
 
-    async def get_query_result(self, query: str, params: Optional[tuple] = None) -> Optional[Any]:
+    async def get_query_result(
+        self, query: str, params: Optional[tuple] = None
+    ) -> Optional[Any]:
         """Get cached query result"""
         key = self._get_query_key(query, params)
         return await self.cache_manager.get(key)
 
-    async def set_query_result(self, query: str, params: Optional[tuple], result: Any) -> bool:
+    async def set_query_result(
+        self, query: str, params: Optional[tuple], result: Any
+    ) -> bool:
         """Cache query result"""
         key = self._get_query_key(query, params)
         ttl = self._determine_ttl(query)
@@ -429,7 +447,9 @@ class ResponseCache:
     def __init__(self, cache_manager: CacheManager):
         self.cache_manager = cache_manager
 
-    def get_response_key(self, method: str, path: str, params: Optional[Dict] = None) -> str:
+    def get_response_key(
+        self, method: str, path: str, params: Optional[Dict] = None
+    ) -> str:
         """Generate cache key for API response"""
         key_parts = [method.upper(), path]
 
@@ -440,7 +460,9 @@ class ResponseCache:
 
         return f"response:{':'.join(key_parts)}"
 
-    async def get_response(self, method: str, path: str, params: Optional[Dict] = None) -> Optional[Any]:
+    async def get_response(
+        self, method: str, path: str, params: Optional[Dict] = None
+    ) -> Optional[Any]:
         """Get cached API response"""
         key = self.get_response_key(method, path, params)
         return await self.cache_manager.get(key)
