@@ -1,8 +1,8 @@
 {
-  "version": "0.3.12",
-  "lastUpdated": "2025-08-15T04:52:03Z",
-  "gitTag": "v0.3.12",
-  "gitCommit": "ddc568cc8ac87fc7986fc7d6ea682ca2b54bd162",
+  "version": "0.3.13",
+  "lastUpdated": "2025-08-15T05:10:16Z",
+  "gitTag": "v0.3.13",
+  "gitCommit": "b8f443df61803b20834cfd9b2b917c31588b0ab1",
   "dockerImage": "xante8088/kasa-monitor",
   "buildDate": "2025-08-15"
 }
