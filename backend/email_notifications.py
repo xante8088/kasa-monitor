@@ -18,26 +18,27 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
+import asyncio
+import base64
+import hashlib
+import json
+import queue
 import smtplib
 import sqlite3
-import json
-import asyncio
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
-from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any, Union
-from enum import Enum
-from dataclasses import dataclass, asdict
-from pathlib import Path
-import jinja2
-import markdown
-import queue
 import threading
 import time
-import hashlib
-import base64
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+
+import jinja2
+import markdown
 
 
 class EmailStatus(Enum):

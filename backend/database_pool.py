@@ -3,18 +3,20 @@ Database connection pooling and session management for Kasa Monitor
 Implements SQLAlchemy connection pooling with monitoring and optimization
 """
 
-import os
+import asyncio
 import logging
-from typing import Optional, Dict, Any, Generator
+import os
 from contextlib import contextmanager
 from datetime import datetime, timedelta
-import asyncio
-from sqlalchemy import create_engine, event, pool, text
-from sqlalchemy.orm import sessionmaker, Session, scoped_session
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.pool import NullPool, QueuePool, StaticPool
-from sqlalchemy.exc import DBAPIError, DisconnectionError, TimeoutError
+from typing import Any, Dict, Generator, Optional
+
 import aiosqlite
+from sqlalchemy import create_engine, event, pool, text
+from sqlalchemy.exc import DBAPIError, DisconnectionError, TimeoutError
+from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
+                                    create_async_engine)
+from sqlalchemy.orm import Session, scoped_session, sessionmaker
+from sqlalchemy.pool import NullPool, QueuePool, StaticPool
 
 logger = logging.getLogger(__name__)
 

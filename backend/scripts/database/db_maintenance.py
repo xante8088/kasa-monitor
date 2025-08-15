@@ -19,11 +19,11 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import os
-import sys
-import sqlite3
 import argparse
 import logging
+import os
+import sqlite3
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 

@@ -20,17 +20,17 @@ along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
 import inspect
-import sqlite3
 import json
-import time
-import threading
-from datetime import datetime
-from typing import Optional, List, Dict, Any, Callable, Union, Awaitable
-from enum import Enum
-from dataclasses import dataclass, asdict
-from collections import defaultdict
 import queue
+import sqlite3
+import threading
+import time
 import weakref
+from collections import defaultdict
+from dataclasses import asdict, dataclass
+from datetime import datetime
+from enum import Enum
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
 
 
 class HookType(Enum):

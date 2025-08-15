@@ -18,15 +18,16 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
+import base64
+import io
+import json
+import secrets
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 import pyotp
 import qrcode
-import io
-import base64
-import secrets
-from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
-import json
-from pathlib import Path
 
 
 class TwoFactorAuth:

@@ -18,13 +18,14 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import sqlite3
 import json
+import sqlite3
 import statistics
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any, Tuple
 from enum import Enum
-from dataclasses import dataclass, asdict
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 from scipy import stats
 

@@ -3,26 +3,19 @@ Prometheus metrics collection for Kasa Monitor
 Provides comprehensive metrics for monitoring and alerting
 """
 
+import asyncio
+import logging
 import os
 import time
-import logging
-from typing import Dict, Any, Optional, Callable
 from datetime import datetime
 from functools import wraps
-from prometheus_client import (
-    Counter,
-    Gauge,
-    Histogram,
-    Summary,
-    Info,
-    CollectorRegistry,
-    generate_latest,
-    CONTENT_TYPE_LATEST,
-    push_to_gateway,
-)
-from prometheus_client.core import GaugeMetricFamily, CounterMetricFamily
+from typing import Any, Callable, Dict, Optional
+
 from fastapi import APIRouter, Response
-import asyncio
+from prometheus_client import (CONTENT_TYPE_LATEST, CollectorRegistry, Counter,
+                               Gauge, Histogram, Info, Summary,
+                               generate_latest, push_to_gateway)
+from prometheus_client.core import CounterMetricFamily, GaugeMetricFamily
 
 logger = logging.getLogger(__name__)
 

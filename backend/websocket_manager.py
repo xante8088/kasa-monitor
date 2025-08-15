@@ -3,16 +3,18 @@ WebSocket real-time updates manager for Kasa Monitor
 Handles real-time device status, energy data, and notifications
 """
 
+import asyncio
 import json
 import logging
-import asyncio
 import os
-from typing import Dict, List, Set, Any, Optional
-from datetime import datetime
-from fastapi import WebSocket, WebSocketDisconnect, Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt
 from collections import defaultdict
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Set
+
+from fastapi import (Depends, HTTPException, WebSocket, WebSocketDisconnect,
+                     status)
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import jwt
 
 logger = logging.getLogger(__name__)
 

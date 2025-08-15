@@ -18,16 +18,17 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
+import hashlib
+import json
 import secrets
 import sqlite3
-import json
-import redis
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from enum import Enum
-import hashlib
-from fastapi import Request, HTTPException, status
+from typing import Any, Dict, List, Optional
+
+import redis
+from fastapi import HTTPException, Request, status
 
 
 class SessionStatus(Enum):

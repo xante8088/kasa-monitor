@@ -18,19 +18,20 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import sqlite3
-import json
-import hashlib
 import asyncio
+import hashlib
+import json
+import shutil
+import sqlite3
+import tempfile
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
 import aiohttp
 import semver
-from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any, Tuple
-from enum import Enum
-from dataclasses import dataclass, asdict
-from pathlib import Path
-import tempfile
-import shutil
 
 
 class FirmwareStatus(Enum):

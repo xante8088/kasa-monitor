@@ -18,26 +18,27 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import os
-import sys
-import json
+import asyncio
+import hashlib
 import importlib
 import importlib.util
 import inspect
-import asyncio
-import threading
-import subprocess
-from pathlib import Path
-from datetime import datetime
-from typing import Optional, List, Dict, Any, Callable, Type
-from enum import Enum
-from dataclasses import dataclass, asdict
-from abc import ABC, abstractmethod
-import sqlite3
-import tempfile
+import json
+import os
 import shutil
+import sqlite3
+import subprocess
+import sys
+import tempfile
+import threading
 import zipfile
-import hashlib
+from abc import ABC, abstractmethod
+from dataclasses import asdict, dataclass
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Type
+
 import semver
 
 

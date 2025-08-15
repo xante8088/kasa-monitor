@@ -3,19 +3,20 @@ Data Management API endpoints for Kasa Monitor
 Handles export, aggregation, and bulk operations
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Response
-from fastapi.responses import StreamingResponse
-from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta
-from pydantic import BaseModel
-import os
 import io
+import os
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
 from auth import get_current_user, require_permission
-from models import User, Permission
-from data_export import DataExporter, BulkOperations
-from data_aggregation import DataAggregator, AggregationPeriod
 from cache_manager import CacheManager, ResponseCache
+from data_aggregation import AggregationPeriod, DataAggregator
+from data_export import BulkOperations, DataExporter
+from fastapi import (APIRouter, Depends, File, HTTPException, Query, Response,
+                     UploadFile)
+from fastapi.responses import StreamingResponse
+from models import Permission, User
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/data", tags=["data-management"])
 

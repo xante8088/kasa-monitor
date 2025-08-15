@@ -19,15 +19,15 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import os
-import sys
-import sqlite3
-import json
 import argparse
+import json
 import logging
+import os
+import sqlite3
+import sys
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))

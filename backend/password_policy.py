@@ -18,13 +18,14 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
+import hashlib
+import json
 import re
 import sqlite3
-import json
-import hashlib
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any, Tuple
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
+
 import bcrypt
 
 

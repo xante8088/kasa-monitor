@@ -18,19 +18,20 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
+import asyncio
+import json
+import time
+from collections import defaultdict
+from datetime import datetime, timedelta
+from functools import wraps
+from typing import Any, Callable, Dict, Optional
+
+import redis
+from fastapi import Request, Response
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from fastapi import Request, Response
-from typing import Optional, Dict, Any, Callable
-import time
-import json
-from datetime import datetime, timedelta
-from collections import defaultdict
-import asyncio
-import redis
-from functools import wraps
+from slowapi.util import get_remote_address
 
 
 class RateLimiter:

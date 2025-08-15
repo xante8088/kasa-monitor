@@ -3,12 +3,12 @@ Data Aggregation Module for Kasa Monitor
 Handles data aggregation, downsampling, and statistical calculations
 """
 
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple
 import asyncio
-from enum import Enum
-import statistics
 import logging
+import statistics
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 

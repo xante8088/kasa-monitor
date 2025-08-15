@@ -3,27 +3,28 @@ Database Backup and Restore Manager for Kasa Monitor
 Handles automated backups, encryption, compression, and restoration
 """
 
+import asyncio
+import base64
+import hashlib
+import json
+import logging
 import os
 import shutil
 import sqlite3
-import json
-import hashlib
-import logging
-import asyncio
 import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Dict, Any, List
-import py7zr
-from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.backends import default_backend
-import base64
+from typing import Any, Dict, List, Optional
+
 import aiofiles
 import aiofiles.os
+import py7zr
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from cryptography.fernet import Fernet
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 logger = logging.getLogger(__name__)
 
@@ -354,8 +355,8 @@ class BackupManager:
         Returns:
             Restoration result dictionary
         """
-        import uuid
         import json
+        import uuid
 
         # Generate a unique restore ID for tracking
         restore_id = str(uuid.uuid4())

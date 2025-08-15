@@ -19,16 +19,17 @@ along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
 import ipaddress
-import sqlite3
 import json
+import sqlite3
 from datetime import datetime, time, timedelta
-from typing import Optional, List, Dict, Any, Union
 from enum import Enum
-import pytz
-from fastapi import Request, HTTPException, status
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+
 import geoip2.database
 import geoip2.errors
-from pathlib import Path
+import pytz
+from fastapi import HTTPException, Request, status
 
 
 class AccessRule(Enum):

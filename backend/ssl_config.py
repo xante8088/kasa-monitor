@@ -18,11 +18,11 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
+import logging
 import os
 import ssl
 from pathlib import Path
-from typing import Optional, Dict, Any
-import logging
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -89,12 +89,13 @@ class SSLConfig:
     def generate_self_signed_cert(self, hostname: str = "localhost") -> bool:
         """Generate a self-signed certificate for development."""
         try:
+            import ipaddress
+            from datetime import datetime, timedelta
+
             from cryptography import x509
-            from cryptography.x509.oid import NameOID
             from cryptography.hazmat.primitives import hashes, serialization
             from cryptography.hazmat.primitives.asymmetric import rsa
-            from datetime import datetime, timedelta
-            import ipaddress
+            from cryptography.x509.oid import NameOID
 
             # Generate private key
             private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)

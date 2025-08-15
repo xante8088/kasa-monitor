@@ -19,9 +19,10 @@ along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
 from datetime import datetime
-from typing import Optional, List, Dict
-from pydantic import BaseModel, Field
 from enum import Enum
+from typing import Dict, List, Optional
+
+from pydantic import BaseModel, Field
 
 
 class Permission(str, Enum):

@@ -18,13 +18,13 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import sqlite3
-import json
-from datetime import datetime
-from typing import Optional, List, Dict, Any, Set
-from enum import Enum
-from dataclasses import dataclass, asdict
 import asyncio
+import json
+import sqlite3
+from dataclasses import asdict, dataclass
+from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional, Set
 
 
 class GroupType(Enum):

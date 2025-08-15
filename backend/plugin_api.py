@@ -18,27 +18,23 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import sqlite3
-import json
-import aiohttp
 import asyncio
-from fastapi import FastAPI, HTTPException, Depends, File, UploadFile, BackgroundTasks
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
-from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
-from pathlib import Path
-import tempfile
+import json
 import shutil
+import sqlite3
+import tempfile
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-from plugin_system import (
-    PluginLoader,
-    PluginManifest,
-    PluginState,
-    PluginType,
-    PluginPriority,
-)
-from hook_system import HookManager, HookType, HookPriority
+import aiohttp
+from fastapi import (BackgroundTasks, Depends, FastAPI, File, HTTPException,
+                     UploadFile)
+from fastapi.responses import JSONResponse
+from hook_system import HookManager, HookPriority, HookType
+from plugin_system import (PluginLoader, PluginManifest, PluginPriority,
+                           PluginState, PluginType)
+from pydantic import BaseModel, Field
 
 
 class PluginConfigUpdate(BaseModel):

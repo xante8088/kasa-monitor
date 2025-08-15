@@ -1,8 +1,8 @@
 """Backend package for Kasa device monitoring."""
 
-from .server import KasaMonitorApp
 from .database import DatabaseManager
 from .models import DeviceData, DeviceReading, ElectricityRate
+from .server import KasaMonitorApp
 
 __all__ = [
     "KasaMonitorApp",

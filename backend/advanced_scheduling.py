@@ -18,19 +18,20 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import sqlite3
-import json
 import asyncio
+import json
 import random
-from datetime import datetime, timedelta, time
-from typing import Optional, List, Dict, Any, Tuple
+import sqlite3
+from dataclasses import asdict, dataclass
+from datetime import datetime, time, timedelta
 from enum import Enum
-from dataclasses import dataclass, asdict
+from typing import Any, Dict, List, Optional, Tuple
+
 import croniter
+import holidays
+import pytz
 from astral import LocationInfo
 from astral.sun import sun
-import pytz
-import holidays
 
 
 class ScheduleType(Enum):

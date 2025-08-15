@@ -18,21 +18,22 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import sqlite3
-import json
 import asyncio
-from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any, Union
-from enum import Enum
-from dataclasses import dataclass, asdict
 import base64
+import json
+import sqlite3
+import time
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+
+import aiohttp
+from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.backends import default_backend
 from jose import jwt
-import time
-import aiohttp
-from pathlib import Path
 
 
 class PushPlatform(Enum):

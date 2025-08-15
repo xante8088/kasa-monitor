@@ -18,28 +18,29 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import unittest
 import asyncio
-import sqlite3
-import tempfile
-import os
 import json
-import time
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
-from unittest.mock import Mock, patch, AsyncMock
+import os
+import sqlite3
 import sys
+import tempfile
+import time
+import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any, Dict, List, Optional
+from unittest.mock import AsyncMock, Mock, patch
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
+from alert_management import (AlertCategory, AlertManager, AlertRule,
+                              AlertSeverity)
+from auth import AuthManager
 # Import modules to test
 from database import DatabaseManager
-from auth import AuthManager
-from models import User, UserCreate, UserRole, DeviceData
+from models import DeviceData, User, UserCreate, UserRole
 from performance_monitor import PerformanceMonitor
-from alert_management import AlertManager, AlertRule, AlertSeverity, AlertCategory
 
 
 class TestBase(unittest.TestCase):
@@ -252,7 +253,7 @@ class TestPerformanceMonitor(TestBase):
     def test_metric_recording(self):
         """Test metric recording."""
         from performance_monitor import MetricType
-        
+
         # Record test metric
         self.monitor.record_metric(
             "test.metric",

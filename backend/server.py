@@ -19,72 +19,45 @@ along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
 import asyncio
+import base64
+import io
 import json
 import logging
 import os
-from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Optional, Any
 from contextlib import asynccontextmanager
-import io
+from datetime import datetime, timedelta, timezone
+from io import BytesIO
+from typing import Any, Dict, List, Optional
+
 import pyotp
 import qrcode
-import base64
-from io import BytesIO
-
-from fastapi import (
-    FastAPI,
-    HTTPException,
-    WebSocket,
-    WebSocketDisconnect,
-    Depends,
-    status,
-    Response,
-    UploadFile,
-    Request,
-    Query,
-)
-from fastapi.responses import FileResponse
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
 import socketio
 import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-
-from kasa import Discover, Device, Credentials, SmartDevice
+from auth import (AuthManager, get_current_user, get_network_access_config,
+                  is_local_network_ip, require_admin, require_auth,
+                  require_permission)
+from database import DatabaseManager
+from fastapi import (Depends, FastAPI, HTTPException, Query, Request, Response,
+                     UploadFile, WebSocket, WebSocketDisconnect, status)
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 from influxdb_client.client.write_api import SYNCHRONOUS
-
-from database import DatabaseManager
-from models import (
-    DeviceData,
-    DeviceReading,
-    ElectricityRate,
-    User,
-    UserCreate,
-    UserRole,
-    UserLogin,
-    Token,
-    Permission,
-)
-from auth import (
-    AuthManager,
-    get_current_user,
-    require_auth,
-    require_permission,
-    require_admin,
-    is_local_network_ip,
-    get_network_access_config,
-)
+from kasa import Credentials, Device, Discover, SmartDevice
+from models import (DeviceData, DeviceReading, ElectricityRate, Permission,
+                    Token, User, UserCreate, UserLogin, UserRole)
+from pydantic import BaseModel, Field
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Import data management modules
 try:
-    from data_export import DataExporter, BulkOperations
-    from data_aggregation import DataAggregator
     from cache_manager import CacheManager
+    from data_aggregation import DataAggregator
+    from data_export import BulkOperations, DataExporter
 
     data_management_available = True
 except ImportError:
@@ -95,12 +68,13 @@ except ImportError:
 
 # Import additional modules
 try:
+    from alert_management import AlertManager
+    from audit_logging import (AuditEvent, AuditEventType, AuditLogger,
+                               AuditSeverity)
+    from backup_manager import BackupManager
+    from device_groups import DeviceGroupManager
     from health_monitor import HealthMonitor
     from prometheus_metrics import MetricsCollector as PrometheusMetrics
-    from alert_management import AlertManager
-    from device_groups import DeviceGroupManager
-    from backup_manager import BackupManager
-    from audit_logging import AuditLogger, AuditEvent, AuditEventType, AuditSeverity
 
     monitoring_available = True
 except ImportError as e:
@@ -2014,8 +1988,8 @@ class KasaMonitorApp:
                 ),
             ):
                 """Restore from a backup file."""
-                import tempfile
                 import shutil
+                import tempfile
 
                 # Check if backup manager is available
                 if not self.backup_manager:

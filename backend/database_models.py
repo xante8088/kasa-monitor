@@ -4,21 +4,10 @@ Database models for Kasa Monitor using SQLAlchemy
 
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    Float,
-    Boolean,
-    DateTime,
-    Text,
-    JSON,
-    ForeignKey,
-    Index,
-    UniqueConstraint,
-    CheckConstraint,
-    Table,
-)
+
+from sqlalchemy import (JSON, Boolean, CheckConstraint, Column, DateTime,
+                        Float, ForeignKey, Index, Integer, String, Table, Text,
+                        UniqueConstraint)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.sql import func

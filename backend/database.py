@@ -18,27 +18,19 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
+import json
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Optional, List, Dict, Any
-import json
+from typing import Any, Dict, List, Optional
 
 import aiosqlite
+from auth import AuthManager
+from influxdb_client import Point
 from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 from influxdb_client.client.write_api import SYNCHRONOUS
-from influxdb_client import Point
-
-from models import (
-    DeviceData,
-    DeviceReading,
-    ElectricityRate,
-    RateType,
-    User,
-    UserCreate,
-    UserRole,
-)
+from models import (DeviceData, DeviceReading, ElectricityRate, RateType, User,
+                    UserCreate, UserRole)
 from rate_calculator import RateCalculator
-from auth import AuthManager
 
 
 class DatabaseManager:

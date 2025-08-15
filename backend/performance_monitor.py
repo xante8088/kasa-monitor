@@ -18,21 +18,22 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import time
-import psutil
 import asyncio
-import threading
-import sqlite3
-import json
-import gc
-import tracemalloc
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List, Callable
-from collections import deque, defaultdict
-from dataclasses import dataclass, asdict
-from enum import Enum
-import functools
 import contextvars
+import functools
+import gc
+import json
+import sqlite3
+import threading
+import time
+import tracemalloc
+from collections import defaultdict, deque
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
+
+import psutil
 
 
 class MetricType(Enum):

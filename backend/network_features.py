@@ -18,21 +18,22 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import sqlite3
-import json
 import asyncio
-import socket
-import ipaddress
-import netifaces
-import subprocess
-import platform
-from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any, Set, Tuple
-from enum import Enum
-from dataclasses import dataclass, asdict
-from zeroconf import ServiceBrowser, ServiceListener, Zeroconf
 import concurrent.futures
+import ipaddress
+import json
+import platform
+import socket
+import sqlite3
+import subprocess
 import threading
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+import netifaces
+from zeroconf import ServiceBrowser, ServiceListener, Zeroconf
 
 
 class NetworkProtocol(Enum):

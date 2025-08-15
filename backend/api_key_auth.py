@@ -18,14 +18,15 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import secrets
 import hashlib
 import json
+import secrets
+import sqlite3
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
 from enum import Enum
 from pathlib import Path
-import sqlite3
+from typing import Any, Dict, List, Optional
+
 from fastapi import HTTPException, Security, status
 from fastapi.security import APIKeyHeader, APIKeyQuery
 

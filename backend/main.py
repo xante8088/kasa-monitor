@@ -3,14 +3,15 @@ Main application entry point for Kasa Monitor
 Integrates all implemented features for local testing
 """
 
-import os
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, WebSocket, Request
+
+import uvicorn
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-import uvicorn
 
 # Configure logging
 logging.basicConfig(
@@ -18,26 +19,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Import all our modules
-from health_monitor import router as health_router, health_monitor
-from prometheus_metrics import (
-    router as metrics_router,
-    metrics_collector,
-    metrics_background_task,
-)
-from database_api import router as database_router
 from data_management_api import router as data_management_router
-from websocket_manager import (
-    websocket_endpoint,
-    manager as ws_manager,
-    websocket_background_task,
-)
-from redis_cache import init_redis_cache, close_redis_cache
+from database_api import router as database_router
 from database_pool import init_pool
+# Import all our modules
+from health_monitor import health_monitor
+from health_monitor import router as health_router
+from prometheus_metrics import metrics_background_task, metrics_collector
+from prometheus_metrics import router as metrics_router
+from redis_cache import close_redis_cache, init_redis_cache
+from websocket_manager import manager as ws_manager
+from websocket_manager import websocket_background_task, websocket_endpoint
 
 # Import existing server functionality
 try:
-    from server import app as existing_app, device_manager
+    from server import app as existing_app
+    from server import device_manager
 
     USE_EXISTING = True
 except ImportError:

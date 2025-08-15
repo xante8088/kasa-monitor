@@ -18,21 +18,22 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import os
-import ssl
-import sqlite3
+import hashlib
 import json
+import os
+import sqlite3
+import ssl
 import subprocess
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
-import hashlib
+from typing import Any, Dict, List, Optional, Tuple
+
 import OpenSSL.crypto
 from cryptography import x509
-from cryptography.x509.oid import NameOID
+from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.backends import default_backend
+from cryptography.x509.oid import NameOID
 
 
 class Fail2BanIntegration:

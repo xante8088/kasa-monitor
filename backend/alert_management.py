@@ -18,18 +18,18 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import sqlite3
-import json
 import asyncio
-import threading
-from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any, Callable, Union, Tuple
-from enum import Enum
-from dataclasses import dataclass, asdict
+import json
 import operator
 import re
-from collections import defaultdict
+import sqlite3
 import statistics
+import threading
+from collections import defaultdict
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 
 class AlertSeverity(Enum):

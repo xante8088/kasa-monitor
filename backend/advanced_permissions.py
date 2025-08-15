@@ -18,14 +18,14 @@ You should have received a copy of the GNU General Public License
 along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import sqlite3
-import json
-from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any, Set, Tuple
-from enum import Enum
-from dataclasses import dataclass, asdict
 import fnmatch
+import json
+import sqlite3
 from collections import defaultdict
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 
 class PermissionScope(Enum):

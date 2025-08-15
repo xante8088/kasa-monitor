@@ -19,15 +19,16 @@ along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
 import functools
-import warnings
 import sqlite3
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List, Callable, Tuple
-from enum import Enum
+import warnings
 from dataclasses import dataclass
-from fastapi import Request, Response, HTTPException, Header
-from fastapi.routing import APIRoute
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
+from fastapi import Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from starlette.middleware.base import BaseHTTPMiddleware
 
 
