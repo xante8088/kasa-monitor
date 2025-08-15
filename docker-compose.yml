@@ -12,19 +12,15 @@
 #
 # See DOCKER_NETWORK_GUIDE.md for detailed setup instructions.
 
-version: '3.8'
-
 services:
   kasa-monitor:
     # Option 1: Use pre-built image from Docker Hub (recommended)
-    image: ${DOCKER_USERNAME}/kasa-monitor:latest
+    # image: ${DOCKER_USERNAME:-kasa-monitor}/kasa-monitor:latest
     
-    # Option 2: Build locally (uncomment if you want to build instead)
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
-    #   platforms:
-    #     - linux/arm64  # Raspberry Pi 5 architecture
+    # Option 2: Build locally (for CI/testing)
+    build:
+      context: .
+      dockerfile: Dockerfile
     
     container_name: kasa-monitor
     restart: unless-stopped
@@ -82,7 +78,7 @@ services:
     
     # Health check
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/devices"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
