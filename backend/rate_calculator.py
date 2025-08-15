@@ -21,8 +21,7 @@ along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
-from models import (ElectricityRate, RateType, SeasonalRate, TierRate,
-                    TimeOfUseRate)
+from models import ElectricityRate, RateType, SeasonalRate, TierRate, TimeOfUseRate
 
 
 class RateCalculator:

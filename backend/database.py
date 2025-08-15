@@ -27,11 +27,18 @@ import aiosqlite
 from influxdb_client import Point
 from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 from influxdb_client.client.write_api import SYNCHRONOUS
+from rate_calculator import RateCalculator
 
 from auth import AuthManager
-from models import (DeviceData, DeviceReading, ElectricityRate, RateType, User,
-                    UserCreate, UserRole)
-from rate_calculator import RateCalculator
+from models import (
+    DeviceData,
+    DeviceReading,
+    ElectricityRate,
+    RateType,
+    User,
+    UserCreate,
+    UserRole,
+)
 
 
 class DatabaseManager:
