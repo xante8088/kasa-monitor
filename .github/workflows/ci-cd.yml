@@ -205,11 +205,11 @@ jobs:
     
     - name: Build Docker images
       run: |
-        docker-compose -f docker-compose.yml build
+        docker compose -f docker-compose.yml build
     
     - name: Start services
       run: |
-        docker-compose -f docker-compose.yml up -d
+        docker compose -f docker-compose.yml up -d
         sleep 30  # Wait for services to start
     
     - name: Run integration tests
@@ -224,12 +224,12 @@ jobs:
     - name: Show logs on failure
       if: failure()
       run: |
-        docker-compose logs
+        docker compose logs
     
     - name: Stop services
       if: always()
       run: |
-        docker-compose down
+        docker compose down
 
   # Build and push Docker images
   build:
