@@ -29,6 +29,32 @@ from typing import Any, Dict, List, Optional
 
 import croniter
 import pytz
+
+# Patch timezone handling for CST6CDT and similar issues
+def patch_timezone_handling():
+    """Patch timezone handling to work around CST6CDT and similar issues."""
+    timezone_mapping = {
+        'CST6CDT': 'America/Chicago',
+        'EST5EDT': 'America/New_York', 
+        'MST7MDT': 'America/Denver',
+        'PST8PDT': 'America/Los_Angeles',
+        'HST10': 'Pacific/Honolulu',
+        'AKST9AKDT': 'America/Anchorage',
+    }
+    
+    original_timezone = pytz.timezone
+    
+    def patched_timezone(zone):
+        try:
+            return original_timezone(zone)
+        except pytz.exceptions.UnknownTimeZoneError:
+            if zone in timezone_mapping:
+                return original_timezone(timezone_mapping[zone])
+            return original_timezone('UTC')
+    
+    pytz.timezone = patched_timezone
+
+patch_timezone_handling()
 from astral import LocationInfo
 from astral.sun import sun
 

@@ -10,6 +10,26 @@ interface SSLConfig {
   force_https: boolean;
 }
 
+interface SSLFile {
+  filename: string;
+  path: string;
+  size: number;
+  modified: string;
+  type: string;
+}
+
+interface CSRFormData {
+  country: string;
+  state: string;
+  city: string;
+  organization: string;
+  organizational_unit: string;
+  common_name: string;
+  email: string;
+  san_domains: string;
+  key_size: number;
+}
+
 interface NetworkConfig {
   host: string;
   port: number;
@@ -49,10 +69,30 @@ export default function SystemConfigPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [sslFiles, setSslFiles] = useState<SSLFile[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const [showCSRForm, setShowCSRForm] = useState(false);
+  const [csrLoading, setCSRLoading] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [fileToDelete, setFileToDelete] = useState<string | null>(null);
+  const [csrForm, setCSRForm] = useState<CSRFormData>({
+    country: 'US',
+    state: '',
+    city: '',
+    organization: '',
+    organizational_unit: '',
+    common_name: '',
+    email: '',
+    san_domains: '',
+    key_size: 2048
+  });
 
   useEffect(() => {
     fetchConfig();
-  }, []);
+    if (config.ssl?.enabled) {
+      fetchSSLFiles();
+    }
+  }, [config.ssl?.enabled]);
 
   const fetchConfig = async () => {
     try {
@@ -177,6 +217,173 @@ export default function SystemConfigPage() {
     }
   };
 
+  const fetchSSLFiles = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/ssl/files', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSslFiles(data.files || []);
+      } else {
+        console.error('Failed to fetch SSL files');
+      }
+    } catch (err) {
+      console.error('Error fetching SSL files:', err);
+    }
+  };
+
+  const generateCSR = async () => {
+    setCSRLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/ssl/generate-csr', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...csrForm,
+          san_domains: csrForm.san_domains ? csrForm.san_domains.split(',').map(s => s.trim()) : []
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSuccess(`CSR and private key generated successfully! Files: ${data.key_file}, ${data.csr_file}`);
+        fetchSSLFiles();
+        setShowCSRForm(false);
+        setCSRForm({
+          country: 'US',
+          state: '',
+          city: '',
+          organization: '',
+          organizational_unit: '',
+          common_name: '',
+          email: '',
+          san_domains: '',
+          key_size: 2048
+        });
+      } else {
+        const errorData = await response.json();
+        setError(errorData.detail || 'Failed to generate CSR');
+      }
+    } catch (err) {
+      setError('Failed to generate CSR');
+    } finally {
+      setCSRLoading(false);
+    }
+  };
+
+  const downloadFile = async (filename: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/ssl/download/${filename}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        setError('Failed to download file');
+      }
+    } catch (err) {
+      setError('Download failed');
+    }
+  };
+
+  const downloadMultiple = async () => {
+    if (selectedFiles.length === 0) {
+      setError('No files selected');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/ssl/download-multiple', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ filenames: selectedFiles })
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ssl_files_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        setSelectedFiles([]);
+      } else {
+        setError('Failed to download files');
+      }
+    } catch (err) {
+      setError('Download failed');
+    }
+  };
+
+  const deleteFile = async (filename: string) => {
+    if (deleteConfirmation.toLowerCase() !== 'delete') {
+      setError('Type "delete" to confirm deletion');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/ssl/files/${filename}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          filename: filename,
+          confirmation: deleteConfirmation
+        })
+      });
+
+      if (response.ok) {
+        setSuccess(`File ${filename} deleted successfully`);
+        fetchSSLFiles();
+        setFileToDelete(null);
+        setDeleteConfirmation('');
+      } else {
+        const errorData = await response.json();
+        setError(errorData.detail || 'Failed to delete file');
+      }
+    } catch (err) {
+      setError('Delete failed');
+    }
+  };
+
+  const toggleFileSelection = (filename: string) => {
+    setSelectedFiles(prev => 
+      prev.includes(filename) 
+        ? prev.filter(f => f !== filename)
+        : [...prev, filename]
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -296,6 +503,309 @@ export default function SystemConfigPage() {
                   <label htmlFor="force_https" className="ml-2 text-sm text-gray-900">
                     Force HTTPS (redirect HTTP to HTTPS)
                   </label>
+                </div>
+
+                {/* CSR Generation Section */}
+                <div className="border-t pt-4 mt-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-medium text-gray-900">Certificate Management</h3>
+                    <button
+                      onClick={() => setShowCSRForm(!showCSRForm)}
+                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                    >
+                      {showCSRForm ? 'Cancel' : 'Generate CSR'}
+                    </button>
+                  </div>
+
+                  {showCSRForm && (
+                    <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                      <h4 className="text-md font-medium text-gray-900 mb-3">Certificate Signing Request (CSR) Generation</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Country Code (2 letters)
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={2}
+                            value={csrForm.country}
+                            onChange={(e) => setCSRForm(prev => ({...prev, country: e.target.value.toUpperCase()}))}
+                            placeholder="US"
+                            className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            State/Province
+                          </label>
+                          <input
+                            type="text"
+                            value={csrForm.state}
+                            onChange={(e) => setCSRForm(prev => ({...prev, state: e.target.value}))}
+                            placeholder="California"
+                            className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            City/Locality
+                          </label>
+                          <input
+                            type="text"
+                            value={csrForm.city}
+                            onChange={(e) => setCSRForm(prev => ({...prev, city: e.target.value}))}
+                            placeholder="San Francisco"
+                            className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Organization
+                          </label>
+                          <input
+                            type="text"
+                            value={csrForm.organization}
+                            onChange={(e) => setCSRForm(prev => ({...prev, organization: e.target.value}))}
+                            placeholder="Your Company Name"
+                            className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Organizational Unit (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={csrForm.organizational_unit}
+                            onChange={(e) => setCSRForm(prev => ({...prev, organizational_unit: e.target.value}))}
+                            placeholder="IT Department"
+                            className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Common Name (Domain)
+                          </label>
+                          <input
+                            type="text"
+                            value={csrForm.common_name}
+                            onChange={(e) => setCSRForm(prev => ({...prev, common_name: e.target.value}))}
+                            placeholder="example.com"
+                            className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Email Address
+                          </label>
+                          <input
+                            type="email"
+                            value={csrForm.email}
+                            onChange={(e) => setCSRForm(prev => ({...prev, email: e.target.value}))}
+                            placeholder="admin@example.com"
+                            className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Key Size
+                          </label>
+                          <select
+                            value={csrForm.key_size}
+                            onChange={(e) => setCSRForm(prev => ({...prev, key_size: parseInt(e.target.value)}))}
+                            className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value={2048}>2048 bits</option>
+                            <option value={3072}>3072 bits</option>
+                            <option value={4096}>4096 bits</option>
+                          </select>
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Subject Alternative Names (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={csrForm.san_domains}
+                            onChange={(e) => setCSRForm(prev => ({...prev, san_domains: e.target.value}))}
+                            placeholder="www.example.com, api.example.com"
+                            className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">
+                            Comma-separated list of additional domains
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex justify-end">
+                        <button
+                          onClick={generateCSR}
+                          disabled={csrLoading || !csrForm.country || !csrForm.state || !csrForm.city || !csrForm.organization || !csrForm.common_name || !csrForm.email}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium disabled:opacity-50"
+                        >
+                          {csrLoading ? 'Generating...' : 'Generate CSR & Private Key'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SSL Files Management */}
+                  <div className="mt-4">
+                    <div className="flex justify-between items-center mb-3">
+                      <h4 className="text-md font-medium text-gray-900">SSL Files</h4>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={fetchSSLFiles}
+                          className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm"
+                        >
+                          Refresh
+                        </button>
+                        {selectedFiles.length > 0 && (
+                          <button
+                            onClick={downloadMultiple}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
+                          >
+                            Download Selected ({selectedFiles.length})
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {sslFiles.length === 0 ? (
+                      <p className="text-gray-500 text-sm">No SSL files found in /app/ssl directory</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedFiles.length === sslFiles.length}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedFiles(sslFiles.map(f => f.filename));
+                                    } else {
+                                      setSelectedFiles([]);
+                                    }
+                                  }}
+                                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                />
+                              </th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                File Name
+                              </th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Type
+                              </th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Size
+                              </th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Modified
+                              </th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Actions
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {sslFiles.map((file) => (
+                              <tr key={file.filename}>
+                                <td className="px-3 py-2 whitespace-nowrap">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedFiles.includes(file.filename)}
+                                    onChange={() => toggleFileSelection(file.filename)}
+                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                  />
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                                  {file.filename}
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
+                                  {file.type}
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
+                                  {(file.size / 1024).toFixed(1)} KB
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
+                                  {new Date(file.modified).toLocaleString()}
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => downloadFile(file.filename)}
+                                      className="text-blue-600 hover:text-blue-900 text-xs"
+                                    >
+                                      Download
+                                    </button>
+                                    <button
+                                      onClick={() => setFileToDelete(file.filename)}
+                                      className="text-red-600 hover:text-red-900 text-xs"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Delete Confirmation Modal */}
+                  {fileToDelete && (
+                    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                        <div className="mt-3">
+                          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                            <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.676-.833-2.46 0L3.354 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                          </div>
+                          <div className="mt-2 px-7 py-3">
+                            <h3 className="text-lg font-medium text-gray-900">Delete SSL File</h3>
+                            <p className="mt-2 text-sm text-gray-500">
+                              Are you sure you want to delete <strong>{fileToDelete}</strong>?
+                              This action cannot be undone.
+                            </p>
+                            <div className="mt-3">
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Type "delete" to confirm:
+                              </label>
+                              <input
+                                type="text"
+                                value={deleteConfirmation}
+                                onChange={(e) => setDeleteConfirmation(e.target.value)}
+                                className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
+                                placeholder="delete"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex justify-between px-4 py-3">
+                            <button
+                              onClick={() => {
+                                setFileToDelete(null);
+                                setDeleteConfirmation('');
+                              }}
+                              className="px-4 py-2 bg-gray-500 text-white text-base font-medium rounded-md hover:bg-gray-700"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => deleteFile(fileToDelete)}
+                              disabled={deleteConfirmation.toLowerCase() !== 'delete'}
+                              className="px-4 py-2 bg-red-600 text-white text-base font-medium rounded-md hover:bg-red-700 disabled:opacity-50"
+                            >
+                              Delete File
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             )}
