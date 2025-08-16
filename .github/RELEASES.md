@@ -97,30 +97,35 @@ Follow these guidelines for version numbers:
 
 **Example:** `v2.0.0`, `v3.0.0`
 
-## 🐳 Docker Image Tags
+## 🐳 Docker Images
 
+All Docker images are hosted on **GitHub Container Registry** for consistency and integration.
+
+### **Available Tags**
 Each release creates multiple Docker image tags:
 
-### **Semantic Version Tags**
 ```bash
-# Specific version
-ghcr.io/xante8088/kasa-monitor:v1.2.3
-ghcr.io/xante8088/kasa-monitor:1.2.3
-ghcr.io/xante8088/kasa-monitor:1.2
-ghcr.io/xante8088/kasa-monitor:1
+# Semantic version tags
+ghcr.io/xante8088/kasa-monitor:v1.2.3    # Full version
+ghcr.io/xante8088/kasa-monitor:1.2.3     # Without 'v' prefix  
+ghcr.io/xante8088/kasa-monitor:1.2       # Major.minor
+ghcr.io/xante8088/kasa-monitor:1         # Major only
+
+# Special tags  
+ghcr.io/xante8088/kasa-monitor:latest    # Latest stable release
+ghcr.io/xante8088/kasa-monitor:main      # Main branch builds
+ghcr.io/xante8088/kasa-monitor:develop   # Develop branch builds
+
+# Tracking tags
+ghcr.io/xante8088/kasa-monitor:abc1234   # Git commit SHA
+ghcr.io/xante8088/kasa-monitor:2025-08-16-1430  # Build timestamp
 ```
 
-### **Special Tags**
-```bash
-# Latest stable release
-ghcr.io/xante8088/kasa-monitor:latest
-
-# Platform-specific
-ghcr.io/xante8088/kasa-monitor:pi5
-
-# Commit SHA
-ghcr.io/xante8088/kasa-monitor:abc1234
-```
+### **Registry Information**
+- **Registry**: GitHub Container Registry (`ghcr.io`)
+- **Public Access**: No authentication required for pulling
+- **Multi-Platform**: Supports AMD64 and ARM64 (Raspberry Pi 5)
+- **Integrated**: Automatically built by CI/CD pipeline
 
 ## 🔧 Release Without Production URL
 

@@ -1,7 +1,7 @@
 name: Docker Build Check (PR)
 
-# This workflow validates Docker builds on pull requests
-# It builds but does NOT push images to Docker Hub
+# This workflow validates Docker builds on pull requests  
+# It builds but does NOT push images - only validates build process
 
 on:
   pull_request:
@@ -34,8 +34,8 @@ on:
       - '.github/workflows/docker-build-pr.yml'
 
 env:
-  REGISTRY: docker.io
-  IMAGE_NAME: kasa-monitor
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-test:

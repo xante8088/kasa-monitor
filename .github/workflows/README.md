@@ -2,241 +2,135 @@
 
 ## Overview
 
-This repository uses GitHub Actions to automate Docker image builds and deployments. There are two workflows configured for different scenarios.
+This repository uses GitHub Actions to automate builds, tests, deployments, and releases through a streamlined CI/CD pipeline.
 
 ## Workflows
 
-### 1. `docker-build.yml` - Automatic Builds on Code Changes
+### 1. `ci-cd.yml` - Complete CI/CD Pipeline
+
+**Primary workflow** that handles the complete software lifecycle:
 
 **Triggers:**
-- ✅ Source code changes in main branch
-- ✅ New releases
-- ✅ Manual trigger via GitHub UI
+- ✅ Push to main/develop branches  
+- ✅ Pull requests to main/develop
+- ✅ Git tag pushes (for releases)
 
-**When it runs automatically:**
-- Changes to backend Python files (`backend/**/*.py`)
-- Changes to frontend TypeScript/JavaScript files (`src/**/*.ts`, `src/**/*.tsx`, etc.)
-- Changes to build configuration (`package.json`, `requirements.txt`, etc.)
-- Changes to Docker configuration (`Dockerfile`, `docker-entrypoint.sh`)
+**What it does:**
+- **Lint & Test** - Code quality and functionality validation
+- **Security Scan** - Vulnerability and secrets detection
+- **Build Docker Images** - Multi-platform builds (AMD64/ARM64)
+- **Deploy** - Staging and production deployments
+- **Create Releases** - GitHub releases with comprehensive notes
 
-**When it does NOT run:**
-- Documentation changes (`.md` files)
-- Docker Compose file changes (unless Dockerfile is also changed)
-- GitHub workflow changes (except the workflow itself)
-- Configuration file changes that don't affect the build
+**Registry:** GitHub Container Registry (`ghcr.io`)
 
-### 2. `docker-build-manual.yml` - Manual Builds Only
+### 2. `docker-build-pr.yml` - Pull Request Validation
+
+**Validates Docker builds on pull requests** without pushing images:
 
 **Triggers:**
-- ✅ Manual trigger via GitHub UI only
+- ✅ Pull requests to main/develop branches
+- ✅ Changes to Docker-related files
 
-**Use cases:**
-- Force a rebuild without code changes
-- Build with custom tags
-- Build for specific platforms
-- Testing and debugging
+**What it does:**
+- **Build Test** - Validates Docker image builds across platforms
+- **No Push** - Only tests build process, doesn't create images
+- **Fast Feedback** - Catches Docker issues early in PRs
 
-## How to Trigger Manual Builds
+### 3. `cleanup-docker.yml` & `manual-docker-cleanup.yml` - Image Management
 
-### Via GitHub UI:
+**Automated and manual Docker image cleanup** to manage storage:
 
-1. Go to the **Actions** tab in the repository
-2. Select either workflow:
-   - **"Build and Push Docker Image"** for standard builds
-   - **"Docker Build (Manual)"** for manual-only builds
-3. Click **"Run workflow"**
-4. Fill in the optional parameters:
-   - **Tag**: Docker image tag (default: `latest`)
-   - **Platforms**: Target platforms (default: `linux/amd64,linux/arm64`)
-   - **Reason**: Description of why manual build is needed
-5. Click **"Run workflow"** button
+**Features:**
+- **Scheduled Cleanup** - Weekly automated cleanup
+- **Manual Cleanup** - On-demand cleanup with dry-run option
+- **Package Detection** - Automatically finds correct packages
+- **Configurable** - Set how many recent images to keep
 
-### Via GitHub CLI:
+## 🚀 Quick Start
 
+### Creating a Release
 ```bash
-# Trigger manual build with default settings
-gh workflow run docker-build.yml
+# Create and push a git tag
+git tag v1.0.0
+git push origin v1.0.0
 
-# Trigger with custom tag
-gh workflow run docker-build.yml -f tag=v1.2.3
-
-# Trigger manual-only workflow with reason
-gh workflow run docker-build-manual.yml \
-  -f tag=testing \
-  -f reason="Testing new feature" \
-  -f platforms=linux/arm64
+# CI/CD pipeline automatically:
+# 1. Runs all tests and quality checks
+# 2. Builds multi-platform Docker images  
+# 3. Deploys to production
+# 4. Creates GitHub release
 ```
 
-## Workflow Configuration
+### Manual Docker Cleanup
+```bash
+# Go to Actions → Manual Docker Cleanup → Run workflow
+# Choose dry run to preview, then run for real cleanup
+```
 
-### Paths that Trigger Automatic Builds
+## 📋 Workflow Dependencies
 
+```mermaid
+graph LR
+    A[Code Push] --> B[CI/CD Pipeline]
+    B --> C[Lint & Test]
+    C --> D[Build Images]
+    D --> E[Deploy]
+    E --> F[Create Release]
+    
+    G[Pull Request] --> H[PR Build Check]
+    H --> I[Validate Build]
+```
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+**CI/CD Pipeline** uses these environment variables:
 ```yaml
-paths:
-  # Docker configuration
-  - 'Dockerfile'
-  - 'docker-entrypoint.sh'
-  - '.dockerignore'
-  
-  # Backend source code
-  - 'backend/**/*.py'
-  - 'requirements.txt'
-  
-  # Frontend source code
-  - 'src/**/*.ts'
-  - 'src/**/*.tsx'
-  - 'src/**/*.js'
-  - 'src/**/*.jsx'
-  - 'src/**/*.css'
-  - 'public/**'
-  
-  # Build configuration
-  - 'package.json'
-  - 'package-lock.json'
-  - 'next.config.js'
-  - 'tsconfig.json'
-  - 'tailwind.config.js'
-  - 'postcss.config.js'
+DOCKER_REGISTRY: ghcr.io                # GitHub Container Registry
+IMAGE_NAME: ${{ github.repository }}    # Full repository name
+PYTHON_VERSION: '3.9'                   # Python version for tests
+NODE_VERSION: '18'                      # Node.js version for frontend
 ```
 
-### Paths that DO NOT Trigger Builds
+### Manual Triggers
 
-- `*.md` - Documentation files
-- `docker-compose*.yml` - Docker Compose files
-- `.env*` - Environment files
-- `tests/**` - Test files (if any)
-- `.github/**` - GitHub configuration (except workflows)
-- `docs/**` - Documentation directory
-- `scripts/**` - Utility scripts
-
-## Docker Image Tags
-
-### Automatic Tags (on code changes):
-- `latest` - Always points to the most recent build from main branch
-- `pi5` - Optimized for Raspberry Pi 5 (same as latest)
-- `main-<sha>` - Git commit SHA for tracking
-- `v*.*.*` - Semantic version on releases
-
-### Manual Build Tags:
-- Custom tag specified in workflow input
-- `manual-<sha>` - Prefixed with "manual" for tracking
-- `YYYYMMDD-HHmmss` - Timestamp of manual build
-
-## Build Platforms
-
-Both workflows support multi-architecture builds:
-- `linux/amd64` - Standard x86_64 architecture
-- `linux/arm64` - ARM64 for Raspberry Pi and Apple Silicon
-
-## Environment Variables
-
-Required GitHub Secrets:
-- `DOCKER_USERNAME` - Docker Hub username
-- `DOCKER_PASSWORD` - Docker Hub access token (not password)
-
-## Monitoring Builds
-
-### Check Build Status:
-
-1. Go to **Actions** tab
-2. Click on a workflow run to see details
-3. View logs for each step
-
-### Build Summary:
-
-Each successful build generates a summary with:
-- Build trigger type (automatic/manual)
-- Reason for build (if manual)
-- Docker tags created
-- Pull commands
-- Build actor (who triggered it)
-
-## Best Practices
-
-1. **Avoid Unnecessary Builds**: Only trigger manual builds when needed
-2. **Use Descriptive Tags**: For manual builds, use meaningful tags
-3. **Document Manual Builds**: Always provide a reason for manual builds
-4. **Monitor Failed Builds**: Check Actions tab for failed builds
-5. **Cache Management**: Workflows use GitHub Actions cache for faster builds
-
-## Troubleshooting
-
-### Build Not Triggering Automatically
-
-Check if your changes match the path filters:
+**CI/CD Pipeline** can be triggered manually:
 ```bash
-# See what files changed
-git diff --name-only HEAD~1
+# Via GitHub CLI
+gh workflow run ci-cd.yml
 
-# Check if they match workflow paths
-cat .github/workflows/docker-build.yml | grep -A 20 "paths:"
+# Via GitHub UI
+# Go to Actions → CI/CD Pipeline → Run workflow
 ```
 
-### Manual Build Failing
+### Docker Image Cleanup
 
-1. Check Docker Hub credentials are set correctly
-2. Verify Dockerfile builds locally:
-   ```bash
-   docker build -t test .
-   ```
-3. Check workflow logs in Actions tab
+Configure cleanup frequency and retention:
+- **Scheduled**: Weekly on Sundays at 2 AM UTC
+- **Manual**: Configurable keep count (default: 10 images)
+- **Dry run**: Preview what would be deleted
 
-### Multi-arch Build Issues
+## 🔧 Troubleshooting
 
-For local testing of multi-arch builds:
-```bash
-# Setup buildx
-docker buildx create --use
+### Build Failures
+1. Check GitHub Actions logs for specific error messages
+2. Verify all tests pass locally before pushing
+3. Check Docker build context and dependencies
 
-# Build for multiple platforms
-docker buildx build --platform linux/amd64,linux/arm64 -t test .
-```
+### Missing Images  
+1. Verify CI/CD pipeline completed successfully
+2. Check GitHub Container Registry permissions
+3. Ensure git tags are pushed correctly for releases
 
-## Examples
+### Cleanup Issues
+1. Check package permissions in repository settings
+2. Verify package names match repository structure
+3. Use dry run mode to debug cleanup issues
 
-### Example 1: Deploy After Feature Development
+## 📚 Related Documentation
 
-```bash
-# After developing a new feature
-git add src/
-git commit -m "Add new device monitoring feature"
-git push origin main
-# Workflow automatically triggers and builds new image
-```
-
-### Example 2: Emergency Hotfix
-
-```bash
-# Quick manual build for hotfix
-# 1. Go to Actions tab
-# 2. Run "Docker Build (Manual)"
-# 3. Set tag: "hotfix-critical"
-# 4. Set reason: "Critical bug fix for production"
-# 5. Run workflow
-```
-
-### Example 3: Testing ARM64 Build
-
-```bash
-# Manual build for ARM64 only
-gh workflow run docker-build-manual.yml \
-  -f tag=arm-test \
-  -f platforms=linux/arm64 \
-  -f reason="Testing ARM64 compatibility"
-```
-
-## Workflow Logs
-
-All workflow runs are retained for 90 days. You can:
-- Download logs from the Actions tab
-- Re-run failed workflows
-- View detailed execution times
-- See resource usage
-
-## Security Notes
-
-- Never commit Docker Hub credentials
-- Use access tokens, not passwords
-- Regularly rotate access tokens
-- Monitor for unauthorized workflow runs
-- Review workflow changes in PRs
+- [Release Management Guide](../RELEASES.md)
+- [Deployment Configuration](../DEPLOYMENT.md)
+- [CI/CD Pipeline](ci-cd.yml)
