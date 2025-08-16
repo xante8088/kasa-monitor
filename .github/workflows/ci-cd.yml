@@ -278,17 +278,38 @@ jobs:
       with:
         images: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}
         tags: |
+          # Branch-based tags
           type=ref,event=branch
           type=ref,event=pr
+          
+          # Semantic version tags (when git tags exist)
           type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}.{{patch}}
           type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          
+          # Automatic version tags for main branch builds
+          type=raw,value=1.0.{{date 'YYYYMMDD'}},enable={{is_default_branch}}
+          type=raw,value=1.0,enable={{is_default_branch}}
+          type=raw,value=1,enable={{is_default_branch}}
+          
+          # Latest tag for main branch
           type=raw,value=latest,enable={{is_default_branch}}
+          
+          # Git commit SHA (short)
           type=sha,format=short
+          
+          # Date-based tag for tracking
+          type=raw,value={{date 'YYYY-MM-DD-HHmm'}}
+        
+        flavor: |
+          latest=false
     
     - name: Build and push Docker image
       uses: docker/build-push-action@v4
       with:
         context: .
+        platforms: linux/amd64,linux/arm64
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
@@ -417,11 +438,57 @@ jobs:
     - name: Create Release Notes
       id: release_notes
       run: |
-        echo "## What's Changed" > RELEASE_NOTES.md
-        git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD >> RELEASE_NOTES.md
+        # Get the previous tag for changelog
+        PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        
+        echo "# 🎉 Release ${{ github.ref_name }}" > RELEASE_NOTES.md
         echo "" >> RELEASE_NOTES.md
-        echo "## Docker Image" >> RELEASE_NOTES.md
+        
+        # Add commit information
+        echo "## 📝 What's Changed" >> RELEASE_NOTES.md
+        echo "" >> RELEASE_NOTES.md
+        
+        if [ -n "$PREV_TAG" ]; then
+          git log --pretty=format:"- %s (%an)" ${PREV_TAG}..HEAD >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${{ github.ref_name }}" >> RELEASE_NOTES.md
+        else
+          echo "- Initial release" >> RELEASE_NOTES.md
+        fi
+        
+        echo "" >> RELEASE_NOTES.md
+        echo "## 🐳 Docker Images" >> RELEASE_NOTES.md
+        echo "" >> RELEASE_NOTES.md
+        echo "### Multi-Platform Support" >> RELEASE_NOTES.md
+        echo "This release supports both AMD64 and ARM64 architectures (including Raspberry Pi 5)." >> RELEASE_NOTES.md
+        echo "" >> RELEASE_NOTES.md
+        echo "### Available Tags" >> RELEASE_NOTES.md
+        echo "\`\`\`bash" >> RELEASE_NOTES.md
+        echo "# Specific version" >> RELEASE_NOTES.md
         echo "docker pull ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}" >> RELEASE_NOTES.md
+        echo "" >> RELEASE_NOTES.md
+        echo "# Latest stable" >> RELEASE_NOTES.md
+        echo "docker pull ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> RELEASE_NOTES.md
+        echo "" >> RELEASE_NOTES.md
+        echo "# Platform specific (Raspberry Pi 5)" >> RELEASE_NOTES.md
+        echo "docker pull ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:pi5" >> RELEASE_NOTES.md
+        echo "\`\`\`" >> RELEASE_NOTES.md
+        echo "" >> RELEASE_NOTES.md
+        echo "## 🚀 Quick Start" >> RELEASE_NOTES.md
+        echo "" >> RELEASE_NOTES.md
+        echo "\`\`\`bash" >> RELEASE_NOTES.md
+        echo "# Clone the repository" >> RELEASE_NOTES.md
+        echo "git clone https://github.com/${{ github.repository }}.git" >> RELEASE_NOTES.md
+        echo "cd kasa-monitor" >> RELEASE_NOTES.md
+        echo "git checkout ${{ github.ref_name }}" >> RELEASE_NOTES.md
+        echo "" >> RELEASE_NOTES.md
+        echo "# Start with Docker Compose" >> RELEASE_NOTES.md
+        echo "docker-compose up -d" >> RELEASE_NOTES.md
+        echo "" >> RELEASE_NOTES.md
+        echo "# Or run directly" >> RELEASE_NOTES.md
+        echo "docker run -p 8000:8000 -p 3000:3000 ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}" >> RELEASE_NOTES.md
+        echo "\`\`\`" >> RELEASE_NOTES.md
     
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1

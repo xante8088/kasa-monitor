@@ -21,11 +21,47 @@ jobs:
       packages: write
     
     steps:
+    - name: Find correct package name
+      id: find_package
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const packageNames = ['kasa-monitor', context.repo.repo, `${context.repo.owner}/${context.repo.repo}`];
+          
+          for (const pkgName of packageNames) {
+            try {
+              const { data: pkgVersions } = await github.rest.packages.getAllPackageVersionsForPackageOwnedByUser({
+                package_type: 'container',
+                package_name: pkgName,
+                username: context.repo.owner
+              });
+              
+              if (pkgVersions.length > 0) {
+                console.log(`Found package: ${pkgName} with ${pkgVersions.length} versions`);
+                core.setOutput('package_name', pkgName);
+                core.setOutput('package_found', 'true');
+                return;
+              }
+            } catch (error) {
+              console.log(`Package ${pkgName} not found`);
+            }
+          }
+          
+          core.setOutput('package_found', 'false');
+          console.log('No package found for cleanup');
+
     - name: Delete old images
+      if: steps.find_package.outputs.package_found == 'true'
       uses: actions/delete-package-versions@v4
       with:
-        package-name: 'kasa-monitor'
+        package-name: ${{ steps.find_package.outputs.package_name }}
         package-type: 'container'
         min-versions-to-keep: ${{ github.event.inputs.keep_count || '10' }}
         delete-only-untagged-versions: false
         token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: No cleanup needed
+      if: steps.find_package.outputs.package_found != 'true'
+      run: |
+        echo "ℹ️  No Docker packages found for scheduled cleanup."
+        echo "This is normal if no images have been pushed yet."

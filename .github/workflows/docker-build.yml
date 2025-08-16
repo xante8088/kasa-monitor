@@ -94,15 +94,31 @@ jobs:
       with:
         images: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
         tags: |
+          # Branch-based tags
           type=ref,event=branch
           type=ref,event=pr
           type=ref,event=tag
+          
+          # Semantic version tags (when git tags exist)
           type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}.{{patch}}
           type=semver,pattern={{major}}.{{minor}}
           type=semver,pattern={{major}}
+          
+          # Automatic version tags for main branch builds
+          type=raw,value=1.0.{{date 'YYYYMMDD'}},enable={{is_default_branch}}
+          type=raw,value=1.0,enable={{is_default_branch}}
+          type=raw,value=1,enable={{is_default_branch}}
+          
+          # Latest and platform tags for main branch
           type=raw,value=latest,enable={{is_default_branch}}
           type=raw,value=pi5,enable={{is_default_branch}}
+          
+          # Git commit SHA with branch prefix
           type=sha,prefix={{branch}}-
+          
+          # Date-based tag for tracking
+          type=raw,value={{date 'YYYY-MM-DD-HHmm'}}
         labels: |
           org.opencontainers.image.title=Kasa Monitor
           org.opencontainers.image.description=Web application for monitoring Kasa smart devices - Raspberry Pi optimized

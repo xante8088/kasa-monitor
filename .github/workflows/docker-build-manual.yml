@@ -67,10 +67,23 @@ jobs:
       with:
         images: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
         tags: |
+          # User-specified tag
           type=raw,value=${{ github.event.inputs.tag || 'latest' }}
+          
+          # Platform-specific tag for latest builds
           type=raw,value=pi5,enable=${{ github.event.inputs.tag == 'latest' || github.event.inputs.tag == '' }}
+          
+          # Manual build identifier with SHA
           type=sha,prefix=manual-
-          type=raw,value={{date 'YYYYMMDD-HHmmss'}}
+          
+          # Timestamp for manual builds
+          type=raw,value=manual-{{date 'YYYYMMDD-HHmmss'}}
+          
+          # Version tags if user specifies semver format
+          type=semver,pattern={{version}},value=${{ github.event.inputs.tag }}
+          type=semver,pattern={{major}}.{{minor}}.{{patch}},value=${{ github.event.inputs.tag }}
+          type=semver,pattern={{major}}.{{minor}},value=${{ github.event.inputs.tag }}
+          type=semver,pattern={{major}},value=${{ github.event.inputs.tag }}
         labels: |
           org.opencontainers.image.title=Kasa Monitor
           org.opencontainers.image.description=Web application for monitoring Kasa smart devices - Raspberry Pi optimized
