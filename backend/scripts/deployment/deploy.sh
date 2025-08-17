@@ -182,7 +182,7 @@ deploy_local() {
     sleep 10
     
     # Check health
-    if curl -f http://localhost:8000/health > /dev/null 2>&1; then
+    if curl -f http://localhost:5272/health > /dev/null 2>&1; then
         log_info "Application is healthy"
     else
         log_error "Health check failed"
@@ -218,7 +218,7 @@ deploy_production() {
     local attempt=0
     
     while [ $attempt -lt $max_attempts ]; do
-        if curl -f http://localhost:8000/health > /dev/null 2>&1; then
+        if curl -f http://localhost:5272/health > /dev/null 2>&1; then
             log_info "Health check passed"
             break
         fi
@@ -258,7 +258,7 @@ rollback() {
         log_info "Reverting to version $previous_version..."
         docker-compose down
         docker run -d --name kasa-monitor \
-                   -p 8000:8000 \
+                   -p 5272:5272 \
                    kasa-monitor-backend:$previous_version
     fi
     
@@ -277,7 +277,7 @@ post_deploy() {
     local endpoints=("/health" "/api/devices" "/metrics")
     
     for endpoint in "${endpoints[@]}"; do
-        if curl -f "http://localhost:8000$endpoint" > /dev/null 2>&1; then
+        if curl -f "http://localhost:5272$endpoint" > /dev/null 2>&1; then
             log_info "  $endpoint: OK"
         else
             log_warning "  $endpoint: FAILED"

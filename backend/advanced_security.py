@@ -101,7 +101,7 @@ logpath = /var/log/kasa_monitor/auth.log
 maxretry = 5
 findtime = 600
 bantime = 3600
-action = iptables-multiport[name=KasaMonitor, port="80,443,8000"]
+action = iptables-multiport[name=KasaMonitor, port="80,443,5272"]
 
 [kasa-monitor-api]
 enabled = true
@@ -110,7 +110,7 @@ logpath = /var/log/kasa_monitor/access.log
 maxretry = 100
 findtime = 60
 bantime = 3600
-action = iptables-multiport[name=KasaMonitorAPI, port="80,443,8000"]
+action = iptables-multiport[name=KasaMonitorAPI, port="80,443,5272"]
 """
 
         filter_auth = """

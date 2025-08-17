@@ -1426,7 +1426,7 @@ class KasaMonitorApp:
                 },
                 "network": {
                     "host": "0.0.0.0",
-                    "port": 8000,
+                    "port": 5272,
                     "allowed_hosts": [],
                     "local_only": False,
                     "cors_origins": [],
@@ -2424,4 +2424,4 @@ class KasaMonitorApp:
 
 if __name__ == "__main__":
     app_instance = KasaMonitorApp()
-    uvicorn.run(app_instance.app, host="0.0.0.0", port=8000)
+    uvicorn.run(app_instance.app, host="0.0.0.0", port=5272)

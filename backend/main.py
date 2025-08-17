@@ -20,7 +20,7 @@ from health_monitor import router as health_router
 from prometheus_metrics import metrics_background_task
 from prometheus_metrics import router as metrics_router
 from redis_cache import close_redis_cache, init_redis_cache
-from ssl_api import router as ssl_router
+# from ssl_api import router as ssl_router
 from websocket_manager import websocket_background_task, websocket_endpoint
 
 # Configure logging
@@ -115,7 +115,7 @@ app.include_router(health_router, tags=["health"])
 app.include_router(metrics_router, prefix="", tags=["metrics"])
 app.include_router(database_router, tags=["database"])
 app.include_router(data_management_router, tags=["data"])
-app.include_router(ssl_router, tags=["ssl"])
+# app.include_router(ssl_router, tags=["ssl"])
 
 
 # WebSocket endpoint
@@ -353,7 +353,7 @@ async def test_page():
             }
 
             document.getElementById('connect').onclick = function() {
-                ws = new WebSocket('ws://localhost:8000/ws/' + clientId);
+                ws = new WebSocket('ws://localhost:5272/ws/' + clientId);
 
                 ws.onopen = function() {
                     document.getElementById('status').textContent =
@@ -515,7 +515,7 @@ async def root():
             "metrics": "/metrics",
             "test_page": "/test",
             "api_docs": "/docs",
-            "websocket": "ws://localhost:8000/ws/{client_id}",
+            "websocket": "ws://localhost:5272/ws/{client_id}",
         },
         "implemented_sections": [
             "Core Infrastructure (Health, Redis, WebSocket, Prometheus, Grafana)",
@@ -536,7 +536,7 @@ if __name__ == "__main__":
     # Create necessary directories
     os.makedirs("data", exist_ok=True)
     os.makedirs("backups", exist_ok=True)
-    os.makedirs("/app/ssl", exist_ok=True)
+    os.makedirs("ssl", exist_ok=True)
 
     # Run the application
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")
+    uvicorn.run("main:app", host="0.0.0.0", port=5272, reload=True, log_level="info")
