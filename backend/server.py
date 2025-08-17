@@ -83,8 +83,9 @@ logger = logging.getLogger(__name__)
 def patch_timezone_handling():
     """Patch timezone handling to work around CST6CDT and similar issues."""
     import sys
+
     import pytz
-    
+
     # Create a mapping for common problematic timezone strings
     timezone_mapping = {
         'CST6CDT': 'America/Chicago',

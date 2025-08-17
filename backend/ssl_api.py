@@ -21,11 +21,11 @@ along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 import os
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Response, Depends
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
+from ssl_manager import SSLCertificateManager
 
 from auth import verify_token
-from ssl_manager import SSLCertificateManager
 
 router = APIRouter(prefix="/api/ssl", tags=["SSL Certificate Management"])
 

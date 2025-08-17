@@ -24,9 +24,6 @@ services:
     
     container_name: kasa-monitor
     restart: unless-stopped
-    ports:
-      - "3000:3000"   # Frontend
-      - "8000:8000"   # Backend API
     volumes:
       # Persist database and logs
       - kasa_data:/app/data
@@ -64,7 +61,7 @@ services:
       - PYTHONUNBUFFERED=1
     
     networks:
-      - kasa-network
+      - kasa-macvlan
     
     # Resource limits optimized for Raspberry Pi 5
     deploy:
@@ -108,7 +105,7 @@ services:
       - DOCKER_INFLUXDB_INIT_ORG=kasa-monitor
       - DOCKER_INFLUXDB_INIT_BUCKET=device-data
     networks:
-      - kasa-network
+      - kasa-macvlan
     profiles:
       - influxdb  # Only start with: docker-compose --profile influxdb up
     deploy:
@@ -118,11 +115,8 @@ services:
           cpus: '1.0'
 
 networks:
-  kasa-network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
+  kasa-macvlan:
+    external: true
 
 volumes:
   # Kasa Monitor data volumes

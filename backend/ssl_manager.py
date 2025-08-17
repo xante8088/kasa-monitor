@@ -41,7 +41,7 @@ class SSLCertificateManager:
         try:
             from cryptography.hazmat.primitives import serialization
             from cryptography.hazmat.primitives.asymmetric import rsa
-            
+
             # Generate private key
             private_key = rsa.generate_private_key(
                 public_exponent=65537,
@@ -78,8 +78,8 @@ class SSLCertificateManager:
         try:
             from cryptography import x509
             from cryptography.hazmat.primitives import hashes, serialization
-            from cryptography.x509.oid import NameOID, ExtensionOID
-            
+            from cryptography.x509.oid import ExtensionOID, NameOID
+
             # Load private key
             private_key = serialization.load_pem_private_key(
                 private_key_pem.encode('utf-8'),

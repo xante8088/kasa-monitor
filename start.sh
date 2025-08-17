@@ -73,8 +73,8 @@ echo
 echo "✅ Kasa Monitor is running!"
 echo "=================================="
 echo "🌐 Frontend:    http://localhost:3000"
-echo "🔌 Backend API: http://localhost:8000"
-echo "📚 API Docs:    http://localhost:8000/docs"
+echo "🔌 Backend API: http://localhost:5272"
+echo "📚 API Docs:    http://localhost:5272/docs"
 echo
 
 if [ ! -z "$SETUP_MSG" ]; then

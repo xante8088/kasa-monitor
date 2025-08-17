@@ -35,7 +35,7 @@ BACKEND_PID=$!
 # Wait for backend to start
 echo "⏳ Waiting for backend to initialize..."
 for i in {1..30}; do
-    if curl -s http://localhost:8000/api/devices >/dev/null 2>&1; then
+    if curl -s http://localhost:5272/api/devices >/dev/null 2>&1; then
         echo "✅ Backend is ready!"
         break
     fi
@@ -66,8 +66,8 @@ echo ""
 echo "🎉 Kasa Monitor is running in Docker!"
 echo "=================================="
 echo "🌐 Frontend:    http://localhost:3000"
-echo "🔌 Backend API: http://localhost:8000"
-echo "📚 API Docs:    http://localhost:8000/docs"
+echo "🔌 Backend API: http://localhost:5272"
+echo "📚 API Docs:    http://localhost:5272/docs"
 echo ""
 
 # Check if this is first time setup

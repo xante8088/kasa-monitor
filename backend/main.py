@@ -20,6 +20,7 @@ from health_monitor import router as health_router
 from prometheus_metrics import metrics_background_task
 from prometheus_metrics import router as metrics_router
 from redis_cache import close_redis_cache, init_redis_cache
+
 # from ssl_api import router as ssl_router
 from websocket_manager import websocket_background_task, websocket_endpoint
 

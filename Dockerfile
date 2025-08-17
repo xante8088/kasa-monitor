@@ -98,7 +98,7 @@ RUN mkdir -p /app/data /app/logs \
     && chmod 755 /app/data /app/logs
 
 # Expose ports
-EXPOSE 8000 3000
+EXPOSE 5272 3000
 
 # Set environment variables
 ENV PYTHONPATH=/app
@@ -108,7 +108,7 @@ ENV SQLITE_PATH=/app/data/kasa_monitor.db
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD curl -f http://localhost:8000/health || exit 1
+  CMD curl -f http://localhost:5272/health || exit 1
 
 # Use app user
 USER appuser
