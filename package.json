@@ -1,6 +1,6 @@
 {
   "name": "kasa-monitor",
-  "version": "1.0.0",
+  "version": "0.3.19",
   "description": "Web application for monitoring Kasa smart devices with power consumption tracking and cost analysis",
   "private": true,
   "scripts": {
@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "backend": "python backend/server.py"
+    "backend": "python backend/server.py",
+    "sync-version": "node scripts/sync-version.js"
   },
   "dependencies": {
     "@influxdata/influxdb-client": "^1.35.0",
