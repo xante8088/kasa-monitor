@@ -66,6 +66,21 @@ else
     print_status "success" "Import sorting fixed"
 fi
 
+# 1.5. Check code formatting with black
+print_status "info" "Checking code formatting with black..."
+if command -v black &> /dev/null; then
+    if black --check --diff . 2>/dev/null; then
+        print_status "success" "Code formatting is correct"
+    else
+        print_status "warning" "Code formatting issues found"
+        print_status "info" "Auto-fixing code formatting..."
+        black . 2>/dev/null
+        print_status "success" "Code formatting fixed"
+    fi
+else
+    print_status "warning" "Black formatter not installed, skipping formatting check"
+fi
+
 # 2. Run flake8 linting
 print_status "info" "Running flake8 linting..."
 FLAKE8_OUTPUT=$(python3 -m flake8 . --max-line-length=88 --extend-ignore=E203,W503,F401,F841,E501 --count --statistics 2>&1 || true)

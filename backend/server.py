@@ -88,17 +88,17 @@ def patch_timezone_handling():
 
     # Create a mapping for common problematic timezone strings
     timezone_mapping = {
-        'CST6CDT': 'America/Chicago',
-        'EST5EDT': 'America/New_York', 
-        'MST7MDT': 'America/Denver',
-        'PST8PDT': 'America/Los_Angeles',
-        'HST10': 'Pacific/Honolulu',
-        'AKST9AKDT': 'America/Anchorage',
+        "CST6CDT": "America/Chicago",
+        "EST5EDT": "America/New_York",
+        "MST7MDT": "America/Denver",
+        "PST8PDT": "America/Los_Angeles",
+        "HST10": "Pacific/Honolulu",
+        "AKST9AKDT": "America/Anchorage",
     }
-    
+
     # Monkey patch pytz.timezone to handle these cases
     original_timezone = pytz.timezone
-    
+
     def patched_timezone(zone):
         try:
             return original_timezone(zone)
@@ -109,8 +109,8 @@ def patch_timezone_handling():
                 return original_timezone(timezone_mapping[zone])
             # If no mapping exists, default to UTC
             logger.warning(f"Unknown timezone {zone}, defaulting to UTC")
-            return original_timezone('UTC')
-    
+            return original_timezone("UTC")
+
     pytz.timezone = patched_timezone
     logger.info("Timezone handling patched to handle CST6CDT and similar formats")
 
@@ -201,14 +201,20 @@ class DeviceManager:
             except Exception as update_error:
                 error_msg = str(update_error)
                 if "time zone" in error_msg.lower() or "timezone" in error_msg.lower():
-                    logger.warning(f"Timezone error for device {device_ip}: {error_msg}")
+                    logger.warning(
+                        f"Timezone error for device {device_ip}: {error_msg}"
+                    )
                     # Try to work around timezone issues by using a minimal update
                     try:
                         # Force refresh without relying on timezone-dependent operations
                         await device.protocol.query("system", "get_sysinfo")
-                        logger.info(f"Fallback update successful for device {device_ip}")
+                        logger.info(
+                            f"Fallback update successful for device {device_ip}"
+                        )
                     except Exception as fallback_error:
-                        logger.error(f"Fallback update failed for device {device_ip}: {fallback_error}")
+                        logger.error(
+                            f"Fallback update failed for device {device_ip}: {fallback_error}"
+                        )
                         # Continue with existing data if update fails
                         pass
                 else:
@@ -221,23 +227,31 @@ class DeviceManager:
                 if hasattr(device, "modules") and "Energy" in device.modules:
                     energy_module = device.modules["Energy"]
                     power_data = {
-                        "current_power_w": getattr(energy_module, 'current_consumption', 0),
-                        "today_energy_kwh": getattr(energy_module, 'consumption_today', 0),
-                        "month_energy_kwh": getattr(energy_module, 'consumption_this_month', 0),
-                        "voltage": getattr(energy_module, 'voltage', 0),
-                        "current": getattr(energy_module, 'current', 0),
+                        "current_power_w": getattr(
+                            energy_module, "current_consumption", 0
+                        ),
+                        "today_energy_kwh": getattr(
+                            energy_module, "consumption_today", 0
+                        ),
+                        "month_energy_kwh": getattr(
+                            energy_module, "consumption_this_month", 0
+                        ),
+                        "voltage": getattr(energy_module, "voltage", 0),
+                        "current": getattr(energy_module, "current", 0),
                     }
                 elif hasattr(device, "emeter_realtime"):
                     try:
                         emeter = await device.emeter_realtime
                         power_data = {
-                            "current_power_w": getattr(emeter, 'power', 0),
-                            "voltage": getattr(emeter, 'voltage', 0),
-                            "current": getattr(emeter, 'current', 0),
-                            "total_energy_kwh": getattr(emeter, 'total', 0),
+                            "current_power_w": getattr(emeter, "power", 0),
+                            "voltage": getattr(emeter, "voltage", 0),
+                            "current": getattr(emeter, "current", 0),
+                            "total_energy_kwh": getattr(emeter, "total", 0),
                         }
                     except Exception as emeter_error:
-                        logger.warning(f"Failed to get emeter data for {device_ip}: {emeter_error}")
+                        logger.warning(
+                            f"Failed to get emeter data for {device_ip}: {emeter_error}"
+                        )
                         power_data = {
                             "current_power_w": 0,
                             "voltage": 0,
@@ -245,17 +259,19 @@ class DeviceManager:
                             "total_energy_kwh": 0,
                         }
             except Exception as power_error:
-                logger.warning(f"Failed to extract power data for {device_ip}: {power_error}")
+                logger.warning(
+                    f"Failed to extract power data for {device_ip}: {power_error}"
+                )
                 power_data = {}
 
             return DeviceData(
                 ip=device_ip,
-                alias=getattr(device, 'alias', f"Device {device_ip}"),
-                model=getattr(device, 'model', "Unknown"),
-                device_type=str(getattr(device, 'device_type', "Unknown")),
-                is_on=getattr(device, 'is_on', False),
-                rssi=getattr(device, 'rssi', 0),
-                mac=getattr(device, 'mac', ""),
+                alias=getattr(device, "alias", f"Device {device_ip}"),
+                model=getattr(device, "model", "Unknown"),
+                device_type=str(getattr(device, "device_type", "Unknown")),
+                is_on=getattr(device, "is_on", False),
+                rssi=getattr(device, "rssi", 0),
+                mac=getattr(device, "mac", ""),
                 **power_data,
                 timestamp=datetime.now(timezone.utc),
             )
