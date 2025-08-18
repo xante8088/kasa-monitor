@@ -98,7 +98,7 @@ services:
     image: xante8088/kasa-monitor:latest
     ports:
       - "3000:3000"   # Frontend
-      - "8000:8000"   # Backend API
+      - "5272:5272"   # Backend API
     volumes:
       - kasa_data:/app/data
       - kasa_logs:/app/logs
@@ -123,7 +123,7 @@ docker pull xante8088/kasa-monitor:pi5
 # Run with memory limits
 docker run -d \
   -p 3000:3000 \
-  -p 8000:8000 \
+  -p 5272:5272 \
   --memory="1g" \
   --name kasa-monitor \
   xante8088/kasa-monitor:pi5

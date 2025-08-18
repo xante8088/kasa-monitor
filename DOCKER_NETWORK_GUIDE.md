@@ -71,7 +71,7 @@ docker-compose -f docker-compose.host.yml up -d
    docker inspect kasa-monitor | grep IPAddress
    ```
 
-5. Access via: `http://CONTAINER_IP:3000`
+5. Access via: `http://CONTAINER_IP:3000` (Frontend) or `http://CONTAINER_IP:5272` (API)
 
 **Pros:**
 - ✅ Automatic device discovery works
@@ -89,15 +89,15 @@ docker-compose -f docker-compose.host.yml up -d
 - Running multiple containers that need LAN access
 - Production environments
 
-### 3. Bridge Network Mode (Default Docker)
+### 3. Bridge Network Mode (Default)
 
-**File:** `docker-compose.bridge.yml`
+**File:** `docker-compose.yml` (default)
 
 ```bash
-docker-compose -f docker-compose.bridge.yml up -d
+docker-compose up -d
 ```
 
-**Access:** `http://localhost:3000`
+**Access:** `http://localhost:3000` (Frontend) or `http://localhost:5272` (API)
 
 **Pros:**
 - ✅ Best security and isolation
