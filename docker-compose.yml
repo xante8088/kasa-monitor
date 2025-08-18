@@ -26,7 +26,7 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"   # Frontend
-      - "8001:5272"   # Backend API
+      - "5272:5272"   # Backend API
     volumes:
       # Persist database and logs
       - kasa_data:/app/data
