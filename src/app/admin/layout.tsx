@@ -5,6 +5,7 @@ import { Users, Shield, Settings, Home, BarChart3, FileText, Bell, AlertTriangle
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../../contexts/auth-context';
+import { getVersionString } from '../../lib/version';
 
 export default function AdminLayout({
   children,
@@ -131,6 +132,15 @@ export default function AdminLayout({
               })}
             </div>
           </nav>
+
+          {/* Version Info */}
+          <div className="absolute bottom-16 w-64 px-4 py-2">
+            <div className="text-center">
+              <p className="text-xs text-gray-400">
+                {getVersionString()}
+              </p>
+            </div>
+          </div>
 
           {/* User Info at Bottom */}
           <div className="absolute bottom-0 w-64 p-4 border-t border-gray-200 bg-white">

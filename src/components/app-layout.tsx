@@ -8,6 +8,7 @@ import { DeviceManagementModal } from './device-management-modal';
 import { useAuth } from '@/contexts/auth-context';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { getShortVersion } from '@/lib/version';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -43,6 +44,13 @@ export function AppLayout({ children, showCostSummary = false }: AppLayoutProps)
       <main className="pb-8">
         {children}
       </main>
+      
+      {/* Footer with version */}
+      <footer className="fixed bottom-0 right-0 p-2">
+        <div className="text-xs text-gray-400">
+          {getShortVersion()}
+        </div>
+      </footer>
 
       {showDiscoveryModal && (
         <DiscoveryModal
