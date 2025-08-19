@@ -75,12 +75,12 @@ echo -e "${GREEN}✓${NC} Directories created"
 
 # Check ports
 echo -e "\n${YELLOW}Checking ports...${NC}"
-if port_in_use 8000; then
-    echo -e "${RED}✗${NC} Potr38000 is already in use"
-    echo "Please stop the service using port 8000 or change the port in the script"
+if port_in_use 5272; then
+    echo -e "${RED}✗${NC} Port 5272 is already in use"
+    echo "Please stop the service using port 5272 or change the port in the script"
     exit 1
 else
-    echo -e "${GREEN}✓${NC} Port 8000 is available"
+    echo -e "${GREEN}✓${NC} Port 5272 is available"
 fi
 
 # Set environment variables
@@ -94,11 +94,11 @@ export LOG_LEVEL="INFO"
 # Start the application
 echo -e "\n${GREEN}Starting Kasa Monitor...${NC}"
 echo "================================================"
-echo -e "📍 Main Application: ${GREEN}http://localhost:8000${NC}"
-echo -e "📊 Test Interface:  ${GREEN}http://localhost:8000/test${NC}"
-echo -e "📚 API Docs:        ${GREEN}http://localhost:8000/docs${NC}"
-echo -e "📈 Metrics:         ${GREEN}http://localhost:8000/metrics${NC}"
-echo -e "🔧 Health Check:    ${GREEN}http://localhost:8000/health/detailed${NC}"
+echo -e "📍 Main Application: ${GREEN}http://localhost:5272${NC}"
+echo -e "📊 Test Interface:  ${GREEN}http://localhost:5272/test${NC}"
+echo -e "📚 API Docs:        ${GREEN}http://localhost:5272/docs${NC}"
+echo -e "📈 Metrics:         ${GREEN}http://localhost:5272/metrics${NC}"
+echo -e "🔧 Health Check:    ${GREEN}http://localhost:5272/health/detailed${NC}"
 echo "================================================"
 echo -e "\nPress ${YELLOW}Ctrl+C${NC} to stop the server\n"
 

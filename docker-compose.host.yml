@@ -64,7 +64,7 @@ services:
           cpus: '0.5'
     
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/devices"]
+      test: ["CMD", "curl", "-f", "http://localhost:5272/health"]
       interval: 30s
       timeout: 10s
       retries: 3

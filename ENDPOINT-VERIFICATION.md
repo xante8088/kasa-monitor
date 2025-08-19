@@ -61,7 +61,7 @@ All API endpoints have been verified and fixed. The application now has **29 ful
 ## Issues Fixed
 
 ### 1. Hardcoded URLs
-**Problem**: Device management modal used hardcoded `http://localhost:8000` URLs
+**Problem**: Device management modal used hardcoded `http://localhost:8000` URLs (now updated to port 5272)
 **Solution**: Changed to relative URLs (`/api/...`)
 **Files Fixed**: 
 - `/src/components/device-management-modal.tsx`
@@ -137,14 +137,14 @@ All endpoints properly enforce permissions:
 
 ## Next.js API Proxy
 
-The Next.js app proxies `/api/*` requests to the backend server (port 8000) as configured in `next.config.js`:
+The Next.js app proxies `/api/*` requests to the backend server (port 5272) as configured in `next.config.js`:
 
 ```javascript
 async rewrites() {
   return [
     {
       source: '/api/:path*',
-      destination: 'http://localhost:8000/api/:path*',
+      destination: 'http://localhost:5272/api/:path*',
     },
   ]
 }

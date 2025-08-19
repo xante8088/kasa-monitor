@@ -20,7 +20,7 @@ services:
       dockerfile: Dockerfile.local
     container_name: kasa-monitor-local
     ports:
-      - "8000:8000"
+      - "5272:5272"
     environment:
       - DATABASE_PATH=/app/data/kasa_monitor.db
       - BACKUP_DIR=/app/backups

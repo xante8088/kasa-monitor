@@ -32,7 +32,7 @@ export function DeviceCard({ device, onClick }: DeviceCardProps) {
   })
 
   useEffect(() => {
-    const newSocket = io('http://localhost:8000')
+    const newSocket = io('http://localhost:5272')
     
     newSocket.on('connect', () => {
       newSocket.emit('subscribe_device', { device_ip: device.ip })
