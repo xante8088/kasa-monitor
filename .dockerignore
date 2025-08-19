@@ -1,101 +1,269 @@
 # Docker ignore file for Kasa Monitor
-# Excludes unnecessary files from Docker build context
+# Optimized to exclude all unnecessary files from Docker build context
+# This significantly reduces build time and context size
+
+# =============================================================================
+# VERSION CONTROL & DEVELOPMENT FILES
+# =============================================================================
 
 # Git
 .git
 .gitignore
+.github/
+.gitattributes
 
-# Dependencies
+# =============================================================================
+# DEPENDENCIES & BUILD ARTIFACTS (LARGEST EXCLUSIONS)
+# =============================================================================
+
+# Node.js dependencies (copied during build)
 node_modules
-venv
 
-# Generated files
-.next
-out
-dist
-build
+# Python virtual environment (rebuilt in Docker)
+venv/
+backend/venv/
 
-# Database files
+# Generated build files
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# =============================================================================
+# DOCUMENTATION & GUIDES (NOT NEEDED AT RUNTIME)
+# =============================================================================
+
+# All markdown documentation except essential ones
+*.md
+!README.md
+!LICENSE
+
+# Documentation directories
+docs/
+wiki/
+
+# Specific large documentation files identified
+AUTO-TAG-GUIDE.md
+DOCKER*.md
+ENDPOINT-VERIFICATION.md
+GITHUB-ACTIONS-UPDATE.md
+GITIGNORE-UPDATE.md
+MISSING_FEATURES.md
+PLUGIN_*.md
+QUICKSTART-DOCKER.md
+README-DOCKER-NETWORK.md
+REVERSE_PROXY_SETUP.md
+SSL_CONFIGURATION.md
+TEST_GUIDE.md
+USER-*.md
+VERSION_MANAGEMENT.md
+
+# =============================================================================
+# DATABASE & RUNTIME DATA (MOUNTED AS VOLUMES)
+# =============================================================================
+
+# Database files (should be mounted as volumes)
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
+kasa_monitor.db*
+data/
+backups/
 
-# Logs
+# Log files (should be mounted as volumes)  
 *.log
 logs/
+backend/logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Environment files
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# Exports directory (should be mounted as volume)
+exports/
 
-# Cache and temporary files
-.cache
-tmp/
-temp/
+# =============================================================================
+# DEVELOPMENT & TESTING FILES
+# =============================================================================
+
+# Test files and test plugins
+test/
+tests/
+backend/tests/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+test-*.py
+test_*.py
+test-plugin-*.zip
+test_plugin/
+
+# Development authentication files
+.auth/
+
+# CI/CD configuration files
+.github/
+alembic.ini
+
+# =============================================================================
+# TEMPORARY & CACHE FILES
+# =============================================================================
+
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.pytest_cache/
 
-# IDE files
+# Node.js cache
+.cache
+.npm/
+npm-debug.log*
+
+# General temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# =============================================================================
+# ENVIRONMENT & CONFIGURATION FILES
+# =============================================================================
+
+# Environment files (secrets should not be in image)
+.env*
+!.env.example
+
+# Development configuration
+.flake8
+pyproject.toml
+
+# =============================================================================
+# IDE & EDITOR FILES
+# =============================================================================
+
+# Visual Studio Code
 .vscode/
+
+# IntelliJ IDEA
 .idea/
+
+# Vim/Neovim
 *.swp
 *.swo
 *~
+.netrwhist
 
-# OS files
+# Emacs
+*~
+\#*\#
+.\#*
+
+# =============================================================================
+# OPERATING SYSTEM FILES
+# =============================================================================
+
+# macOS
 .DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
+
+# Windows
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# Docker files (avoid recursive copying)
+# Linux
+.directory
+
+# =============================================================================
+# DOCKER & CONTAINER FILES
+# =============================================================================
+
+# Docker configuration files (avoid recursive copying)
 Dockerfile*
 docker-compose*.yml
 .dockerignore
+docker-*.sh
+docker-entrypoint.sh
 
-# Documentation (keep LICENSE and README)
-*.md
-!README.md
-docs/
+# =============================================================================
+# SSL & SECURITY FILES
+# =============================================================================
 
-# Test files
-test/
-tests/
-*.test.js
-*.test.ts
-*.spec.js
-*.spec.ts
-
-# SSL certificates (should be mounted as volumes)
+# SSL certificates (should be mounted as volumes, not baked into image)
 *.crt
 *.key
 *.pem
 *.p12
 *.pfx
 ssl/
+keys/
 
-# Backup files
-*_backup/
-src_backup/
-backend_backup/
+# =============================================================================
+# MONITORING & INFRASTRUCTURE
+# =============================================================================
 
-# Coverage and reports
+# Grafana configuration (not needed in app container)
+grafana/
+
+# Prometheus configuration (not needed in app container)  
+prometheus/
+
+# =============================================================================
+# DEVELOPMENT SCRIPTS & TOOLS
+# =============================================================================
+
+# Development scripts
+scripts/
+tools/
+*.sh
+!start.sh
+!docker-entrypoint.sh
+
+# Migration files (handled separately)
+migrations/
+
+# Upload and maintenance scripts
+upload-*.sh
+security-update.sh
+macvlan-status.sh
+
+# =============================================================================
+# PLUGIN DEVELOPMENT FILES
+# =============================================================================
+
+# Plugin examples and templates (not needed at runtime)
+plugins/examples/
+plugins/templates/
+plugins/test-plugin/
+
+# Keep only the main plugins directory structure
+!plugins/README.md
+
+# =============================================================================
+# COVERAGE & REPORTS
+# =============================================================================
+
+# Test coverage
 coverage/
 .nyc_output/
 .coverage
+htmlcov/
 
-# Package manager files  
+# =============================================================================
+# PACKAGE MANAGER FILES
+# =============================================================================
+
+# Alternative package managers
 yarn.lock
 .pnpm-store/
-# Keep package-lock.json for npm ci
+poetry.lock
+
+# Keep package-lock.json and requirements.txt for deterministic builds
