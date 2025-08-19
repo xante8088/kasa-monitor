@@ -36,7 +36,6 @@ FROM python:3.11-slim AS backend-base
 
 # Install system dependencies for ARM64/Raspberry Pi with cache mount
 RUN --mount=type=cache,target=/var/cache/apt,id=apt-backend \
-    --mount=type=cache,target=/var/lib/apt,id=apt-backend-lists \
     apt-get update && apt-get install -y \
     build-essential \
     gcc \
@@ -61,7 +60,6 @@ FROM python:3.11-slim AS runtime
 
 # Install Node.js and runtime dependencies with cache mount
 RUN --mount=type=cache,target=/var/cache/apt,id=apt-runtime \
-    --mount=type=cache,target=/var/lib/apt,id=apt-runtime-lists \
     apt-get update && apt-get install -y \
     curl \
     ca-certificates \
