@@ -1515,7 +1515,7 @@ export default function SystemConfigPage() {
                         <li><strong>Official keys:</strong> Use prefix 'official_' for maximum trust</li>
                         <li><strong>Verified keys:</strong> Use prefix 'verified_' for verified developers</li>
                         <li><strong>Community keys:</strong> Any other name for community contributors</li>
-                        <li><strong>Trust levels:</strong> Higher levels include all lower levels (official > verified > community > unsigned)</li>
+                        <li><strong>Trust levels:</strong> Higher levels include all lower levels (official &gt; verified &gt; community &gt; unsigned)</li>
                         <li><strong>CLI tool:</strong> Use <code>tools/plugin_signer.py</code> to generate keys and sign plugins</li>
                       </ul>
                     </div>

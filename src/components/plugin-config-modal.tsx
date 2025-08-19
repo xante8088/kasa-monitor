@@ -129,7 +129,7 @@ export default function PluginConfigModal({ plugin, isOpen, onClose, onConfigUpd
 
   const renderConfigField = (key: string, property: any, value: any) => {
     const updateValue = (newValue: any) => {
-      setConfig(prev => ({ ...prev, [key]: newValue }));
+      setConfig((prev: any) => ({ ...prev, [key]: newValue }));
     };
 
     const fieldId = `config-${key}`;
