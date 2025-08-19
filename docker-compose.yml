@@ -21,6 +21,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # Enable BuildKit features for faster builds
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+      cache_from:
+        - kasa-monitor:cache
+      x-bake:
+        cache-from: 
+          - type=gha
+        cache-to:
+          - type=gha,mode=max
     
     container_name: kasa-monitor
     restart: unless-stopped

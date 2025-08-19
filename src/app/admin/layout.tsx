@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Users, Shield, Settings, Home, BarChart3, FileText, Bell, AlertTriangle, Layers, Archive } from 'lucide-react';
+import { Users, Shield, Settings, Home, BarChart3, FileText, Bell, AlertTriangle, Layers, Archive, Puzzle } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../../contexts/auth-context';
@@ -70,6 +70,12 @@ export default function AdminLayout({
       href: '/admin/notifications',
       icon: Bell,
       description: 'Notification preferences'
+    },
+    {
+      name: 'Plugins',
+      href: '/admin/plugins',
+      icon: Puzzle,
+      description: 'Manage system plugins'
     },
     {
       name: 'System Config',

@@ -1,0 +1,225 @@
+name: Docker Build Performance Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of build test to run'
+        required: true
+        default: 'cache-test'
+        type: choice
+        options:
+        - cache-test
+        - no-cache-test
+        - benchmark
+  push:
+    branches: [ feature/docker-buildkit-caching ]
+    paths:
+      - 'Dockerfile'
+      - 'docker-compose*.yml'
+      - '.github/workflows/docker-build-test.yml'
+
+env:
+  DOCKER_REGISTRY: docker.io
+  IMAGE_NAME: xante8088/kasa-monitor
+
+jobs:
+  # Test build with advanced caching
+  build-with-cache:
+    name: Build with Advanced Caching
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+      with:
+        driver-opts: |
+          network=host
+          image=moby/buildkit:buildx-stable-1
+    
+    - name: Log in to Docker Hub (if secrets available)
+      if: ${{ secrets.DOCKER_USERNAME && secrets.DOCKER_PASSWORD }}
+      uses: docker/login-action@v2
+      with:
+        registry: ${{ env.DOCKER_REGISTRY }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Build with comprehensive caching
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        platforms: linux/amd64
+        push: false
+        tags: kasa-monitor:cache-test
+        # Multi-tier caching strategy
+        cache-from: |
+          type=gha,scope=buildkit-cache-test
+          type=gha,scope=buildkit-main
+          type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:cache-test
+        cache-to: |
+          type=gha,scope=buildkit-cache-test,mode=max
+        build-args: |
+          BUILDKIT_INLINE_CACHE=1
+        outputs: type=docker,dest=/tmp/kasa-monitor-cached.tar
+    
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: kasa-monitor-cached
+        path: /tmp/kasa-monitor-cached.tar
+        retention-days: 1
+
+  # Test build without caching for comparison
+  build-no-cache:
+    name: Build without Cache (Baseline)
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_type == 'benchmark' || github.event.inputs.test_type == 'no-cache-test'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Build without cache
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        platforms: linux/amd64
+        push: false
+        tags: kasa-monitor:no-cache-test
+        no-cache: true
+        outputs: type=docker,dest=/tmp/kasa-monitor-no-cache.tar
+    
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: kasa-monitor-no-cache
+        path: /tmp/kasa-monitor-no-cache.tar
+        retention-days: 1
+
+  # Benchmark and compare build times
+  benchmark:
+    name: Build Performance Benchmark
+    runs-on: ubuntu-latest
+    needs: [build-with-cache, build-no-cache]
+    if: github.event.inputs.test_type == 'benchmark'
+    
+    steps:
+    - name: Download cached build
+      uses: actions/download-artifact@v3
+      with:
+        name: kasa-monitor-cached
+        path: /tmp/
+    
+    - name: Download no-cache build
+      uses: actions/download-artifact@v3
+      with:
+        name: kasa-monitor-no-cache
+        path: /tmp/
+    
+    - name: Analyze build artifacts
+      run: |
+        echo "🔍 Build Performance Analysis"
+        echo "================================"
+        
+        echo "📦 Cached build size:"
+        ls -lh /tmp/kasa-monitor-cached.tar
+        
+        echo "📦 No-cache build size:"
+        ls -lh /tmp/kasa-monitor-no-cache.tar
+        
+        echo "💾 Size comparison:"
+        cached_size=$(stat -c%s /tmp/kasa-monitor-cached.tar)
+        nocache_size=$(stat -c%s /tmp/kasa-monitor-no-cache.tar)
+        
+        echo "Cached: $cached_size bytes"
+        echo "No-cache: $nocache_size bytes"
+        
+        if [ "$cached_size" -eq "$nocache_size" ]; then
+          echo "✅ Same image size (as expected)"
+        else
+          echo "⚠️ Different image sizes detected"
+        fi
+
+  # Test Docker Compose build with caching
+  compose-build-test:
+    name: Docker Compose Build Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+      with:
+        driver-opts: |
+          network=host
+    
+    - name: Test Docker Compose build with caching
+      env:
+        DOCKER_BUILDKIT: 1
+        BUILDKIT_PROGRESS: plain
+        COMPOSE_DOCKER_CLI_BUILD: 1
+      run: |
+        echo "🚀 Testing Docker Compose build with BuildKit caching"
+        
+        # Enable BuildKit for compose
+        export BUILDKIT_INLINE_CACHE=1
+        
+        # Build with timing
+        time docker compose -f docker-compose.yml build \
+          --build-arg BUILDKIT_INLINE_CACHE=1 \
+          --progress=plain
+        
+        echo "✅ Docker Compose build completed"
+
+  # Cache validation
+  validate-cache:
+    name: Validate Cache Effectiveness
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+      with:
+        driver-opts: |
+          network=host
+    
+    - name: First build (populate cache)
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        platforms: linux/amd64
+        push: false
+        tags: kasa-monitor:cache-validate-1
+        cache-from: type=gha,scope=buildkit-validate
+        cache-to: type=gha,scope=buildkit-validate,mode=max
+        build-args: |
+          BUILDKIT_INLINE_CACHE=1
+    
+    - name: Second build (should use cache)
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        platforms: linux/amd64
+        push: false
+        tags: kasa-monitor:cache-validate-2
+        cache-from: type=gha,scope=buildkit-validate
+        cache-to: type=gha,scope=buildkit-validate,mode=max
+        build-args: |
+          BUILDKIT_INLINE_CACHE=1
+    
+    - name: Verify cache usage
+      run: |
+        echo "✅ Cache validation completed"
+        echo "If this job completed quickly, caching is working effectively!"

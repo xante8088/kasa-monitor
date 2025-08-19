@@ -1,6 +1,7 @@
 # Multi-stage Dockerfile for Kasa Monitor - Optimized for Raspberry Pi 5
 # Copyright (C) 2025 Kasa Monitor Contributors
 # Licensed under GPL v3
+# syntax=docker/dockerfile:1
 
 # Stage 1: Build Frontend
 FROM node:18-alpine AS frontend-builder
@@ -10,8 +11,10 @@ WORKDIR /app
 # Copy package files
 COPY package.json package-lock.json ./
 
-# Install ALL dependencies (needed for build process)
-RUN npm ci --no-audit --no-fund
+# Install ALL dependencies with BuildKit cache mount
+RUN --mount=type=cache,target=/root/.npm \
+    --mount=type=cache,target=/app/node_modules/.cache \
+    npm ci --no-audit --no-fund --prefer-offline
 
 # Copy frontend source
 COPY src/ ./src/
@@ -32,8 +35,10 @@ RUN npm run build
 # Stage 2: Python Backend Base
 FROM python:3.11-slim AS backend-base
 
-# Install system dependencies for ARM64/Raspberry Pi
-RUN apt-get update && apt-get install -y \
+# Install system dependencies for ARM64/Raspberry Pi with cache mount
+RUN --mount=type=cache,target=/var/cache/apt \
+    --mount=type=cache,target=/var/lib/apt \
+    apt-get update && apt-get install -y \
     build-essential \
     gcc \
     g++ \
@@ -47,14 +52,18 @@ WORKDIR /app
 # Copy requirements first for better caching
 COPY backend/requirements.txt ./
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies with BuildKit cache mount
+RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=cache,target=/tmp/pip-build \
+    pip install --no-cache-dir -r requirements.txt
 
 # Stage 3: Final Runtime Image
 FROM python:3.11-slim AS runtime
 
-# Install Node.js and runtime dependencies from Debian repos
-RUN apt-get update && apt-get install -y \
+# Install Node.js and runtime dependencies with cache mount
+RUN --mount=type=cache,target=/var/cache/apt \
+    --mount=type=cache,target=/var/lib/apt \
+    apt-get update && apt-get install -y \
     curl \
     ca-certificates \
     nodejs \
