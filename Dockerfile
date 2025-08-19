@@ -13,7 +13,6 @@ COPY package.json package-lock.json ./
 
 # Install ALL dependencies with BuildKit cache mount
 RUN --mount=type=cache,target=/root/.npm,id=npm-frontend \
-    --mount=type=cache,target=/app/node_modules/.cache,id=npm-modules-frontend \
     npm ci --no-audit --no-fund --prefer-offline
 
 # Copy frontend source
