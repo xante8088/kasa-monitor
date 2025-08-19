@@ -12,8 +12,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Install ALL dependencies with BuildKit cache mount
-RUN --mount=type=cache,target=/root/.npm \
-    --mount=type=cache,target=/app/node_modules/.cache \
+RUN --mount=type=cache,target=/root/.npm,id=npm-frontend \
+    --mount=type=cache,target=/app/node_modules/.cache,id=npm-modules-frontend \
     npm ci --no-audit --no-fund --prefer-offline
 
 # Copy frontend source
@@ -36,8 +36,8 @@ RUN npm run build
 FROM python:3.11-slim AS backend-base
 
 # Install system dependencies for ARM64/Raspberry Pi with cache mount
-RUN --mount=type=cache,target=/var/cache/apt \
-    --mount=type=cache,target=/var/lib/apt \
+RUN --mount=type=cache,target=/var/cache/apt,id=apt-backend \
+    --mount=type=cache,target=/var/lib/apt,id=apt-backend-lists \
     apt-get update && apt-get install -y \
     build-essential \
     gcc \
@@ -53,16 +53,16 @@ WORKDIR /app
 COPY backend/requirements.txt ./
 
 # Install Python dependencies with BuildKit cache mount
-RUN --mount=type=cache,target=/root/.cache/pip \
-    --mount=type=cache,target=/tmp/pip-build \
+RUN --mount=type=cache,target=/root/.cache/pip,id=pip-backend \
+    --mount=type=cache,target=/tmp/pip-build,id=pip-build-backend \
     pip install --no-cache-dir -r requirements.txt
 
 # Stage 3: Final Runtime Image
 FROM python:3.11-slim AS runtime
 
 # Install Node.js and runtime dependencies with cache mount
-RUN --mount=type=cache,target=/var/cache/apt \
-    --mount=type=cache,target=/var/lib/apt \
+RUN --mount=type=cache,target=/var/cache/apt,id=apt-runtime \
+    --mount=type=cache,target=/var/lib/apt,id=apt-runtime-lists \
     apt-get update && apt-get install -y \
     curl \
     ca-certificates \
