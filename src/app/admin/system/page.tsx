@@ -8,6 +8,7 @@ interface SSLConfig {
   cert_path: string;
   key_path: string;
   force_https: boolean;
+  port: number;
 }
 
 interface SSLFile {
@@ -38,9 +39,33 @@ interface NetworkConfig {
   cors_origins: string[];
 }
 
+interface ReverseProxyConfig {
+  enabled: boolean;
+  http_port: number;
+  https_port: number;
+  admin_port: number;
+  server_name: string;
+  force_https: boolean;
+}
+
+interface PluginSecurityConfig {
+  require_signature: boolean;
+  minimum_trust_level: string;
+  allow_unsigned: boolean;
+  verify_on_load: boolean;
+  quarantine_invalid: boolean;
+}
+
+interface TrustedKey {
+  name: string;
+  trust_level: string;
+}
+
 interface SystemConfig {
   ssl: SSLConfig;
   network: NetworkConfig;
+  reverse_proxy: ReverseProxyConfig;
+  plugin_security: PluginSecurityConfig;
   database_path: string;
   influxdb_enabled: boolean;
   polling_interval: number;
@@ -52,7 +77,8 @@ export default function SystemConfigPage() {
       enabled: false,
       cert_path: '',
       key_path: '',
-      force_https: false
+      force_https: false,
+      port: 5273
     },
     network: {
       host: '0.0.0.0',
@@ -60,6 +86,21 @@ export default function SystemConfigPage() {
       allowed_hosts: [],
       local_only: false,
       cors_origins: []
+    },
+    reverse_proxy: {
+      enabled: false,
+      http_port: 8090,
+      https_port: 8445,
+      admin_port: 8446,
+      server_name: 'localhost',
+      force_https: true
+    },
+    plugin_security: {
+      require_signature: false,
+      minimum_trust_level: 'unsigned',
+      allow_unsigned: true,
+      verify_on_load: true,
+      quarantine_invalid: true
     },
     database_path: 'kasa_monitor.db',
     influxdb_enabled: false,
@@ -86,9 +127,19 @@ export default function SystemConfigPage() {
     san_domains: '',
     key_size: 2048
   });
+  const [trustedKeys, setTrustedKeys] = useState<TrustedKey[]>([]);
+  const [showAddKeyForm, setShowAddKeyForm] = useState(false);
+  const [newKeyName, setNewKeyName] = useState('');
+  const [newKeyData, setNewKeyData] = useState('');
+  const [keyLoading, setKeyLoading] = useState(false);
 
   useEffect(() => {
     fetchConfig();
+    fetchTrustedKeys();
+    fetchPluginSecurityPolicies();
+  }, []);
+
+  useEffect(() => {
     if (config.ssl?.enabled) {
       fetchSSLFiles();
     }
@@ -109,7 +160,8 @@ export default function SystemConfigPage() {
             enabled: data.ssl?.enabled ?? false,
             cert_path: data.ssl?.cert_path ?? '',
             key_path: data.ssl?.key_path ?? '',
-            force_https: data.ssl?.force_https ?? false
+            force_https: data.ssl?.force_https ?? false,
+            port: data.ssl?.port ?? 5273
           },
           network: {
             host: data.network?.host ?? '0.0.0.0',
@@ -117,6 +169,21 @@ export default function SystemConfigPage() {
             allowed_hosts: data.network?.allowed_hosts ?? [],
             local_only: data.network?.local_only ?? false,
             cors_origins: data.network?.cors_origins ?? []
+          },
+          reverse_proxy: {
+            enabled: data.reverse_proxy?.enabled ?? false,
+            http_port: data.reverse_proxy?.http_port ?? 8090,
+            https_port: data.reverse_proxy?.https_port ?? 8445,
+            admin_port: data.reverse_proxy?.admin_port ?? 8446,
+            server_name: data.reverse_proxy?.server_name ?? 'localhost',
+            force_https: data.reverse_proxy?.force_https ?? true
+          },
+          plugin_security: {
+            require_signature: data.plugin_security?.require_signature ?? false,
+            minimum_trust_level: data.plugin_security?.minimum_trust_level ?? 'unsigned',
+            allow_unsigned: data.plugin_security?.allow_unsigned ?? true,
+            verify_on_load: data.plugin_security?.verify_on_load ?? true,
+            quarantine_invalid: data.plugin_security?.quarantine_invalid ?? true
           },
           database_path: data.database_path ?? 'kasa_monitor.db',
           influxdb_enabled: data.influxdb_enabled ?? false,
@@ -384,6 +451,113 @@ export default function SystemConfigPage() {
     );
   };
 
+  const fetchTrustedKeys = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/plugins/security/trusted-keys', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setTrustedKeys(data.trusted_keys || []);
+      } else {
+        console.error('Failed to fetch trusted keys');
+      }
+    } catch (err) {
+      console.error('Error fetching trusted keys:', err);
+    }
+  };
+
+  const fetchPluginSecurityPolicies = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/plugins/security/policies', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setConfig(prev => ({
+          ...prev,
+          plugin_security: {
+            require_signature: data.require_signature ?? false,
+            minimum_trust_level: data.minimum_trust_level ?? 'unsigned',
+            allow_unsigned: data.allow_unsigned ?? true,
+            verify_on_load: data.verify_on_load ?? true,
+            quarantine_invalid: data.quarantine_invalid ?? true
+          }
+        }));
+      }
+    } catch (err) {
+      console.error('Error fetching plugin security policies:', err);
+    }
+  };
+
+  const updatePluginSecurityPolicies = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/plugins/security/policies', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(config.plugin_security)
+      });
+
+      if (response.ok) {
+        setSuccess('Plugin security policies updated successfully');
+      } else {
+        const errorData = await response.json();
+        setError(errorData.detail || 'Failed to update plugin security policies');
+      }
+    } catch (err) {
+      setError('Failed to update plugin security policies');
+    }
+  };
+
+  const addTrustedKey = async () => {
+    if (!newKeyName || !newKeyData) {
+      setError('Key name and public key data are required');
+      return;
+    }
+
+    setKeyLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/plugins/security/trusted-keys', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: newKeyName,
+          public_key: newKeyData
+        })
+      });
+
+      if (response.ok) {
+        setSuccess(`Trusted key '${newKeyName}' added successfully`);
+        setNewKeyName('');
+        setNewKeyData('');
+        setShowAddKeyForm(false);
+        fetchTrustedKeys();
+      } else {
+        const errorData = await response.json();
+        setError(errorData.detail || 'Failed to add trusted key');
+      }
+    } catch (err) {
+      setError('Failed to add trusted key');
+    } finally {
+      setKeyLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -503,6 +677,24 @@ export default function SystemConfigPage() {
                   <label htmlFor="force_https" className="ml-2 text-sm text-gray-900">
                     Force HTTPS (redirect HTTP to HTTPS)
                   </label>
+                </div>
+
+                <div>
+                  <label htmlFor="ssl_port" className="block text-sm font-medium text-gray-700">
+                    HTTPS Port
+                  </label>
+                  <input
+                    type="number"
+                    id="ssl_port"
+                    min="1"
+                    max="65535"
+                    value={config.ssl?.port ?? 5273}
+                    onChange={(e) => handleInputChange('ssl', 'port', parseInt(e.target.value))}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Port for HTTPS connections (default: 5273, standard: 443)
+                  </p>
                 </div>
 
                 {/* CSR Generation Section */}
@@ -812,6 +1004,162 @@ export default function SystemConfigPage() {
           </div>
         </div>
 
+        {/* Reverse Proxy Configuration */}
+        <div className="bg-white shadow-lg rounded-lg p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Reverse Proxy Configuration</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Configure nginx reverse proxy for production HTTPS access with enhanced security.
+          </p>
+          
+          <div className="space-y-4">
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="reverse_proxy_enabled"
+                checked={config.reverse_proxy?.enabled ?? false}
+                onChange={(e) => handleInputChange('reverse_proxy', 'enabled', e.target.checked)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="reverse_proxy_enabled" className="ml-2 text-sm text-gray-900">
+                Enable Reverse Proxy
+              </label>
+            </div>
+
+            {config.reverse_proxy?.enabled && (
+              <>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex">
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-blue-800">
+                        🚀 HTTPS Frontend Available!
+                      </h3>
+                      <div className="mt-2 text-sm text-blue-700">
+                        <p>Access your secure frontend at:</p>
+                        <div className="mt-2 font-mono bg-blue-100 px-2 py-1 rounded">
+                          <strong>Main Interface:</strong> https://localhost:{config.reverse_proxy?.https_port ?? 8445}
+                        </div>
+                        <div className="mt-1 font-mono bg-blue-100 px-2 py-1 rounded">
+                          <strong>Admin Interface:</strong> https://localhost:{config.reverse_proxy?.admin_port ?? 8446}/admin
+                        </div>
+                        <p className="mt-2 text-xs">
+                          HTTP requests to port {config.reverse_proxy?.http_port ?? 8090} will be automatically redirected to HTTPS.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label htmlFor="proxy_http_port" className="block text-sm font-medium text-gray-700">
+                      HTTP Port (Redirect)
+                    </label>
+                    <input
+                      type="number"
+                      id="proxy_http_port"
+                      min="1024"
+                      max="65535"
+                      value={config.reverse_proxy?.http_port ?? 8090}
+                      onChange={(e) => handleInputChange('reverse_proxy', 'http_port', parseInt(e.target.value))}
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Port for HTTP (auto-redirects to HTTPS)
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="proxy_https_port" className="block text-sm font-medium text-gray-700">
+                      HTTPS Port (Main)
+                    </label>
+                    <input
+                      type="number"
+                      id="proxy_https_port"
+                      min="1024"
+                      max="65535"
+                      value={config.reverse_proxy?.https_port ?? 8445}
+                      onChange={(e) => handleInputChange('reverse_proxy', 'https_port', parseInt(e.target.value))}
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Main HTTPS port for web interface
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="proxy_admin_port" className="block text-sm font-medium text-gray-700">
+                      Admin HTTPS Port
+                    </label>
+                    <input
+                      type="number"
+                      id="proxy_admin_port"
+                      min="1024"
+                      max="65535"
+                      value={config.reverse_proxy?.admin_port ?? 8446}
+                      onChange={(e) => handleInputChange('reverse_proxy', 'admin_port', parseInt(e.target.value))}
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Dedicated admin interface port
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="proxy_server_name" className="block text-sm font-medium text-gray-700">
+                    Server Name
+                  </label>
+                  <input
+                    type="text"
+                    id="proxy_server_name"
+                    value={config.reverse_proxy?.server_name ?? 'localhost'}
+                    onChange={(e) => handleInputChange('reverse_proxy', 'server_name', e.target.value)}
+                    placeholder="localhost, example.com, or your domain"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Domain name or hostname for the server (should match SSL certificate)
+                  </p>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="proxy_force_https"
+                    checked={config.reverse_proxy?.force_https ?? true}
+                    onChange={(e) => handleInputChange('reverse_proxy', 'force_https', e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="proxy_force_https" className="ml-2 text-sm text-gray-900">
+                    Force HTTPS (recommended)
+                  </label>
+                  <p className="ml-2 text-xs text-gray-500">
+                    Automatically redirect all HTTP requests to HTTPS
+                  </p>
+                </div>
+
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex">
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-yellow-800">
+                        Configuration Requirements
+                      </h3>
+                      <div className="mt-2 text-sm text-yellow-700">
+                        <ul className="list-disc list-inside space-y-1">
+                          <li>SSL certificates must be configured and valid</li>
+                          <li>Nginx must be installed and running</li>
+                          <li>Ensure ports are not already in use</li>
+                          <li>Server name should match your SSL certificate</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
         {/* Network Configuration */}
         <div className="bg-white shadow-lg rounded-lg p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Network Configuration</h2>
@@ -944,6 +1292,236 @@ export default function SystemConfigPage() {
               <label htmlFor="influxdb_enabled" className="ml-2 text-sm text-gray-900">
                 Enable InfluxDB for time-series data
               </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Plugin Security Configuration */}
+        <div className="bg-white shadow-lg rounded-lg p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Plugin Security Configuration</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Configure security policies for plugin installation and execution. These settings control how plugins are verified and trusted.
+          </p>
+          
+          <div className="space-y-6">
+            {/* Security Policies */}
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-3">Security Policies</h3>
+              <div className="space-y-4">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="require_signature"
+                    checked={config.plugin_security?.require_signature ?? false}
+                    onChange={(e) => handleInputChange('plugin_security', 'require_signature', e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="require_signature" className="ml-2 text-sm text-gray-900">
+                    Require digital signatures for all plugins
+                  </label>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="allow_unsigned"
+                    checked={config.plugin_security?.allow_unsigned ?? true}
+                    onChange={(e) => handleInputChange('plugin_security', 'allow_unsigned', e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="allow_unsigned" className="ml-2 text-sm text-gray-900">
+                    Allow unsigned plugins (development mode)
+                  </label>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="verify_on_load"
+                    checked={config.plugin_security?.verify_on_load ?? true}
+                    onChange={(e) => handleInputChange('plugin_security', 'verify_on_load', e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="verify_on_load" className="ml-2 text-sm text-gray-900">
+                    Verify signatures when loading plugins
+                  </label>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="quarantine_invalid"
+                    checked={config.plugin_security?.quarantine_invalid ?? true}
+                    onChange={(e) => handleInputChange('plugin_security', 'quarantine_invalid', e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="quarantine_invalid" className="ml-2 text-sm text-gray-900">
+                    Quarantine plugins with invalid signatures
+                  </label>
+                </div>
+
+                <div>
+                  <label htmlFor="minimum_trust_level" className="block text-sm font-medium text-gray-700 mb-2">
+                    Minimum Trust Level
+                  </label>
+                  <select
+                    id="minimum_trust_level"
+                    value={config.plugin_security?.minimum_trust_level ?? 'unsigned'}
+                    onChange={(e) => handleInputChange('plugin_security', 'minimum_trust_level', e.target.value)}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="unsigned">Unsigned (least restrictive)</option>
+                    <option value="community">Community</option>
+                    <option value="verified">Verified</option>
+                    <option value="official">Official (most restrictive)</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Only plugins with this trust level or higher will be allowed
+                  </p>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    onClick={updatePluginSecurityPolicies}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                  >
+                    Update Security Policies
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Trusted Keys Management */}
+            <div className="border-t pt-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Trusted Signing Keys</h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={fetchTrustedKeys}
+                    className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm"
+                  >
+                    Refresh
+                  </button>
+                  <button
+                    onClick={() => setShowAddKeyForm(!showAddKeyForm)}
+                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+                  >
+                    {showAddKeyForm ? 'Cancel' : 'Add Key'}
+                  </button>
+                </div>
+              </div>
+
+              {showAddKeyForm && (
+                <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                  <h4 className="text-md font-medium text-gray-900 mb-3">Add Trusted Signing Key</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Key Name
+                      </label>
+                      <input
+                        type="text"
+                        value={newKeyName}
+                        onChange={(e) => setNewKeyName(e.target.value)}
+                        placeholder="verified_developer_name or official_kasa_monitor"
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Use 'official_*' for official keys, 'verified_*' for verified developers, or any other name for community keys
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Public Key (PEM format)
+                      </label>
+                      <textarea
+                        value={newKeyData}
+                        onChange={(e) => setNewKeyData(e.target.value)}
+                        rows={8}
+                        placeholder="-----BEGIN PUBLIC KEY-----&#10;MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...&#10;-----END PUBLIC KEY-----"
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                      />
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        onClick={addTrustedKey}
+                        disabled={keyLoading || !newKeyName || !newKeyData}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium disabled:opacity-50"
+                      >
+                        {keyLoading ? 'Adding...' : 'Add Trusted Key'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Trusted Keys List */}
+              <div>
+                {trustedKeys.length === 0 ? (
+                  <p className="text-gray-500 text-sm">No trusted keys configured</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Key Name
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Trust Level
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {trustedKeys.map((key) => (
+                          <tr key={key.name}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {key.name}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                key.trust_level === 'official' ? 'bg-blue-100 text-blue-800' :
+                                key.trust_level === 'verified' ? 'bg-green-100 text-green-800' :
+                                'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {key.trust_level}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                Active
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Security Info */}
+              <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex">
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-blue-800">
+                      Plugin Security Information
+                    </h3>
+                    <div className="mt-2 text-sm text-blue-700">
+                      <ul className="list-disc list-inside space-y-1">
+                        <li><strong>Official keys:</strong> Use prefix 'official_' for maximum trust</li>
+                        <li><strong>Verified keys:</strong> Use prefix 'verified_' for verified developers</li>
+                        <li><strong>Community keys:</strong> Any other name for community contributors</li>
+                        <li><strong>Trust levels:</strong> Higher levels include all lower levels (official > verified > community > unsigned)</li>
+                        <li><strong>CLI tool:</strong> Use <code>tools/plugin_signer.py</code> to generate keys and sign plugins</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

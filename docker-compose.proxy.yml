@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: kasa-monitor-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8444:8444"  # Admin interface
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/ssl/certs:ro
+      - /opt/homebrew/var/log/nginx:/var/log/nginx
+    depends_on:
+      - kasa-monitor
+      - kasa-frontend
+    restart: unless-stopped
+    networks:
+      - kasa-network
+
+  # Kasa Monitor Backend
+  kasa-monitor:
+    build: .
+    container_name: kasa-monitor-backend
+    environment:
+      - HTTPS_PORT=8443
+      - SSL_CERT_PATH=/app/ssl/tacocat_serveirc_com.crt
+      - SSL_KEY_PATH=/app/ssl/tacocat.serveirc.com_20250819_124010.key
+    volumes:
+      - ./ssl:/app/ssl:ro
+      - ./data:/app/data
+      - kasa_db:/app/kasa_monitor.db
+    expose:
+      - "5272"  # HTTP
+      - "8443"  # HTTPS
+    restart: unless-stopped
+    networks:
+      - kasa-network
+
+  # Frontend (Next.js)
+  kasa-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: kasa-monitor-frontend
+    environment:
+      - NODE_ENV=production
+    expose:
+      - "3000"
+    restart: unless-stopped
+    networks:
+      - kasa-network
+
+volumes:
+  kasa_db:
+
+networks:
+  kasa-network:
+    driver: bridge

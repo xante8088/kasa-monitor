@@ -1,0 +1,48 @@
+{
+  "id": "test-plugin",
+  "name": "Test Plugin",
+  "version": "1.0.0",
+  "description": "A simple test plugin for verifying the plugin system functionality",
+  "author": "Kasa Monitor",
+  "plugin_type": "analytics",
+  "main_class": "TestPlugin",
+  "homepage": "https://github.com/example/test-plugin",
+  "license": "MIT",
+  "api_version": "1.0",
+  "min_app_version": "1.0.0",
+  "max_app_version": "2.0.0",
+  "dependencies": [],
+  "python_dependencies": [],
+  "permissions": [
+    "device_access",
+    "database_read"
+  ],
+  "hooks": [
+    "device_discovered",
+    "data_collected"
+  ],
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "default": true,
+        "title": "Enable Plugin",
+        "description": "Enable or disable the test plugin"
+      },
+      "log_level": {
+        "type": "string",
+        "enum": ["debug", "info", "warning", "error"],
+        "default": "info",
+        "title": "Log Level",
+        "description": "Set the logging level for the plugin"
+      },
+      "notification_email": {
+        "type": "string",
+        "format": "email",
+        "title": "Notification Email",
+        "description": "Email address for notifications (optional)"
+      }
+    }
+  }
+}

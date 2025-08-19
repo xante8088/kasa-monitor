@@ -1,0 +1,45 @@
+{
+  "id": "power-monitor-example",
+  "name": "Power Monitor Example",
+  "version": "1.0.0",
+  "author": "Kasa Monitor Team",
+  "description": "Example plugin that monitors device power consumption and sends alerts for high usage",
+  "plugin_type": "device",
+  "main_class": "PowerMonitorPlugin",
+  "dependencies": [],
+  "python_dependencies": [],
+  "permissions": [
+    "devices.read",
+    "devices.control",
+    "notifications.send"
+  ],
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "power_threshold": {
+        "type": "number",
+        "default": 1000,
+        "description": "Power threshold in watts for high usage alerts"
+      },
+      "check_interval": {
+        "type": "integer",
+        "default": 60,
+        "description": "Check interval in seconds"
+      },
+      "enabled_devices": {
+        "type": "array",
+        "items": {"type": "string"},
+        "default": [],
+        "description": "List of device IPs to monitor (empty = all devices)"
+      }
+    }
+  },
+  "hooks": [
+    "device.reading_updated",
+    "device.discovered"
+  ],
+  "api_version": "1.0",
+  "min_app_version": "0.3.0",
+  "homepage": "https://github.com/kasaweb/kasa-monitor",
+  "license": "GPL-3.0"
+}

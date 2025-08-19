@@ -19,6 +19,7 @@ slowapi
 python-dotenv
 reportlab
 openpyxl
+pandas
 jinja2
 aiosmtplib
 psutil

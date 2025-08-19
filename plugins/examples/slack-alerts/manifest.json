@@ -1,0 +1,58 @@
+{
+  "id": "slack-alerts-example",
+  "name": "Slack Alerts Example",
+  "version": "1.0.0",
+  "author": "Kasa Monitor Team",
+  "description": "Example integration plugin that sends device alerts and notifications to Slack channels",
+  "plugin_type": "integration",
+  "main_class": "SlackAlertsPlugin",
+  "dependencies": [],
+  "python_dependencies": [
+    "aiohttp>=3.8.0"
+  ],
+  "permissions": [
+    "notifications.send",
+    "notifications.receive",
+    "devices.read"
+  ],
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "webhook_url": {
+        "type": "string",
+        "description": "Slack webhook URL for sending messages"
+      },
+      "channel": {
+        "type": "string",
+        "default": "#kasa-monitor",
+        "description": "Slack channel to send messages to"
+      },
+      "username": {
+        "type": "string",
+        "default": "Kasa Monitor",
+        "description": "Bot username for Slack messages"
+      },
+      "emoji": {
+        "type": "string",
+        "default": ":electric_plug:",
+        "description": "Bot emoji for Slack messages"
+      },
+      "alert_types": {
+        "type": "array",
+        "items": {"type": "string"},
+        "default": ["power_alert", "device_offline", "device_online"],
+        "description": "Types of alerts to send to Slack"
+      }
+    },
+    "required": ["webhook_url"]
+  },
+  "hooks": [
+    "notification.send",
+    "device.status_changed",
+    "device.discovered"
+  ],
+  "api_version": "1.0",
+  "min_app_version": "0.3.0",
+  "homepage": "https://github.com/kasaweb/kasa-monitor",
+  "license": "GPL-3.0"
+}

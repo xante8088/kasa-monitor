@@ -33,6 +33,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from hook_system import HookManager, HookPriority, HookType
+from plugin_security import PluginSecurityManager, TrustLevel
 from plugin_system import (
     PluginLoader,
     PluginManifest,
@@ -106,6 +107,9 @@ class PluginAPIRouter:
         self.hook_manager = hook_manager
         self.db_path = db_path
         self.marketplace_url = "https://api.kasamonitor.com/plugins"  # Placeholder
+        
+        # Initialize security manager
+        self.security_manager = PluginSecurityManager()
 
         self._setup_routes()
 
@@ -329,9 +333,10 @@ class PluginAPIRouter:
         async def upload_and_install_plugin(
             file: UploadFile = File(...),
             enable_after_install: bool = False,
+            skip_signature_check: bool = False,
             background_tasks: BackgroundTasks = None,
         ):
-            """Upload and install a plugin."""
+            """Upload and install a plugin with security verification."""
             # Save uploaded file
             temp_dir = tempfile.mkdtemp()
             temp_file = Path(temp_dir) / file.filename
@@ -340,13 +345,52 @@ class PluginAPIRouter:
                 content = await file.read()
                 f.write(content)
 
+            # Perform security check
+            if not skip_signature_check:
+                security_result = self.security_manager.check_plugin_security(str(temp_file))
+                
+                if not security_result["allowed"]:
+                    # Cleanup temp file
+                    shutil.rmtree(temp_dir)
+                    
+                    # Convert enum values to strings for JSON serialization
+                    serializable_result = security_result.copy()
+                    if "trust_level" in serializable_result:
+                        serializable_result["trust_level"] = serializable_result["trust_level"].value
+                    if "verification" in serializable_result and serializable_result["verification"]:
+                        if "trust_level" in serializable_result["verification"]:
+                            serializable_result["verification"]["trust_level"] = serializable_result["verification"]["trust_level"].value
+                    
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "error": "Plugin security check failed",
+                            "security_result": serializable_result,
+                            "message": "Plugin does not meet security requirements"
+                        }
+                    )
+                
+                # Include security information in response
+                security_info = {
+                    "trust_level": security_result["trust_level"].value,
+                    "verified": security_result["verification"]["verified"] if security_result["verification"] else False,
+                    "warnings": security_result["warnings"]
+                }
+            else:
+                security_info = {
+                    "trust_level": "bypassed",
+                    "verified": False,
+                    "warnings": ["Security check was bypassed"]
+                }
+
             # Install plugin
             background_tasks.add_task(
                 self._install_plugin_task, str(temp_file), True, enable_after_install
             )
 
             return {
-                "message": f"Plugin {file.filename} uploaded and installation started"
+                "message": f"Plugin {file.filename} uploaded and installation started",
+                "security": security_info
             }
 
         @self.app.delete("/api/plugins/{plugin_id}")
@@ -459,6 +503,90 @@ class PluginAPIRouter:
             return {
                 "message": f"Updating {plugin_id} to version {update_info['latest_version']}"
             }
+
+        # Security endpoints
+        @self.app.get("/api/plugins/security/policies")
+        async def get_security_policies():
+            """Get current plugin security policies."""
+            return self.security_manager.get_policies()
+
+        @self.app.post("/api/plugins/security/policies")
+        async def update_security_policies(policies: Dict[str, Any]):
+            """Update plugin security policies."""
+            success = self.security_manager.update_policies(policies)
+            
+            if not success:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Failed to update security policies"
+                )
+            
+            return {
+                "message": "Security policies updated successfully",
+                "policies": self.security_manager.get_policies()
+            }
+
+        @self.app.post("/api/plugins/security/verify")
+        async def verify_plugin_security(file: UploadFile = File(...)):
+            """Verify a plugin's security without installing it."""
+            # Save uploaded file temporarily
+            temp_dir = tempfile.mkdtemp()
+            temp_file = Path(temp_dir) / file.filename
+
+            try:
+                with open(temp_file, "wb") as f:
+                    content = await file.read()
+                    f.write(content)
+
+                # Perform security check
+                security_result = self.security_manager.check_plugin_security(str(temp_file))
+                
+                return {
+                    "filename": file.filename,
+                    "security_check": security_result
+                }
+            
+            finally:
+                # Cleanup temp file
+                shutil.rmtree(temp_dir)
+
+        @self.app.get("/api/plugins/security/trusted-keys")
+        async def list_trusted_keys():
+            """List trusted signing keys."""
+            keys = []
+            for key_name, _ in self.security_manager.verifier.trusted_keys.items():
+                trust_level = self.security_manager.verifier._determine_trust_level(key_name)
+                keys.append({
+                    "name": key_name,
+                    "trust_level": trust_level.value
+                })
+            
+            return {"trusted_keys": keys}
+
+        @self.app.post("/api/plugins/security/trusted-keys")
+        async def add_trusted_key(key_data: Dict[str, str]):
+            """Add a trusted signing key."""
+            key_name = key_data.get("name")
+            public_key_pem = key_data.get("public_key")
+            
+            if not key_name or not public_key_pem:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Missing key name or public key data"
+                )
+            
+            success = self.security_manager.verifier.add_trusted_key(
+                key_name, 
+                public_key_pem.encode('utf-8')
+            )
+            
+            if not success:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Failed to add trusted key"
+                )
+            
+            return {"message": f"Trusted key '{key_name}' added successfully"}
 
     async def _enable_plugin_task(self, plugin_id: str):
         """Background task to enable a plugin.

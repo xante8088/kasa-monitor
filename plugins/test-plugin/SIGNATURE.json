@@ -1,0 +1,1 @@
+{"algorithm": "RSA-PSS-SHA256", "metadata": {"organization": "Kasa Monitor", "signer": "Test Developer"}, "plugin_hash": "1e60f218c4c672c6d7b9cc12f3e2dd51a03420f2ef37230f929cf5a785e1e75c", "signer": "Test Developer", "timestamp": "2025-08-19T20:27:50.719040+00:00", "version": "1.0"}

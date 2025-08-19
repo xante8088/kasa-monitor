@@ -1,0 +1,31 @@
+{
+  "id": "my-plugin-id",
+  "name": "My Plugin Name",
+  "version": "1.0.0",
+  "author": "Your Name",
+  "description": "Description of what your plugin does",
+  "plugin_type": "device",
+  "main_class": "MyPlugin",
+  "dependencies": [],
+  "python_dependencies": [],
+  "permissions": [
+    "devices.read"
+  ],
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "example_setting": {
+        "type": "string",
+        "default": "default_value",
+        "description": "Example configuration setting"
+      }
+    }
+  },
+  "hooks": [
+    "device.reading_updated"
+  ],
+  "api_version": "1.0",
+  "min_app_version": "0.3.0",
+  "homepage": "https://github.com/your-username/your-plugin",
+  "license": "GPL-3.0"
+}

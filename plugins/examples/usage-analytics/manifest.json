@@ -1,0 +1,52 @@
+{
+  "id": "usage-analytics-example",
+  "name": "Usage Analytics Example",
+  "version": "1.0.0",
+  "author": "Kasa Monitor Team",
+  "description": "Example analytics plugin that tracks device usage patterns and generates insights",
+  "plugin_type": "analytics",
+  "main_class": "UsageAnalyticsPlugin",
+  "dependencies": [],
+  "python_dependencies": [
+    "pandas>=1.5.0",
+    "numpy>=1.21.0"
+  ],
+  "permissions": [
+    "devices.read",
+    "analytics.write",
+    "analytics.read"
+  ],
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "analysis_interval": {
+        "type": "integer",
+        "default": 3600,
+        "description": "Analysis interval in seconds (default: 1 hour)"
+      },
+      "retention_days": {
+        "type": "integer",
+        "default": 30,
+        "description": "Days to retain analytics data"
+      },
+      "min_usage_threshold": {
+        "type": "number",
+        "default": 10.0,
+        "description": "Minimum power usage in watts to consider 'active'"
+      },
+      "generate_reports": {
+        "type": "boolean",
+        "default": true,
+        "description": "Generate daily usage reports"
+      }
+    }
+  },
+  "hooks": [
+    "device.reading_updated",
+    "analytics.report_requested"
+  ],
+  "api_version": "1.0",
+  "min_app_version": "0.3.0",
+  "homepage": "https://github.com/kasaweb/kasa-monitor",
+  "license": "GPL-3.0"
+}
