@@ -121,7 +121,7 @@ fi
 
 # 4. Check for TODO and FIXME comments
 print_status "info" "Checking for unresolved TODO/FIXME comments..."
-TODO_COUNT=$(grep -r -i "TODO\|FIXME" . --include="*.py" | wc -l || echo "0")
+TODO_COUNT=$(grep -r -i "TODO\|FIXME" . --include="*.py" --exclude-dir=venv --exclude-dir=node_modules --exclude-dir=backend/venv | wc -l || echo "0")
 if [ "$TODO_COUNT" -gt 0 ]; then
     print_status "warning" "Found $TODO_COUNT TODO/FIXME comments"
 else
