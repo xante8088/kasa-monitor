@@ -30,10 +30,10 @@ from typing import Any, Dict, List, Optional
 import aiohttp
 from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
+from plugin_security import PluginSecurityManager, TrustLevel
 from pydantic import BaseModel, Field
 
 from hook_system import HookManager, HookPriority, HookType
-from plugin_security import PluginSecurityManager, TrustLevel
 from plugin_system import (
     PluginLoader,
     PluginManifest,
@@ -107,7 +107,7 @@ class PluginAPIRouter:
         self.hook_manager = hook_manager
         self.db_path = db_path
         self.marketplace_url = "https://api.kasamonitor.com/plugins"  # Placeholder
-        
+
         # Initialize security manager
         self.security_manager = PluginSecurityManager()
 
@@ -347,40 +347,53 @@ class PluginAPIRouter:
 
             # Perform security check
             if not skip_signature_check:
-                security_result = self.security_manager.check_plugin_security(str(temp_file))
-                
+                security_result = self.security_manager.check_plugin_security(
+                    str(temp_file)
+                )
+
                 if not security_result["allowed"]:
                     # Cleanup temp file
                     shutil.rmtree(temp_dir)
-                    
+
                     # Convert enum values to strings for JSON serialization
                     serializable_result = security_result.copy()
                     if "trust_level" in serializable_result:
-                        serializable_result["trust_level"] = serializable_result["trust_level"].value
-                    if "verification" in serializable_result and serializable_result["verification"]:
+                        serializable_result["trust_level"] = serializable_result[
+                            "trust_level"
+                        ].value
+                    if (
+                        "verification" in serializable_result
+                        and serializable_result["verification"]
+                    ):
                         if "trust_level" in serializable_result["verification"]:
-                            serializable_result["verification"]["trust_level"] = serializable_result["verification"]["trust_level"].value
-                    
+                            serializable_result["verification"]["trust_level"] = (
+                                serializable_result["verification"]["trust_level"].value
+                            )
+
                     raise HTTPException(
                         status_code=400,
                         detail={
                             "error": "Plugin security check failed",
                             "security_result": serializable_result,
-                            "message": "Plugin does not meet security requirements"
-                        }
+                            "message": "Plugin does not meet security requirements",
+                        },
                     )
-                
+
                 # Include security information in response
                 security_info = {
                     "trust_level": security_result["trust_level"].value,
-                    "verified": security_result["verification"]["verified"] if security_result["verification"] else False,
-                    "warnings": security_result["warnings"]
+                    "verified": (
+                        security_result["verification"]["verified"]
+                        if security_result["verification"]
+                        else False
+                    ),
+                    "warnings": security_result["warnings"],
                 }
             else:
                 security_info = {
                     "trust_level": "bypassed",
                     "verified": False,
-                    "warnings": ["Security check was bypassed"]
+                    "warnings": ["Security check was bypassed"],
                 }
 
             # Install plugin
@@ -390,7 +403,7 @@ class PluginAPIRouter:
 
             return {
                 "message": f"Plugin {file.filename} uploaded and installation started",
-                "security": security_info
+                "security": security_info,
             }
 
         @self.app.delete("/api/plugins/{plugin_id}")
@@ -514,16 +527,15 @@ class PluginAPIRouter:
         async def update_security_policies(policies: Dict[str, Any]):
             """Update plugin security policies."""
             success = self.security_manager.update_policies(policies)
-            
+
             if not success:
                 raise HTTPException(
-                    status_code=400,
-                    detail="Failed to update security policies"
+                    status_code=400, detail="Failed to update security policies"
                 )
-            
+
             return {
                 "message": "Security policies updated successfully",
-                "policies": self.security_manager.get_policies()
+                "policies": self.security_manager.get_policies(),
             }
 
         @self.app.post("/api/plugins/security/verify")
@@ -539,13 +551,12 @@ class PluginAPIRouter:
                     f.write(content)
 
                 # Perform security check
-                security_result = self.security_manager.check_plugin_security(str(temp_file))
-                
-                return {
-                    "filename": file.filename,
-                    "security_check": security_result
-                }
-            
+                security_result = self.security_manager.check_plugin_security(
+                    str(temp_file)
+                )
+
+                return {"filename": file.filename, "security_check": security_result}
+
             finally:
                 # Cleanup temp file
                 shutil.rmtree(temp_dir)
@@ -555,12 +566,11 @@ class PluginAPIRouter:
             """List trusted signing keys."""
             keys = []
             for key_name, _ in self.security_manager.verifier.trusted_keys.items():
-                trust_level = self.security_manager.verifier._determine_trust_level(key_name)
-                keys.append({
-                    "name": key_name,
-                    "trust_level": trust_level.value
-                })
-            
+                trust_level = self.security_manager.verifier._determine_trust_level(
+                    key_name
+                )
+                keys.append({"name": key_name, "trust_level": trust_level.value})
+
             return {"trusted_keys": keys}
 
         @self.app.post("/api/plugins/security/trusted-keys")
@@ -568,24 +578,19 @@ class PluginAPIRouter:
             """Add a trusted signing key."""
             key_name = key_data.get("name")
             public_key_pem = key_data.get("public_key")
-            
+
             if not key_name or not public_key_pem:
                 raise HTTPException(
-                    status_code=400,
-                    detail="Missing key name or public key data"
+                    status_code=400, detail="Missing key name or public key data"
                 )
-            
+
             success = self.security_manager.verifier.add_trusted_key(
-                key_name, 
-                public_key_pem.encode('utf-8')
+                key_name, public_key_pem.encode("utf-8")
             )
-            
+
             if not success:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Failed to add trusted key"
-                )
-            
+                raise HTTPException(status_code=400, detail="Failed to add trusted key")
+
             return {"message": f"Trusted key '{key_name}' added successfully"}
 
     async def _enable_plugin_task(self, plugin_id: str):

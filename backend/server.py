@@ -152,9 +152,10 @@ except ImportError as e:
 
 # Import plugin system modules
 try:
-    from hook_system import HookManager
-    from plugin_api import PluginAPIRouter
     from data_export_api import DataExportAPIRouter
+    from plugin_api import PluginAPIRouter
+
+    from hook_system import HookManager
     from plugin_system import PluginLoader
 
     plugin_system_available = True
@@ -360,19 +361,16 @@ class KasaMonitorApp:
         if plugin_system_available:
             self.hook_manager = HookManager()
             self.plugin_loader = PluginLoader(
-                plugin_dir="./plugins",
-                db_path="kasa_monitor.db",
-                app_version="1.0.0"
+                plugin_dir="./plugins", db_path="kasa_monitor.db", app_version="1.0.0"
             )
             self.plugin_api_router = PluginAPIRouter(
                 app=self.app,
                 plugin_loader=self.plugin_loader,
                 hook_manager=self.hook_manager,
-                db_path="kasa_monitor.db"
+                db_path="kasa_monitor.db",
             )
             self.data_export_router = DataExportAPIRouter(
-                app=self.app,
-                db_path="kasa_monitor.db"
+                app=self.app, db_path="kasa_monitor.db"
             )
 
         self.setup_middleware()
@@ -1576,34 +1574,38 @@ class KasaMonitorApp:
                 # Use relative path for development, absolute path for production
                 ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
                 ssl_dir.mkdir(exist_ok=True)
-                
+
                 files = []
                 for file_path in ssl_dir.iterdir():
                     if file_path.is_file():
                         stat = file_path.stat()
                         file_type = "Unknown"
-                        
+
                         # Determine file type based on extension
                         ext = file_path.suffix.lower()
-                        if ext in ['.crt', '.cer', '.pem']:
+                        if ext in [".crt", ".cer", ".pem"]:
                             file_type = "Certificate"
-                        elif ext in ['.key']:
+                        elif ext in [".key"]:
                             file_type = "Private Key"
-                        elif ext in ['.csr']:
+                        elif ext in [".csr"]:
                             file_type = "Certificate Request"
-                        elif ext in ['.p12', '.pfx']:
+                        elif ext in [".p12", ".pfx"]:
                             file_type = "PKCS#12"
-                        
-                        files.append({
-                            "filename": file_path.name,
-                            "path": str(file_path),
-                            "size": stat.st_size,
-                            "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                            "type": file_type
-                        })
-                
+
+                        files.append(
+                            {
+                                "filename": file_path.name,
+                                "path": str(file_path),
+                                "size": stat.st_size,
+                                "modified": datetime.fromtimestamp(
+                                    stat.st_mtime
+                                ).isoformat(),
+                                "type": file_type,
+                            }
+                        )
+
                 return {"files": files}
-                
+
             except Exception as e:
                 logger.error(f"Error listing SSL files: {e}")
                 raise HTTPException(status_code=500, detail="Failed to list SSL files")
@@ -1616,45 +1618,43 @@ class KasaMonitorApp:
             """Generate a Certificate Signing Request (CSR) and private key."""
             try:
                 # Extract CSR parameters
-                country = csr_data.get('country', 'US')
-                state = csr_data.get('state', '')
-                city = csr_data.get('city', '')
-                organization = csr_data.get('organization', '')
-                organizational_unit = csr_data.get('organizational_unit', '')
-                common_name = csr_data.get('common_name', '')
-                email = csr_data.get('email', '')
-                san_domains = csr_data.get('san_domains', [])
-                key_size = csr_data.get('key_size', 2048)
-                
+                country = csr_data.get("country", "US")
+                state = csr_data.get("state", "")
+                city = csr_data.get("city", "")
+                organization = csr_data.get("organization", "")
+                organizational_unit = csr_data.get("organizational_unit", "")
+                common_name = csr_data.get("common_name", "")
+                email = csr_data.get("email", "")
+                san_domains = csr_data.get("san_domains", [])
+                key_size = csr_data.get("key_size", 2048)
+
                 if not all([country, state, city, organization, common_name, email]):
-                    raise HTTPException(status_code=400, detail="Missing required CSR fields")
-                
+                    raise HTTPException(
+                        status_code=400, detail="Missing required CSR fields"
+                    )
+
                 # Create ssl directory
                 ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
                 ssl_dir.mkdir(exist_ok=True)
-                
+
                 # Generate timestamp for unique filenames
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 key_filename = f"{common_name}_{timestamp}.key"
                 csr_filename = f"{common_name}_{timestamp}.csr"
-                
+
                 key_path = ssl_dir / key_filename
                 csr_path = ssl_dir / csr_filename
-                
+
                 # Generate private key and CSR using OpenSSL
                 import subprocess
-                
+
                 # Generate private key
-                key_cmd = [
-                    "openssl", "genrsa",
-                    "-out", str(key_path),
-                    str(key_size)
-                ]
-                
+                key_cmd = ["openssl", "genrsa", "-out", str(key_path), str(key_size)]
+
                 result = subprocess.run(key_cmd, capture_output=True, text=True)
                 if result.returncode != 0:
                     raise Exception(f"Failed to generate private key: {result.stderr}")
-                
+
                 # Create config file for CSR
                 config_content = f"""[req]
 distinguished_name = req_distinguished_name
@@ -1677,36 +1677,40 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 if san_domains:
                     san_list = ", ".join([f"DNS:{domain}" for domain in san_domains])
                     config_content += f"\nsubjectAltName = {san_list}"
-                
+
                 config_path = ssl_dir / f"temp_config_{timestamp}.conf"
-                with open(config_path, 'w') as f:
+                with open(config_path, "w") as f:
                     f.write(config_content)
-                
+
                 try:
                     # Generate CSR
                     csr_cmd = [
-                        "openssl", "req",
+                        "openssl",
+                        "req",
                         "-new",
-                        "-key", str(key_path),
-                        "-out", str(csr_path),
-                        "-config", str(config_path)
+                        "-key",
+                        str(key_path),
+                        "-out",
+                        str(csr_path),
+                        "-config",
+                        str(config_path),
                     ]
-                    
+
                     result = subprocess.run(csr_cmd, capture_output=True, text=True)
                     if result.returncode != 0:
                         raise Exception(f"Failed to generate CSR: {result.stderr}")
-                        
+
                 finally:
                     # Clean up temporary config file
                     if config_path.exists():
                         config_path.unlink()
-                
+
                 return {
                     "message": "CSR and private key generated successfully",
                     "key_file": key_filename,
-                    "csr_file": csr_filename
+                    "csr_file": csr_filename,
                 }
-                
+
             except subprocess.CalledProcessError as e:
                 logger.error(f"OpenSSL error: {e}")
                 raise HTTPException(status_code=500, detail="OpenSSL command failed")
@@ -1723,20 +1727,20 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             try:
                 ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
                 file_path = ssl_dir / filename
-                
+
                 # Validate file exists and is within ssl directory
                 if not file_path.exists():
                     raise HTTPException(status_code=404, detail="File not found")
-                
+
                 if not str(file_path).startswith(str(ssl_dir)):
                     raise HTTPException(status_code=400, detail="Invalid file path")
-                
+
                 return FileResponse(
                     path=str(file_path),
                     filename=filename,
-                    media_type='application/octet-stream'
+                    media_type="application/octet-stream",
                 )
-                
+
             except HTTPException:
                 raise
             except Exception as e:
@@ -1750,30 +1754,34 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
         ):
             """Download multiple SSL files as a ZIP archive."""
             try:
-                filenames = file_data.get('filenames', [])
+                filenames = file_data.get("filenames", [])
                 if not filenames:
                     raise HTTPException(status_code=400, detail="No files specified")
-                
+
                 ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
-                
+
                 # Create temporary ZIP file
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as tmp_zip:
-                    with zipfile.ZipFile(tmp_zip.name, 'w') as zf:
+                with tempfile.NamedTemporaryFile(
+                    delete=False, suffix=".zip"
+                ) as tmp_zip:
+                    with zipfile.ZipFile(tmp_zip.name, "w") as zf:
                         for filename in filenames:
                             file_path = ssl_dir / filename
-                            
-                            if file_path.exists() and str(file_path).startswith(str(ssl_dir)):
+
+                            if file_path.exists() and str(file_path).startswith(
+                                str(ssl_dir)
+                            ):
                                 zf.write(file_path, filename)
-                
+
                 def cleanup_temp_file():
                     try:
                         os.unlink(tmp_zip.name)
                     except:
                         pass
-                
+
                 def file_generator():
                     try:
-                        with open(tmp_zip.name, 'rb') as f:
+                        with open(tmp_zip.name, "rb") as f:
                             while True:
                                 chunk = f.read(8192)
                                 if not chunk:
@@ -1781,13 +1789,15 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                                 yield chunk
                     finally:
                         cleanup_temp_file()
-                
+
                 return StreamingResponse(
                     file_generator(),
-                    media_type='application/zip',
-                    headers={"Content-Disposition": f"attachment; filename=ssl_files.zip"}
+                    media_type="application/zip",
+                    headers={
+                        "Content-Disposition": f"attachment; filename=ssl_files.zip"
+                    },
                 )
-                
+
             except HTTPException:
                 raise
             except Exception as e:
@@ -1802,25 +1812,25 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
         ):
             """Delete an SSL file."""
             try:
-                confirmation = request_data.get('confirmation', '')
-                if confirmation.lower() != 'delete':
+                confirmation = request_data.get("confirmation", "")
+                if confirmation.lower() != "delete":
                     raise HTTPException(status_code=400, detail="Invalid confirmation")
-                
+
                 ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
                 file_path = ssl_dir / filename
-                
+
                 # Validate file exists and is within ssl directory
                 if not file_path.exists():
                     raise HTTPException(status_code=404, detail="File not found")
-                
+
                 if not str(file_path).startswith(str(ssl_dir)):
                     raise HTTPException(status_code=400, detail="Invalid file path")
-                
+
                 # Delete the file
                 file_path.unlink()
-                
+
                 return {"message": f"File {filename} deleted successfully"}
-                
+
             except HTTPException:
                 raise
             except Exception as e:
@@ -1835,29 +1845,35 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             """Upload SSL certificate file."""
             try:
                 # Validate file type
-                if not file.filename or not file.filename.endswith(('.crt', '.cer', '.pem')):
-                    raise HTTPException(status_code=400, detail="Invalid certificate file type")
-                
+                if not file.filename or not file.filename.endswith(
+                    (".crt", ".cer", ".pem")
+                ):
+                    raise HTTPException(
+                        status_code=400, detail="Invalid certificate file type"
+                    )
+
                 ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
                 ssl_dir.mkdir(exist_ok=True)
-                
+
                 # Save file
                 file_path = ssl_dir / file.filename
-                with open(file_path, 'wb') as f:
+                with open(file_path, "wb") as f:
                     content = await file.read()
                     f.write(content)
-                
+
                 return {
                     "message": "Certificate uploaded successfully",
                     "path": str(file_path),
-                    "filename": file.filename
+                    "filename": file.filename,
                 }
-                
+
             except HTTPException:
                 raise
             except Exception as e:
                 logger.error(f"Error uploading certificate: {e}")
-                raise HTTPException(status_code=500, detail="Failed to upload certificate")
+                raise HTTPException(
+                    status_code=500, detail="Failed to upload certificate"
+                )
 
         @self.app.post("/api/system/ssl/upload-key")
         async def upload_ssl_private_key(
@@ -1867,32 +1883,36 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             """Upload SSL private key file."""
             try:
                 # Validate file type
-                if not file.filename or not file.filename.endswith(('.key', '.pem')):
-                    raise HTTPException(status_code=400, detail="Invalid private key file type")
-                
+                if not file.filename or not file.filename.endswith((".key", ".pem")):
+                    raise HTTPException(
+                        status_code=400, detail="Invalid private key file type"
+                    )
+
                 ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
                 ssl_dir.mkdir(exist_ok=True)
-                
+
                 # Save file
                 file_path = ssl_dir / file.filename
-                with open(file_path, 'wb') as f:
+                with open(file_path, "wb") as f:
                     content = await file.read()
                     f.write(content)
-                
+
                 # Set restrictive permissions on private key
                 os.chmod(file_path, 0o600)
-                
+
                 return {
                     "message": "Private key uploaded successfully",
                     "path": str(file_path),
-                    "filename": file.filename
+                    "filename": file.filename,
                 }
-                
+
             except HTTPException:
                 raise
             except Exception as e:
                 logger.error(f"Error uploading private key: {e}")
-                raise HTTPException(status_code=500, detail="Failed to upload private key")
+                raise HTTPException(
+                    status_code=500, detail="Failed to upload private key"
+                )
 
         # Permission management endpoints
         @self.app.get("/api/permissions")
@@ -2824,63 +2844,73 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
 
 if __name__ == "__main__":
     app_instance = KasaMonitorApp()
-    
+
     # Check for SSL configuration
     import asyncio
     import os
     from pathlib import Path
-    
+
     async def get_ssl_config():
         """Get SSL configuration from database."""
         try:
             # Initialize database connection temporarily
             temp_db = DatabaseManager()
             await temp_db.initialize()
-            
+
             # Get SSL configuration
             ssl_enabled = await temp_db.get_system_config("ssl.enabled")
             ssl_cert_path = await temp_db.get_system_config("ssl.cert_path")
             ssl_key_path = await temp_db.get_system_config("ssl.key_path")
             ssl_port = await temp_db.get_system_config("ssl.port")
-            
+
             await temp_db.close()
-            
+
             return {
                 "enabled": ssl_enabled == "True",
                 "cert_path": ssl_cert_path,
                 "key_path": ssl_key_path,
-                "port": int(ssl_port) if ssl_port and ssl_port.isdigit() else int(os.getenv("HTTPS_PORT", "5273"))
+                "port": (
+                    int(ssl_port)
+                    if ssl_port and ssl_port.isdigit()
+                    else int(os.getenv("HTTPS_PORT", "5273"))
+                ),
             }
         except Exception as e:
             logger.error(f"Error getting SSL config: {e}")
-            return {"enabled": False, "cert_path": "", "key_path": "", "port": int(os.getenv("HTTPS_PORT", "5273"))}
-    
+            return {
+                "enabled": False,
+                "cert_path": "",
+                "key_path": "",
+                "port": int(os.getenv("HTTPS_PORT", "5273")),
+            }
+
     # Get SSL configuration
     ssl_config = asyncio.run(get_ssl_config())
-    
+
     # Check if SSL should be enabled
     if ssl_config["enabled"] and ssl_config["cert_path"] and ssl_config["key_path"]:
         cert_path = Path(ssl_config["cert_path"])
         key_path = Path(ssl_config["key_path"])
         ssl_port = ssl_config.get("port", 5273)
-        
+
         # Convert relative paths to absolute paths relative to project root
         if not cert_path.is_absolute():
             cert_path = Path(__file__).parent.parent / cert_path
         if not key_path.is_absolute():
             key_path = Path(__file__).parent.parent / key_path
-            
+
         if cert_path.exists() and key_path.exists():
             # SSL is enabled and certificates exist - run both HTTP and HTTPS servers
             import threading
-            import uvicorn.server
+
             import uvicorn.config
-            
+            import uvicorn.server
+
             logger.info(f"Starting HTTPS server on port {ssl_port}")
             logger.info(f"Starting HTTP server on port 5272")
             logger.info(f"SSL Certificate: {cert_path}")
             logger.info(f"SSL Private Key: {key_path}")
-            
+
             # Configure HTTPS server
             https_config = uvicorn.Config(
                 app=app_instance.app,
@@ -2888,27 +2918,26 @@ if __name__ == "__main__":
                 port=ssl_port,
                 ssl_certfile=str(cert_path),
                 ssl_keyfile=str(key_path),
-                log_level="info"
+                log_level="info",
             )
-            
+
             # Configure HTTP server
             http_config = uvicorn.Config(
-                app=app_instance.app,
-                host="0.0.0.0", 
-                port=5272,
-                log_level="info"
+                app=app_instance.app, host="0.0.0.0", port=5272, log_level="info"
             )
-            
+
             # Start HTTPS server in a separate thread
             https_server = uvicorn.Server(https_config)
             https_thread = threading.Thread(target=https_server.run, daemon=True)
             https_thread.start()
-            
+
             # Start HTTP server in main thread
             http_server = uvicorn.Server(http_config)
             http_server.run()
         else:
-            logger.warning(f"SSL enabled but files not found - cert: {cert_path}, key: {key_path}")
+            logger.warning(
+                f"SSL enabled but files not found - cert: {cert_path}, key: {key_path}"
+            )
             logger.info("Starting server without SSL on port 5272")
             uvicorn.run(app=app_instance.app, host="0.0.0.0", port=5272)
     else:

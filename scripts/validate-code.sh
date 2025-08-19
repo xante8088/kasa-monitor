@@ -69,12 +69,12 @@ fi
 # 1.5. Check code formatting with black
 print_status "info" "Checking code formatting with black..."
 if command -v black &> /dev/null; then
-    if black --check --diff . 2>/dev/null; then
+    if black --check --diff backend/ 2>/dev/null; then
         print_status "success" "Code formatting is correct"
     else
         print_status "warning" "Code formatting issues found"
         print_status "info" "Auto-fixing code formatting..."
-        black . 2>/dev/null
+        black backend/ 2>/dev/null
         print_status "success" "Code formatting fixed"
     fi
 else
