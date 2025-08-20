@@ -28,9 +28,9 @@ from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import jwt
+from jwt_secret_manager import get_all_valid_jwt_secrets, get_current_jwt_secret
 
 from models import Permission, User, UserRole
-from jwt_secret_manager import get_current_jwt_secret, get_all_valid_jwt_secrets
 
 # Load environment variables
 load_dotenv()
@@ -144,7 +144,7 @@ class AuthManager:
         """Verify and decode a JWT token with key rotation support."""
         # Try all valid secrets (current + recent previous for grace period)
         valid_secrets = get_all_valid_jwt_secrets()
-        
+
         last_exception = None
         for secret in valid_secrets:
             try:
@@ -158,7 +158,7 @@ class AuthManager:
                 # Invalid token with this secret, try next one
                 last_exception = e
                 continue
-                
+
         # No secret worked, raise appropriate exception
         if isinstance(last_exception, jwt.ExpiredSignatureError):
             raise HTTPException(
@@ -169,7 +169,10 @@ class AuthManager:
         else:
             # Invalid token - none of the secrets worked
             import logging
-            logging.error(f"JWT verification failed with all secrets: {str(last_exception)}")
+
+            logging.error(
+                f"JWT verification failed with all secrets: {str(last_exception)}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",

@@ -675,16 +675,21 @@ class KasaMonitorApp:
         # Add secure CORS middleware
         try:
             from security_fixes.critical.cors_fix import setup_cors_security
+
             self.cors_config = setup_cors_security(self.app)
-            logger.info(f"Secure CORS configured for environment: {self.cors_config.environment}")
-            
+            logger.info(
+                f"Secure CORS configured for environment: {self.cors_config.environment}"
+            )
+
             # Update Socket.IO CORS to match app CORS
             if self.cors_config.allowed_origins:
                 self.sio = socketio.AsyncServer(
-                    async_mode="asgi", 
-                    cors_allowed_origins=self.cors_config.allowed_origins
+                    async_mode="asgi",
+                    cors_allowed_origins=self.cors_config.allowed_origins,
                 )
-                logger.info(f"Socket.IO CORS origins: {self.cors_config.allowed_origins}")
+                logger.info(
+                    f"Socket.IO CORS origins: {self.cors_config.allowed_origins}"
+                )
         except ImportError:
             logger.warning("CORS security fix not available, using restricted CORS")
             self.app.add_middleware(
@@ -696,8 +701,8 @@ class KasaMonitorApp:
             )
             # Update Socket.IO CORS to match fallback CORS
             self.sio = socketio.AsyncServer(
-                async_mode="asgi", 
-                cors_allowed_origins=["http://localhost:3000", "http://127.0.0.1:3000"]
+                async_mode="asgi",
+                cors_allowed_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
             )
 
     def enhanced_require_auth(self, request: Request):
@@ -2525,39 +2530,65 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             try:
                 # Secure file upload validation
                 try:
-                    from security_fixes.critical.file_upload_security import SecureFileUploadManager
+                    from security_fixes.critical.file_upload_security import (
+                        SecureFileUploadManager,
+                    )
+
                     upload_manager = SecureFileUploadManager()
                     upload_result = await upload_manager.handle_upload(file, "ssl_cert")
-                    
+
                     # Move approved file to SSL directory
-                    ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
+                    ssl_dir = (
+                        Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
+                    )
                     ssl_dir.mkdir(exist_ok=True)
                     file_path = ssl_dir / file.filename
-                    
-                    if upload_manager.approve_quarantined_file(upload_result["quarantine_path"], str(file_path)):
-                        logger.info(f"SSL certificate uploaded successfully: {file.filename}")
+
+                    if upload_manager.approve_quarantined_file(
+                        upload_result["quarantine_path"], str(file_path)
+                    ):
+                        logger.info(
+                            f"SSL certificate uploaded successfully: {file.filename}"
+                        )
                     else:
-                        raise HTTPException(status_code=500, detail="Failed to move certificate file")
-                        
+                        raise HTTPException(
+                            status_code=500, detail="Failed to move certificate file"
+                        )
+
                 except ImportError:
-                    logger.warning("Secure file upload not available, using basic validation")
+                    logger.warning(
+                        "Secure file upload not available, using basic validation"
+                    )
                     # Fallback to basic validation
-                    if not file.filename or not file.filename.endswith((".crt", ".cer", ".pem")):
-                        raise HTTPException(status_code=400, detail="Invalid certificate file type")
-                    
+                    if not file.filename or not file.filename.endswith(
+                        (".crt", ".cer", ".pem")
+                    ):
+                        raise HTTPException(
+                            status_code=400, detail="Invalid certificate file type"
+                        )
+
                     # Basic size check
                     content = await file.read()
                     if len(content) > 5 * 1024 * 1024:  # 5MB limit for certificates
-                        raise HTTPException(status_code=400, detail="Certificate file too large")
-                    
-                    # Validate certificate format
-                    if b'-----BEGIN CERTIFICATE-----' not in content or b'-----END CERTIFICATE-----' not in content:
-                        raise HTTPException(status_code=400, detail="Invalid certificate format")
+                        raise HTTPException(
+                            status_code=400, detail="Certificate file too large"
+                        )
 
-                    ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
+                    # Validate certificate format
+                    if (
+                        b"-----BEGIN CERTIFICATE-----" not in content
+                        or b"-----END CERTIFICATE-----" not in content
+                    ):
+                        raise HTTPException(
+                            status_code=400, detail="Invalid certificate format"
+                        )
+
+                    ssl_dir = (
+                        Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
+                    )
                     ssl_dir.mkdir(exist_ok=True)
                     file_path = ssl_dir / file.filename
-                    
+
                     with open(file_path, "wb") as f:
                         f.write(content)
 
@@ -2623,45 +2654,71 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             try:
                 # Secure file upload validation
                 try:
-                    from security_fixes.critical.file_upload_security import SecureFileUploadManager
+                    from security_fixes.critical.file_upload_security import (
+                        SecureFileUploadManager,
+                    )
+
                     upload_manager = SecureFileUploadManager()
                     upload_result = await upload_manager.handle_upload(file, "ssl_key")
-                    
+
                     # Move approved file to SSL directory
-                    ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
+                    ssl_dir = (
+                        Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
+                    )
                     ssl_dir.mkdir(exist_ok=True)
                     file_path = ssl_dir / file.filename
-                    
-                    if upload_manager.approve_quarantined_file(upload_result["quarantine_path"], str(file_path)):
+
+                    if upload_manager.approve_quarantined_file(
+                        upload_result["quarantine_path"], str(file_path)
+                    ):
                         # Set restrictive permissions on private key
                         os.chmod(file_path, 0o600)
-                        logger.info(f"SSL private key uploaded successfully: {file.filename}")
+                        logger.info(
+                            f"SSL private key uploaded successfully: {file.filename}"
+                        )
                     else:
-                        raise HTTPException(status_code=500, detail="Failed to move private key file")
-                        
+                        raise HTTPException(
+                            status_code=500, detail="Failed to move private key file"
+                        )
+
                 except ImportError:
-                    logger.warning("Secure file upload not available, using basic validation")
+                    logger.warning(
+                        "Secure file upload not available, using basic validation"
+                    )
                     # Fallback to basic validation
-                    if not file.filename or not file.filename.endswith((".key", ".pem")):
-                        raise HTTPException(status_code=400, detail="Invalid private key file type")
-                    
+                    if not file.filename or not file.filename.endswith(
+                        (".key", ".pem")
+                    ):
+                        raise HTTPException(
+                            status_code=400, detail="Invalid private key file type"
+                        )
+
                     # Basic size check
                     content = await file.read()
                     if len(content) > 5 * 1024 * 1024:  # 5MB limit for keys
-                        raise HTTPException(status_code=400, detail="Private key file too large")
-                    
-                    # Validate private key format
-                    if (b'-----BEGIN' not in content or b'-----END' not in content or 
-                        b'PRIVATE KEY' not in content):
-                        raise HTTPException(status_code=400, detail="Invalid private key format")
+                        raise HTTPException(
+                            status_code=400, detail="Private key file too large"
+                        )
 
-                    ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
+                    # Validate private key format
+                    if (
+                        b"-----BEGIN" not in content
+                        or b"-----END" not in content
+                        or b"PRIVATE KEY" not in content
+                    ):
+                        raise HTTPException(
+                            status_code=400, detail="Invalid private key format"
+                        )
+
+                    ssl_dir = (
+                        Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
+                    )
                     ssl_dir.mkdir(exist_ok=True)
                     file_path = ssl_dir / file.filename
-                    
+
                     with open(file_path, "wb") as f:
                         f.write(content)
-                    
+
                     # Set restrictive permissions on private key
                     os.chmod(file_path, 0o600)
 

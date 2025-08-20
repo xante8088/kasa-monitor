@@ -105,6 +105,7 @@ else:
 # Add secure CORS middleware
 try:
     from security_fixes.critical.cors_fix import setup_cors_security
+
     cors_config = setup_cors_security(app)
     logger.info(f"Secure CORS configured for environment: {cors_config.environment}")
 except ImportError:
