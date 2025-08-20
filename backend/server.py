@@ -165,6 +165,19 @@ except ImportError as e:
     logger.warning(f"Plugin system modules not available: {e}")
     plugin_system_available = False
 
+# Conditional import for rate limiting
+try:
+    from slowapi.errors import RateLimitExceeded
+except ImportError:
+    # Create a dummy class if slowapi is not available
+    class RateLimitExceeded(Exception):
+        def __init__(self, detail="Rate limit exceeded", limit=None, retry_after=None, reset_time=None):
+            self.detail = detail
+            self.limit = limit
+            self.retry_after = retry_after
+            self.reset_time = reset_time
+            super().__init__(detail)
+
 
 class DeviceManager:
     """Manages Kasa device connections and polling."""
@@ -753,7 +766,6 @@ class KasaMonitorApp:
         try:
             from rate_limiter import RateLimiter
             from slowapi import Limiter
-            from slowapi.errors import RateLimitExceeded
             from slowapi.middleware import SlowAPIMiddleware
             from slowapi.util import get_remote_address
 
