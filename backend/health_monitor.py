@@ -17,6 +17,8 @@ import redis.asyncio as redis
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import text
 
+from audit_logging import AuditLogger, AuditEvent, AuditEventType, AuditSeverity
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["health"])
@@ -25,13 +27,14 @@ router = APIRouter(tags=["health"])
 class HealthMonitor:
     """Monitors system health and component status"""
 
-    def __init__(self):
+    def __init__(self, audit_logger: Optional[AuditLogger] = None):
         self.start_time = datetime.now()
         self.component_status = {}
         self.health_checks = []
         self.last_check = None
         self.redis_client = None
         self.influxdb_client = None
+        self.audit_logger = audit_logger
 
     async def initialize(self):
         """Initialize health monitor connections"""
@@ -75,6 +78,27 @@ class HealthMonitor:
             }
         except Exception as e:
             logger.error(f"Database health check failed: {e}")
+            
+            # Log database health check failure
+            if self.audit_logger:
+                try:
+                    error_event = AuditEvent(
+                        event_type=AuditEventType.SYSTEM_ERROR,
+                        severity=AuditSeverity.CRITICAL,
+                        action="Database health check failed",
+                        details={
+                            "component": "database",
+                            "health_check_type": "database_connectivity",
+                            "error_message": str(e),
+                            "error_type": type(e).__name__,
+                            "response_time_ms": (time.time() - start_time) * 1000,
+                            "pool_info": "unavailable due to error"
+                        }
+                    )
+                    await self.audit_logger.log_event_async(error_event)
+                except Exception as audit_error:
+                    logger.error(f"Failed to log database health check failure: {audit_error}")
+            
             return {
                 "status": "unhealthy",
                 "response_time_ms": (time.time() - start_time) * 1000,
@@ -105,6 +129,27 @@ class HealthMonitor:
             }
         except Exception as e:
             logger.error(f"Redis health check failed: {e}")
+            
+            # Log Redis health check failure
+            if self.audit_logger:
+                try:
+                    error_event = AuditEvent(
+                        event_type=AuditEventType.SYSTEM_ERROR,
+                        severity=AuditSeverity.ERROR,
+                        action="Redis health check failed",
+                        details={
+                            "component": "redis",
+                            "health_check_type": "redis_connectivity",
+                            "error_message": str(e),
+                            "error_type": type(e).__name__,
+                            "response_time_ms": (time.time() - start_time) * 1000,
+                            "redis_configured": self.redis_client is not None
+                        }
+                    )
+                    await self.audit_logger.log_event_async(error_event)
+                except Exception as audit_error:
+                    logger.error(f"Failed to log Redis health check failure: {audit_error}")
+            
             return {
                 "status": "unhealthy",
                 "response_time_ms": (time.time() - start_time) * 1000,
@@ -138,6 +183,27 @@ class HealthMonitor:
                         }
         except Exception as e:
             logger.error(f"InfluxDB health check failed: {e}")
+            
+            # Log InfluxDB health check failure
+            if self.audit_logger:
+                try:
+                    error_event = AuditEvent(
+                        event_type=AuditEventType.SYSTEM_ERROR,
+                        severity=AuditSeverity.ERROR,
+                        action="InfluxDB health check failed",
+                        details={
+                            "component": "influxdb",
+                            "health_check_type": "influxdb_connectivity",
+                            "error_message": str(e),
+                            "error_type": type(e).__name__,
+                            "response_time_ms": (time.time() - start_time) * 1000,
+                            "influxdb_url": os.getenv("INFLUXDB_URL", "not_configured")
+                        }
+                    )
+                    await self.audit_logger.log_event_async(error_event)
+                except Exception as audit_error:
+                    logger.error(f"Failed to log InfluxDB health check failure: {audit_error}")
+            
             return {
                 "status": "unhealthy",
                 "response_time_ms": (time.time() - start_time) * 1000,
@@ -194,6 +260,27 @@ class HealthMonitor:
             }
         except Exception as e:
             logger.error(f"Filesystem health check failed: {e}")
+            
+            # Log filesystem health check failure
+            if self.audit_logger:
+                try:
+                    error_event = AuditEvent(
+                        event_type=AuditEventType.SYSTEM_ERROR,
+                        severity=AuditSeverity.ERROR,
+                        action="Filesystem health check failed",
+                        details={
+                            "component": "filesystem",
+                            "health_check_type": "filesystem_status",
+                            "error_message": str(e),
+                            "error_type": type(e).__name__,
+                            "data_directory": str(Path("data").absolute()),
+                            "backup_directory": str(Path("backups").absolute())
+                        }
+                    )
+                    await self.audit_logger.log_event_async(error_event)
+                except Exception as audit_error:
+                    logger.error(f"Failed to log filesystem health check failure: {audit_error}")
+            
             return {
                 "status": "unhealthy",
                 "error": str(e),
@@ -252,6 +339,26 @@ class HealthMonitor:
             }
         except Exception as e:
             logger.error(f"System resource check failed: {e}")
+            
+            # Log system resource check failure
+            if self.audit_logger:
+                try:
+                    error_event = AuditEvent(
+                        event_type=AuditEventType.SYSTEM_ERROR,
+                        severity=AuditSeverity.ERROR,
+                        action="System resource check failed",
+                        details={
+                            "component": "system_resources",
+                            "health_check_type": "resource_monitoring",
+                            "error_message": str(e),
+                            "error_type": type(e).__name__,
+                            "check_categories": ["cpu", "memory", "disk", "network", "process"]
+                        }
+                    )
+                    await self.audit_logger.log_event_async(error_event)
+                except Exception as audit_error:
+                    logger.error(f"Failed to log system resource check failure: {audit_error}")
+            
             return {
                 "status": "unhealthy",
                 "error": str(e),

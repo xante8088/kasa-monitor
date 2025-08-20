@@ -19,13 +19,29 @@ from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from audit_logging import AuditLogger, AuditEvent, AuditEventType, AuditSeverity
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/database", tags=["database"])
 
 # Initialize backup manager
 backup_manager = None
+audit_logger = None
 
+
+def get_audit_logger() -> Optional[AuditLogger]:
+    """Get the global audit logger instance"""
+    global audit_logger
+    if audit_logger is None:
+        try:
+            audit_logger = AuditLogger(
+                db_path="kasa_monitor.db", 
+                log_dir="./logs/audit"
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize audit logger: {e}")
+    return audit_logger
 
 def get_backup_manager() -> BackupManager:
     """Get or create backup manager instance"""
@@ -41,6 +57,7 @@ def get_backup_manager() -> BackupManager:
             backup_dir=backup_dir,
             encryption_key=encryption_key,
             retention_days=retention_days,
+            audit_logger=get_audit_logger(),
         )
 
         # Start scheduler for automatic backups
@@ -318,6 +335,27 @@ async def run_migration(
         }
     except Exception as e:
         logger.error(f"Migration failed: {e}")
+        
+        # Log migration failure
+        audit_log = get_audit_logger()
+        if audit_log:
+            try:
+                error_event = AuditEvent(
+                    event_type=AuditEventType.SYSTEM_ERROR,
+                    severity=AuditSeverity.CRITICAL,
+                    action="Database migration failed",
+                    details={
+                        "operation": "database_migration",
+                        "target_revision": revision,
+                        "error_message": str(e),
+                        "error_type": type(e).__name__,
+                        "backup_created": backup_result.get("name") if "backup_result" in locals() else "unknown"
+                    }
+                )
+                await audit_log.log_event_async(error_event)
+            except Exception as audit_error:
+                logger.error(f"Failed to log migration failure: {audit_error}")
+        
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -343,6 +381,27 @@ async def rollback_migration(revision: str = "-1"):
         }
     except Exception as e:
         logger.error(f"Rollback failed: {e}")
+        
+        # Log rollback failure
+        audit_log = get_audit_logger()
+        if audit_log:
+            try:
+                error_event = AuditEvent(
+                    event_type=AuditEventType.SYSTEM_ERROR,
+                    severity=AuditSeverity.CRITICAL,
+                    action="Database rollback failed",
+                    details={
+                        "operation": "database_rollback",
+                        "target_revision": revision,
+                        "error_message": str(e),
+                        "error_type": type(e).__name__,
+                        "backup_created": backup_result.get("name") if "backup_result" in locals() else "unknown"
+                    }
+                )
+                await audit_log.log_event_async(error_event)
+            except Exception as audit_error:
+                logger.error(f"Failed to log rollback failure: {audit_error}")
+        
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -428,6 +487,26 @@ async def vacuum_database(db: AsyncSession = Depends(get_async_session)):
         return {"message": "Database vacuum completed", "size_mb": size_after}
     except Exception as e:
         logger.error(f"Vacuum failed: {e}")
+        
+        # Log vacuum failure
+        audit_log = get_audit_logger()
+        if audit_log:
+            try:
+                error_event = AuditEvent(
+                    event_type=AuditEventType.SYSTEM_ERROR,
+                    severity=AuditSeverity.ERROR,
+                    action="Database vacuum operation failed",
+                    details={
+                        "operation": "database_vacuum",
+                        "error_message": str(e),
+                        "error_type": type(e).__name__,
+                        "database_path": str(db_path)
+                    }
+                )
+                await audit_log.log_event_async(error_event)
+            except Exception as audit_error:
+                logger.error(f"Failed to log vacuum failure: {audit_error}")
+        
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -457,4 +536,24 @@ async def check_database_integrity(db: AsyncSession = Depends(get_async_session)
         }
     except Exception as e:
         logger.error(f"Integrity check failed: {e}")
+        
+        # Log integrity check failure
+        audit_log = get_audit_logger()
+        if audit_log:
+            try:
+                error_event = AuditEvent(
+                    event_type=AuditEventType.SYSTEM_ERROR,
+                    severity=AuditSeverity.CRITICAL,
+                    action="Database integrity check failed",
+                    details={
+                        "operation": "database_integrity_check",
+                        "error_message": str(e),
+                        "error_type": type(e).__name__,
+                        "check_type": "PRAGMA integrity_check"
+                    }
+                )
+                await audit_log.log_event_async(error_event)
+            except Exception as audit_error:
+                logger.error(f"Failed to log integrity check failure: {audit_error}")
+        
         raise HTTPException(status_code=500, detail=str(e))

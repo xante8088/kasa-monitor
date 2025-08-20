@@ -193,6 +193,36 @@ class BackupManager:
         self.current_backup_status = "in_progress"
 
         try:
+            # Log backup start
+            if self.audit_logger:
+                from audit_logging import AuditEvent, AuditEventType, AuditSeverity
+                from datetime import timezone
+                
+                audit_event = AuditEvent(
+                    event_type=AuditEventType.SYSTEM_BACKUP_CREATED,
+                    severity=AuditSeverity.INFO,
+                    user_id=None,  # System operation
+                    username="system",
+                    ip_address="localhost",
+                    user_agent="backup_manager",
+                    session_id=None,
+                    resource_type="database_backup",
+                    resource_id=backup_name,
+                    action="Backup creation started",
+                    details={
+                        "backup_name": backup_name,
+                        "backup_type": backup_type,
+                        "description": description,
+                        "database_path": str(self.db_path),
+                        "compression_enabled": compress,
+                        "encryption_enabled": encrypt and self.cipher is not None,
+                        "start_time": timestamp.isoformat()
+                    },
+                    timestamp=timestamp.replace(tzinfo=timezone.utc),
+                    success=True,
+                )
+                await self.audit_logger.log_event_async(audit_event)
+
             # Create backup info
             backup_info = {
                 "name": backup_name,
@@ -245,6 +275,24 @@ class BackupManager:
             logger.info(f"Backup created successfully: {backup_name}")
             self.backup_progress = 100
             self.current_backup_status = "completed"
+            
+            # Log successful backup completion
+            if self.audit_logger:
+                completion_event = AuditEvent(
+                    event_type=AuditEventType.SYSTEM_BACKUP_CREATED,
+                    severity=AuditSeverity.INFO,
+                    action="Backup creation completed successfully",
+                    details={
+                        "backup_name": backup_name,
+                        "backup_size_bytes": backup_info.get("size"),
+                        "compression_enabled": compress,
+                        "encryption_enabled": encrypt and self.cipher is not None,
+                        "backup_duration_seconds": backup_info.get("duration"),
+                        "final_status": "completed"
+                    }
+                )
+                await self.audit_logger.log_event_async(completion_event)
+            
             return backup_info
 
         except Exception as e:
@@ -252,6 +300,23 @@ class BackupManager:
             backup_info["status"] = "failed"
             backup_info["error"] = str(e)
             self.current_backup_status = "failed"
+            
+            # Log backup failure
+            if self.audit_logger:
+                failure_event = AuditEvent(
+                    event_type=AuditEventType.SYSTEM_ERROR,
+                    severity=AuditSeverity.ERROR,
+                    action="Backup creation failed",
+                    details={
+                        "backup_name": backup_name,
+                        "backup_type": backup_type,
+                        "error_message": str(e),
+                        "error_type": type(e).__name__,
+                        "final_status": "failed"
+                    }
+                )
+                await self.audit_logger.log_event_async(failure_event)
+            
             return backup_info
 
     async def _sqlite_backup(self, backup_file: Path):
@@ -616,13 +681,57 @@ class BackupManager:
                 break
 
         if not backup_info:
+            # Log backup not found error
+            if self.audit_logger:
+                error_event = AuditEvent(
+                    event_type=AuditEventType.SYSTEM_ERROR,
+                    severity=AuditSeverity.ERROR,
+                    action="Backup restore failed - backup not found",
+                    details={
+                        "backup_name": backup_name,
+                        "error_message": "Backup not found in metadata",
+                        "available_backups": [b["name"] for b in self.metadata.get("backups", [])]
+                    }
+                )
+                await self.audit_logger.log_event_async(error_event)
             return {"status": "failed", "error": "Backup not found"}
 
         backup_file = self.backup_dir / backup_info["filename"]
         if not backup_file.exists():
+            # Log backup file not found error
+            if self.audit_logger:
+                error_event = AuditEvent(
+                    event_type=AuditEventType.SYSTEM_ERROR,
+                    severity=AuditSeverity.ERROR,
+                    action="Backup restore failed - backup file not found",
+                    details={
+                        "backup_name": backup_name,
+                        "backup_file_path": str(backup_file),
+                        "error_message": "Backup file not found on disk"
+                    }
+                )
+                await self.audit_logger.log_event_async(error_event)
             return {"status": "failed", "error": "Backup file not found"}
 
         try:
+            # Log restore operation start
+            if self.audit_logger:
+                start_event = AuditEvent(
+                    event_type=AuditEventType.SYSTEM_BACKUP_RESTORED,
+                    severity=AuditSeverity.INFO,
+                    action="Backup restore started",
+                    details={
+                        "backup_name": backup_name,
+                        "backup_created_at": backup_info.get("created_at"),
+                        "target_path": target_path or str(self.db_path),
+                        "verify_checksum": verify_checksum,
+                        "backup_encrypted": backup_info.get("encrypted", False),
+                        "backup_compressed": backup_info.get("compressed", False),
+                        "backup_size_bytes": backup_info.get("size")
+                    }
+                )
+                await self.audit_logger.log_event_async(start_event)
+            
             # Prepare restoration
             result = {
                 "backup_name": backup_name,
@@ -651,6 +760,22 @@ class BackupManager:
                 if current_checksum != backup_info.get("checksum"):
                     if working_file != backup_file:
                         working_file.unlink()
+                    
+                    # Log checksum verification failure
+                    if self.audit_logger:
+                        error_event = AuditEvent(
+                            event_type=AuditEventType.SYSTEM_ERROR,
+                            severity=AuditSeverity.ERROR,
+                            action="Backup restore failed - checksum verification failed",
+                            details={
+                                "backup_name": backup_name,
+                                "expected_checksum": backup_info.get("checksum"),
+                                "actual_checksum": current_checksum,
+                                "error_message": "Checksum verification failed - backup may be corrupted"
+                            }
+                        )
+                        await self.audit_logger.log_event_async(error_event)
+                    
                     return {"status": "failed", "error": "Checksum verification failed"}
 
             # Backup current database before restoration
@@ -670,10 +795,44 @@ class BackupManager:
 
             result["status"] = "completed"
             logger.info(f"Backup restored successfully: {backup_name}")
+            
+            # Log successful restore completion
+            if self.audit_logger:
+                completion_event = AuditEvent(
+                    event_type=AuditEventType.SYSTEM_BACKUP_RESTORED,
+                    severity=AuditSeverity.INFO,
+                    action="Backup restore completed successfully",
+                    details={
+                        "backup_name": backup_name,
+                        "restore_target": str(target),
+                        "backup_original_date": backup_info.get("created_at"),
+                        "checksum_verified": verify_checksum,
+                        "final_status": "completed"
+                    }
+                )
+                await self.audit_logger.log_event_async(completion_event)
+            
             return result
 
         except Exception as e:
             logger.error(f"Restoration failed: {e}")
+            
+            # Log restore failure
+            if self.audit_logger:
+                failure_event = AuditEvent(
+                    event_type=AuditEventType.SYSTEM_ERROR,
+                    severity=AuditSeverity.ERROR,
+                    action="Backup restore failed",
+                    details={
+                        "backup_name": backup_name,
+                        "target_path": target_path or str(self.db_path),
+                        "error_message": str(e),
+                        "error_type": type(e).__name__,
+                        "final_status": "failed"
+                    }
+                )
+                await self.audit_logger.log_event_async(failure_event)
+            
             return {"status": "failed", "error": str(e)}
 
     async def _decrypt_backup(self, encrypted_file: Path) -> Path:
@@ -833,6 +992,19 @@ class BackupManager:
                 break
 
         if not backup_info:
+            # Log backup not found error
+            if self.audit_logger:
+                error_event = AuditEvent(
+                    event_type=AuditEventType.SYSTEM_ERROR,
+                    severity=AuditSeverity.ERROR,
+                    action="Backup restore failed - backup not found",
+                    details={
+                        "backup_name": backup_name,
+                        "error_message": "Backup not found in metadata",
+                        "available_backups": [b["name"] for b in self.metadata.get("backups", [])]
+                    }
+                )
+                await self.audit_logger.log_event_async(error_event)
             return {"status": "failed", "error": "Backup not found"}
 
         backup_file = self.backup_dir / backup_info["filename"]
