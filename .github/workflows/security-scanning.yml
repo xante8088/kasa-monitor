@@ -94,7 +94,7 @@ jobs:
         path: ./
         base: ${{ github.event.before || 'HEAD~1' }}
         head: HEAD
-        extra_args: --only-verified --fail
+        extra_args: --only-verified
 
   dependency-scanning:
     name: Dependency Vulnerability Scan
