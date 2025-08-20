@@ -438,6 +438,13 @@ class KasaMonitorApp:
                 plugin_startup_event = AuditEvent(
                     event_type=AuditEventType.SYSTEM_STARTUP,
                     severity=AuditSeverity.INFO,
+                    user_id=None,
+                    username=None,
+                    ip_address=None,
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="system",
+                    resource_id="plugin_system",
                     action="Plugin system initialized",
                     details={
                         "plugin_system": "enabled",
@@ -445,6 +452,8 @@ class KasaMonitorApp:
                         "hook_manager": "enabled",
                         "plugin_api_router": "enabled",
                     },
+                    timestamp=startup_time,
+                    success=True,
                 )
                 await self.audit_logger.log_event_async(plugin_startup_event)
 
@@ -453,6 +462,13 @@ class KasaMonitorApp:
             startup_event = AuditEvent(
                 event_type=AuditEventType.SYSTEM_STARTUP,
                 severity=AuditSeverity.INFO,
+                user_id=None,
+                username=None,
+                ip_address=None,
+                user_agent=None,
+                session_id=None,
+                resource_type="system",
+                resource_id="kasa_monitor",
                 action="Kasa Monitor system startup completed",
                 details={
                     "startup_timestamp": startup_time.isoformat(),
@@ -470,6 +486,8 @@ class KasaMonitorApp:
                     * 1000,
                     "scheduler_jobs": ["device_polling"],
                 },
+                timestamp=startup_time,
+                success=True,
             )
             await self.audit_logger.log_event_async(startup_event)
 
@@ -483,6 +501,13 @@ class KasaMonitorApp:
             shutdown_init_event = AuditEvent(
                 event_type=AuditEventType.SYSTEM_SHUTDOWN,
                 severity=AuditSeverity.INFO,
+                user_id=None,
+                username=None,
+                ip_address=None,
+                user_agent=None,
+                session_id=None,
+                resource_type="system",
+                resource_id="kasa_monitor",
                 action="Kasa Monitor system shutdown initiated",
                 details={
                     "shutdown_timestamp": shutdown_time.isoformat(),
@@ -494,6 +519,8 @@ class KasaMonitorApp:
                         "database_manager",
                     ],
                 },
+                timestamp=shutdown_time,
+                success=True,
             )
             await self.audit_logger.log_event_async(shutdown_init_event)
 
@@ -506,8 +533,17 @@ class KasaMonitorApp:
                 plugin_shutdown_event = AuditEvent(
                     event_type=AuditEventType.SYSTEM_SHUTDOWN,
                     severity=AuditSeverity.INFO,
+                    user_id=None,
+                    username=None,
+                    ip_address=None,
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="system",
+                    resource_id="plugin_system",
                     action="Plugin system shutdown completed",
                     details={"plugin_system": "shutdown", "all_plugins_shutdown": True},
+                    timestamp=shutdown_time,
+                    success=True,
                 )
                 await self.audit_logger.log_event_async(plugin_shutdown_event)
         if self.data_aggregator:
@@ -523,6 +559,13 @@ class KasaMonitorApp:
             shutdown_complete_event = AuditEvent(
                 event_type=AuditEventType.SYSTEM_SHUTDOWN,
                 severity=AuditSeverity.INFO,
+                user_id=None,
+                username=None,
+                ip_address=None,
+                user_agent=None,
+                session_id=None,
+                resource_type="system",
+                resource_id="kasa_monitor",
                 action="Kasa Monitor system shutdown completed",
                 details={
                     "shutdown_duration_ms": (
@@ -532,6 +575,8 @@ class KasaMonitorApp:
                     "final_shutdown_timestamp": datetime.now().isoformat(),
                     "clean_shutdown": True,
                 },
+                timestamp=shutdown_time,
+                success=True,
             )
             await self.audit_logger.log_event_async(shutdown_complete_event)
 

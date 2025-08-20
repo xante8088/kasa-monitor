@@ -43,6 +43,9 @@ class Permission(str, Enum):
     # Cost analysis
     COSTS_VIEW = "costs.view"
     COSTS_EXPORT = "costs.export"
+    
+    # Data management
+    DATA_EXPORT = "data.export"
 
     # User management
     USERS_VIEW = "users.view"

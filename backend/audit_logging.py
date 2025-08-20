@@ -64,6 +64,8 @@ class AuditEventType(Enum):
     DEVICE_DISCOVERED = "device.discovered"
 
     # System events
+    SYSTEM_STARTUP = "system.startup"
+    SYSTEM_SHUTDOWN = "system.shutdown"
     SYSTEM_CONFIG_CHANGED = "system.config_changed"
     SYSTEM_BACKUP_CREATED = "system.backup_created"
     SYSTEM_BACKUP_RESTORED = "system.backup_restored"
@@ -71,6 +73,7 @@ class AuditEventType(Enum):
     SYSTEM_ERROR = "system.error"
 
     # Data access
+    DATA_EXPORT = "data.export"
     DATA_EXPORTED = "data.exported"
     DATA_IMPORTED = "data.imported"
     DATA_VIEWED = "data.viewed"
