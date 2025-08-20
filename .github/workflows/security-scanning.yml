@@ -141,7 +141,7 @@ jobs:
         npm audit --json > npm-audit.json || true
 
     - name: Upload security reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: security-reports
@@ -227,7 +227,7 @@ jobs:
         npx license-checker --failOn "GPL-3.0;AGPL-3.0"
 
     - name: Upload license reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: license-reports
