@@ -387,7 +387,7 @@ class KasaMonitorApp:
     async def lifespan(self, app: FastAPI):
         """Manage application lifecycle."""
         startup_time = datetime.now()
-        
+
         # Startup
         await self.db_manager.initialize()
 
@@ -413,7 +413,7 @@ class KasaMonitorApp:
         if self.plugin_loader:
             # Plugin loader is initialized in constructor, just log that it's ready
             logger.info("Plugin system ready")
-            
+
             # Log plugin system initialization
             if self.audit_logger:
                 plugin_startup_event = AuditEvent(
@@ -424,8 +424,8 @@ class KasaMonitorApp:
                         "plugin_system": "enabled",
                         "plugin_directory": "./plugins",
                         "hook_manager": "enabled",
-                        "plugin_api_router": "enabled"
-                    }
+                        "plugin_api_router": "enabled",
+                    },
                 )
                 await self.audit_logger.log_event_async(plugin_startup_event)
 
@@ -439,15 +439,18 @@ class KasaMonitorApp:
                     "startup_timestamp": startup_time.isoformat(),
                     "components_started": [
                         "database_manager",
-                        "scheduler", 
+                        "scheduler",
                         "device_polling",
                         "data_aggregator" if self.data_aggregator else None,
                         "plugin_system" if self.plugin_loader else None,
-                        "audit_logger"
+                        "audit_logger",
                     ],
-                    "startup_duration_ms": (datetime.now() - startup_time).total_seconds() * 1000,
-                    "scheduler_jobs": ["device_polling"]
-                }
+                    "startup_duration_ms": (
+                        datetime.now() - startup_time
+                    ).total_seconds()
+                    * 1000,
+                    "scheduler_jobs": ["device_polling"],
+                },
             )
             await self.audit_logger.log_event_async(startup_event)
 
@@ -455,7 +458,7 @@ class KasaMonitorApp:
 
         # Shutdown
         shutdown_time = datetime.now()
-        
+
         # Log system shutdown initiation
         if self.audit_logger:
             shutdown_init_event = AuditEvent(
@@ -469,26 +472,23 @@ class KasaMonitorApp:
                         "data_aggregator" if self.data_aggregator else None,
                         "cache_manager" if self.cache_manager else None,
                         "scheduler",
-                        "database_manager"
-                    ]
-                }
+                        "database_manager",
+                    ],
+                },
             )
             await self.audit_logger.log_event_async(shutdown_init_event)
 
         if self.plugin_loader:
             await self.plugin_loader.shutdown_all_plugins()
             logger.info("Plugin system shutdown complete")
-            
+
             # Log plugin system shutdown
             if self.audit_logger:
                 plugin_shutdown_event = AuditEvent(
                     event_type=AuditEventType.SYSTEM_SHUTDOWN,
                     severity=AuditSeverity.INFO,
                     action="Plugin system shutdown completed",
-                    details={
-                        "plugin_system": "shutdown",
-                        "all_plugins_shutdown": True
-                    }
+                    details={"plugin_system": "shutdown", "all_plugins_shutdown": True},
                 )
                 await self.audit_logger.log_event_async(plugin_shutdown_event)
         if self.data_aggregator:
@@ -506,34 +506,38 @@ class KasaMonitorApp:
                 severity=AuditSeverity.INFO,
                 action="Kasa Monitor system shutdown completed",
                 details={
-                    "shutdown_duration_ms": (datetime.now() - shutdown_time).total_seconds() * 1000,
+                    "shutdown_duration_ms": (
+                        datetime.now() - shutdown_time
+                    ).total_seconds()
+                    * 1000,
                     "final_shutdown_timestamp": datetime.now().isoformat(),
-                    "clean_shutdown": True
-                }
+                    "clean_shutdown": True,
+                },
             )
             await self.audit_logger.log_event_async(shutdown_complete_event)
 
     def setup_middleware(self):
         """Configure CORS and API monitoring middleware."""
-        
+
         # Add API performance monitoring middleware
         @self.app.middleware("http")
         async def api_monitoring_middleware(request: Request, call_next):
             """Monitor API usage patterns and performance."""
             import time
+
             start_time = time.time()
-            
+
             # Extract basic request info
             method = request.method
             url_path = request.url.path
             client_ip = request.client.host if request.client else "unknown"
             user_agent = request.headers.get("user-agent", "unknown")
-            
+
             # Process the request
             try:
                 response = await call_next(request)
                 duration_ms = (time.time() - start_time) * 1000
-                
+
                 # Log slow API calls (>2 seconds)
                 if duration_ms > 2000 and self.audit_logger:
                     slow_api_event = AuditEvent(
@@ -548,11 +552,11 @@ class KasaMonitorApp:
                             "status_code": response.status_code,
                             "client_ip": client_ip,
                             "user_agent": user_agent,
-                            "threshold_exceeded": "2000ms"
-                        }
+                            "threshold_exceeded": "2000ms",
+                        },
                     )
                     await self.audit_logger.log_event_async(slow_api_event)
-                
+
                 # Log high-frequency endpoints (more than 100 requests per minute)
                 # This would need request counting logic, implementing basic version
                 if url_path.startswith("/api/") and self.audit_logger:
@@ -568,18 +572,20 @@ class KasaMonitorApp:
                             "duration_ms": duration_ms,
                             "status_code": response.status_code,
                             "client_ip": client_ip,
-                            "response_size": response.headers.get("content-length", "unknown")
-                        }
+                            "response_size": response.headers.get(
+                                "content-length", "unknown"
+                            ),
+                        },
                     )
                     # Only log significant API calls to avoid spam
                     if duration_ms > 500 or response.status_code >= 400:
                         await self.audit_logger.log_event_async(api_usage_event)
-                
+
                 return response
-                
+
             except Exception as e:
                 duration_ms = (time.time() - start_time) * 1000
-                
+
                 # Log API request failures
                 if self.audit_logger:
                     api_error_event = AuditEvent(
@@ -594,13 +600,13 @@ class KasaMonitorApp:
                             "error_message": str(e),
                             "error_type": type(e).__name__,
                             "client_ip": client_ip,
-                            "user_agent": user_agent
-                        }
+                            "user_agent": user_agent,
+                        },
                     )
                     await self.audit_logger.log_event_async(api_error_event)
-                
+
                 raise  # Re-raise the exception
-        
+
         # Add CORS middleware
         self.app.add_middleware(
             CORSMiddleware,
@@ -612,6 +618,7 @@ class KasaMonitorApp:
 
     def enhanced_require_auth(self, request: Request):
         """Enhanced authentication with session timeout logging."""
+
         def auth_dependency(
             credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
         ) -> User:
@@ -639,7 +646,9 @@ class KasaMonitorApp:
             except HTTPException as e:
                 # Log session timeout if token expired
                 if "Token expired" in str(e.detail):
-                    asyncio.create_task(self._log_session_timeout(request, credentials.credentials))
+                    asyncio.create_task(
+                        self._log_session_timeout(request, credentials.credentials)
+                    )
                 raise e
 
         return auth_dependency
@@ -652,9 +661,10 @@ class KasaMonitorApp:
         try:
             # Try to extract user info from expired token (unsafe decode)
             import jose.jwt as jwt
+
             payload = jwt.get_unverified_claims(token)
             user_data = payload.get("user", {})
-            
+
             client_ip = request.client.host if request.client else "unknown"
             user_agent = request.headers.get("user-agent", "unknown")
 
@@ -672,7 +682,7 @@ class KasaMonitorApp:
                 details={
                     "logout_method": "session_timeout",
                     "token_expired": True,
-                    "expiration_time": payload.get("exp")
+                    "expiration_time": payload.get("exp"),
                 },
                 timestamp=datetime.now(timezone.utc),
                 success=True,
@@ -683,19 +693,27 @@ class KasaMonitorApp:
 
     def enhanced_require_permission(self, permission: Permission, request: Request):
         """Enhanced permission check with denial logging."""
-        def permission_dependency(user: User = Depends(self.enhanced_require_auth(request))) -> User:
+
+        def permission_dependency(
+            user: User = Depends(self.enhanced_require_auth(request)),
+        ) -> User:
             if not AuthManager.check_permission(user.permissions, permission):
                 # Log permission denied
-                asyncio.create_task(self._log_permission_denied(request, user, permission))
-                
+                asyncio.create_task(
+                    self._log_permission_denied(request, user, permission)
+                )
+
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Insufficient permissions. Required: {permission.value}"
+                    detail=f"Insufficient permissions. Required: {permission.value}",
                 )
             return user
+
         return permission_dependency
 
-    async def _log_permission_denied(self, request: Request, user: User, permission: Permission):
+    async def _log_permission_denied(
+        self, request: Request, user: User, permission: Permission
+    ):
         """Log permission denied event."""
         if not self.audit_logger:
             return
@@ -720,11 +738,11 @@ class KasaMonitorApp:
                     "user_permissions": [p.value for p in user.permissions],
                     "user_role": user.role.value if user.role else None,
                     "request_path": str(request.url.path),
-                    "request_method": request.method
+                    "request_method": request.method,
                 },
                 timestamp=datetime.now(timezone.utc),
                 success=False,
-                error_message=f"User lacks required permission: {permission.value}"
+                error_message=f"User lacks required permission: {permission.value}",
             )
             await self.audit_logger.log_event_async(audit_event)
         except Exception as e:
@@ -738,25 +756,26 @@ class KasaMonitorApp:
             from slowapi.errors import RateLimitExceeded
             from slowapi.middleware import SlowAPIMiddleware
             from slowapi.util import get_remote_address
-            
+
             # Initialize rate limiter
-            self.rate_limiter = RateLimiter(redis_client=None)  # Using memory storage for now
-            
+            self.rate_limiter = RateLimiter(
+                redis_client=None
+            )  # Using memory storage for now
+
             # Create limiter for SlowAPI
             limiter = Limiter(
-                key_func=get_remote_address,
-                default_limits=["100 per minute"]
+                key_func=get_remote_address, default_limits=["100 per minute"]
             )
-            
+
             # Add middleware
             self.app.add_middleware(SlowAPIMiddleware)
-            
+
             # Custom rate limit exceeded handler with audit logging
             @self.app.exception_handler(RateLimitExceeded)
             async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
                 """Handle rate limit exceeded with audit logging."""
                 await self._log_rate_limit_exceeded(request, exc)
-                
+
                 response = Response(
                     content=f"Rate limit exceeded: {exc.detail}",
                     status_code=429,
@@ -764,14 +783,14 @@ class KasaMonitorApp:
                         "Retry-After": str(exc.retry_after),
                         "X-RateLimit-Limit": str(exc.limit),
                         "X-RateLimit-Remaining": "0",
-                        "X-RateLimit-Reset": str(exc.reset_time)
-                    }
+                        "X-RateLimit-Reset": str(exc.reset_time),
+                    },
                 )
                 return response
-                
+
             self.limiter = limiter
             logger.info("Rate limiting configured with audit logging")
-            
+
         except ImportError as e:
             logger.warning(f"Rate limiting not available: {e}")
             self.rate_limiter = None
@@ -785,7 +804,7 @@ class KasaMonitorApp:
         try:
             client_ip = request.client.host if request.client else "unknown"
             user_agent = request.headers.get("user-agent", "unknown")
-            
+
             # Try to get user info if authenticated
             user = getattr(request.state, "user", None)
             user_id = user.get("id") if user else None
@@ -809,17 +828,21 @@ class KasaMonitorApp:
                     "retry_after": exc.retry_after,
                     "reset_time": exc.reset_time,
                     "rate_limit_key": get_remote_address(request),
-                    "query_params": dict(request.query_params) if request.query_params else None
+                    "query_params": (
+                        dict(request.query_params) if request.query_params else None
+                    ),
                 },
                 timestamp=datetime.now(timezone.utc),
                 success=False,
-                error_message=f"Rate limit of {exc.limit} exceeded for {request.url.path}"
+                error_message=f"Rate limit of {exc.limit} exceeded for {request.url.path}",
             )
             await self.audit_logger.log_event_async(audit_event)
         except Exception as e:
             logger.error(f"Failed to log rate limit exceeded: {e}")
 
-    async def _log_suspicious_activity(self, request: Request, activity_type: str, details: dict):
+    async def _log_suspicious_activity(
+        self, request: Request, activity_type: str, details: dict
+    ):
         """Log suspicious activity."""
         if not self.audit_logger:
             return
@@ -827,7 +850,7 @@ class KasaMonitorApp:
         try:
             client_ip = request.client.host if request.client else "unknown"
             user_agent = request.headers.get("user-agent", "unknown")
-            
+
             # Try to get user info if authenticated
             user = getattr(request.state, "user", None)
             user_id = user.get("id") if user else None
@@ -849,11 +872,11 @@ class KasaMonitorApp:
                     "request_path": str(request.url.path),
                     "request_method": request.method,
                     "detection_details": details,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
                 timestamp=datetime.now(timezone.utc),
                 success=False,
-                error_message=f"Suspicious activity detected: {activity_type}"
+                error_message=f"Suspicious activity detected: {activity_type}",
             )
             await self.audit_logger.log_event_async(audit_event)
         except Exception as e:
@@ -980,7 +1003,7 @@ class KasaMonitorApp:
                     )
             except Exception as e:
                 logger.error(f"Error adding manual device {ip}: {e}")
-                
+
                 # Audit log failed device addition
                 if self.audit_logger:
                     error_event = AuditEvent(
@@ -993,11 +1016,11 @@ class KasaMonitorApp:
                             "target_alias": alias,
                             "error_message": str(e),
                             "error_type": type(e).__name__,
-                            "connection_attempted": True
-                        }
+                            "connection_attempted": True,
+                        },
                     )
                     await self.audit_logger.log_event_async(error_event)
-                
+
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.delete("/api/devices/{device_ip}")
@@ -1034,7 +1057,7 @@ class KasaMonitorApp:
                 return {"status": "success", "message": f"Device {device_ip} removed"}
             except Exception as e:
                 logger.error(f"Error removing device {device_ip}: {e}")
-                
+
                 # Audit log failed device removal
                 if self.audit_logger:
                     error_event = AuditEvent(
@@ -1046,11 +1069,11 @@ class KasaMonitorApp:
                             "target_device_ip": device_ip,
                             "error_message": str(e),
                             "error_type": type(e).__name__,
-                            "removal_attempted": True
-                        }
+                            "removal_attempted": True,
+                        },
                     )
                     await self.audit_logger.log_event_async(error_event)
-                
+
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.get("/api/devices/saved")
@@ -1566,7 +1589,7 @@ class KasaMonitorApp:
                     action="User logged out",
                     details={
                         "logout_method": "explicit",
-                        "session_duration": None  # Could calculate if we tracked session start time
+                        "session_duration": None,  # Could calculate if we tracked session start time
                     },
                     timestamp=datetime.now(timezone.utc),
                     success=True,
@@ -1576,7 +1599,7 @@ class KasaMonitorApp:
             # Note: With JWT, we can't truly invalidate the token server-side
             # without implementing a token blacklist. For now, we just log the logout.
             # The client should discard the token.
-            
+
             return {"message": "Logged out successfully", "status": "success"}
 
         @self.app.post("/api/auth/setup", response_model=User)
@@ -1964,7 +1987,7 @@ class KasaMonitorApp:
 
             # Get user info before deletion for audit log
             target_user = await self.db_manager.get_user_by_id(user_id)
-            
+
             success = await self.db_manager.delete_user(user_id)
             if success:
                 # Log successful user deletion
@@ -1978,13 +2001,17 @@ class KasaMonitorApp:
                         details={
                             "deleted_user_id": user_id,
                             "deleted_username": target_user.username,
-                            "deleted_user_role": target_user.role.value if target_user.role else "unknown",
+                            "deleted_user_role": (
+                                target_user.role.value
+                                if target_user.role
+                                else "unknown"
+                            ),
                             "deleted_user_email": target_user.email,
-                            "deleted_by_admin": True
-                        }
+                            "deleted_by_admin": True,
+                        },
                     )
                     await self.audit_logger.log_event_async(deletion_event)
-                
+
                 return {"message": "User deleted successfully"}
             else:
                 # Log failed user deletion
@@ -1998,11 +2025,11 @@ class KasaMonitorApp:
                         details={
                             "target_user_id": user_id,
                             "error_message": "Database deletion failed",
-                            "attempted_by_admin": True
-                        }
+                            "attempted_by_admin": True,
+                        },
                     )
                     await self.audit_logger.log_event_async(error_event)
-                
+
                 raise HTTPException(status_code=400, detail="Failed to delete user")
 
         # System configuration endpoints
@@ -2374,8 +2401,8 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                             "deleted_filename": filename,
                             "deleted_path": str(file_path),
                             "confirmation_provided": confirmation.lower() == "delete",
-                            "operation": "ssl_file_deletion"
-                        }
+                            "operation": "ssl_file_deletion",
+                        },
                     )
                     await self.audit_logger.log_event_async(config_event)
 
@@ -2385,7 +2412,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 raise
             except Exception as e:
                 logger.error(f"Error deleting SSL file: {e}")
-                
+
                 # Log SSL file deletion failure
                 if self.audit_logger:
                     error_event = AuditEvent(
@@ -2399,11 +2426,11 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                             "target_filename": filename,
                             "error_message": str(e),
                             "error_type": type(e).__name__,
-                            "operation": "ssl_file_deletion_failed"
-                        }
+                            "operation": "ssl_file_deletion_failed",
+                        },
                     )
                     await self.audit_logger.log_event_async(error_event)
-                
+
                 raise HTTPException(status_code=500, detail="Failed to delete file")
 
         @self.app.post("/api/system/ssl/upload-cert")
@@ -2443,8 +2470,8 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                             "certificate_filename": file.filename,
                             "certificate_path": str(file_path),
                             "file_size_bytes": len(content),
-                            "operation": "certificate_upload"
-                        }
+                            "operation": "certificate_upload",
+                        },
                     )
                     await self.audit_logger.log_event_async(config_event)
 
@@ -2458,7 +2485,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 raise
             except Exception as e:
                 logger.error(f"Error uploading certificate: {e}")
-                
+
                 # Log certificate upload failure
                 if self.audit_logger:
                     error_event = AuditEvent(
@@ -2469,14 +2496,16 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         action="SSL certificate upload failed",
                         details={
                             "config_type": "ssl_certificate",
-                            "certificate_filename": getattr(file, 'filename', 'unknown'),
+                            "certificate_filename": getattr(
+                                file, "filename", "unknown"
+                            ),
                             "error_message": str(e),
                             "error_type": type(e).__name__,
-                            "operation": "certificate_upload_failed"
-                        }
+                            "operation": "certificate_upload_failed",
+                        },
                     )
                     await self.audit_logger.log_event_async(error_event)
-                
+
                 raise HTTPException(
                     status_code=500, detail="Failed to upload certificate"
                 )
@@ -2520,8 +2549,8 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                             "key_path": str(file_path),
                             "file_size_bytes": len(content),
                             "permissions_set": "0o600",
-                            "operation": "private_key_upload"
-                        }
+                            "operation": "private_key_upload",
+                        },
                     )
                     await self.audit_logger.log_event_async(config_event)
 
@@ -2535,7 +2564,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 raise
             except Exception as e:
                 logger.error(f"Error uploading private key: {e}")
-                
+
                 # Log private key upload failure
                 if self.audit_logger:
                     error_event = AuditEvent(
@@ -2546,14 +2575,14 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         action="SSL private key upload failed",
                         details={
                             "config_type": "ssl_private_key",
-                            "key_filename": getattr(file, 'filename', 'unknown'),
+                            "key_filename": getattr(file, "filename", "unknown"),
                             "error_message": str(e),
                             "error_type": type(e).__name__,
-                            "operation": "private_key_upload_failed"
-                        }
+                            "operation": "private_key_upload_failed",
+                        },
                     )
                     await self.audit_logger.log_event_async(error_event)
-                
+
                 raise HTTPException(
                     status_code=500, detail="Failed to upload private key"
                 )
@@ -2690,9 +2719,9 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
         # Export endpoints
         @self.app.post("/api/export/devices")
         async def export_devices(
-            format: str = "csv", 
+            format: str = "csv",
             include_energy: bool = True,
-            user: User = Depends(require_permission(Permission.DATA_EXPORT))
+            user: User = Depends(require_permission(Permission.DATA_EXPORT)),
         ):
             """Export device data in various formats."""
             if not self.data_exporter:
@@ -2701,7 +2730,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 )
 
             export_start_time = datetime.now()
-            
+
             try:
                 if format == "csv":
                     content = await self.data_exporter.export_devices_csv()
@@ -2715,7 +2744,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                     media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 else:
                     raise HTTPException(status_code=400, detail="Unsupported format")
-                
+
                 # Log successful data export
                 if self.audit_logger:
                     export_event = AuditEvent(
@@ -2730,20 +2759,21 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                             "include_energy": include_energy,
                             "filename": filename,
                             "export_size_bytes": len(content),
-                            "export_duration_ms": (datetime.now() - export_start_time).total_seconds() * 1000,
-                            "export_timestamp": export_start_time.isoformat()
-                        }
+                            "export_duration_ms": (
+                                datetime.now() - export_start_time
+                            ).total_seconds()
+                            * 1000,
+                            "export_timestamp": export_start_time.isoformat(),
+                        },
                     )
                     await self.audit_logger.log_event_async(export_event)
-                
+
                 return StreamingResponse(
                     io.BytesIO(content),
                     media_type=media_type,
-                    headers={
-                        "Content-Disposition": f"attachment; filename={filename}"
-                    },
+                    headers={"Content-Disposition": f"attachment; filename={filename}"},
                 )
-                
+
             except Exception as e:
                 # Log failed data export
                 if self.audit_logger:
@@ -2759,11 +2789,14 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                             "include_energy": include_energy,
                             "error_message": str(e),
                             "error_type": type(e).__name__,
-                            "export_duration_ms": (datetime.now() - export_start_time).total_seconds() * 1000
-                        }
+                            "export_duration_ms": (
+                                datetime.now() - export_start_time
+                            ).total_seconds()
+                            * 1000,
+                        },
                     )
                     await self.audit_logger.log_event_async(error_event)
-                
+
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.post("/api/export/energy")
@@ -2772,7 +2805,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             start_date: Optional[datetime] = None,
             end_date: Optional[datetime] = None,
             format: str = "csv",
-            user: User = Depends(require_permission(Permission.DATA_EXPORT))
+            user: User = Depends(require_permission(Permission.DATA_EXPORT)),
         ):
             """Export energy consumption data."""
             if not self.data_exporter:
@@ -2781,7 +2814,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 )
 
             export_start_time = datetime.now()
-            
+
             try:
                 if format == "csv":
                     content = await self.data_exporter.export_energy_data_csv(
@@ -2791,7 +2824,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                     media_type = "text/csv"
                 else:
                     raise HTTPException(status_code=400, detail="Unsupported format")
-                
+
                 # Log successful energy data export
                 if self.audit_logger:
                     export_event = AuditEvent(
@@ -2804,24 +2837,27 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                             "export_type": "energy_data",
                             "format": format,
                             "device_ip": device_ip,
-                            "start_date": start_date.isoformat() if start_date else None,
+                            "start_date": (
+                                start_date.isoformat() if start_date else None
+                            ),
                             "end_date": end_date.isoformat() if end_date else None,
                             "filename": filename,
                             "export_size_bytes": len(content),
-                            "export_duration_ms": (datetime.now() - export_start_time).total_seconds() * 1000,
-                            "export_timestamp": export_start_time.isoformat()
-                        }
+                            "export_duration_ms": (
+                                datetime.now() - export_start_time
+                            ).total_seconds()
+                            * 1000,
+                            "export_timestamp": export_start_time.isoformat(),
+                        },
                     )
                     await self.audit_logger.log_event_async(export_event)
-                
+
                 return StreamingResponse(
                     io.BytesIO(content),
                     media_type=media_type,
-                    headers={
-                        "Content-Disposition": f"attachment; filename={filename}"
-                    },
+                    headers={"Content-Disposition": f"attachment; filename={filename}"},
                 )
-                
+
             except Exception as e:
                 # Log failed energy data export
                 if self.audit_logger:
@@ -2835,15 +2871,20 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                             "export_type": "energy_data",
                             "format": format,
                             "device_ip": device_ip,
-                            "start_date": start_date.isoformat() if start_date else None,
+                            "start_date": (
+                                start_date.isoformat() if start_date else None
+                            ),
                             "end_date": end_date.isoformat() if end_date else None,
                             "error_message": str(e),
                             "error_type": type(e).__name__,
-                            "export_duration_ms": (datetime.now() - export_start_time).total_seconds() * 1000
-                        }
+                            "export_duration_ms": (
+                                datetime.now() - export_start_time
+                            ).total_seconds()
+                            * 1000,
+                        },
                     )
                     await self.audit_logger.log_event_async(error_event)
-                
+
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.post("/api/export/report")
@@ -3554,8 +3595,9 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
     async def poll_and_store_data(self):
         """Poll all devices and store data in database."""
         import time
+
         polling_start_time = time.time()
-        
+
         try:
             # Only poll devices that are being monitored
             monitored = await self.db_manager.get_monitored_devices()
@@ -3564,7 +3606,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             # Filter devices to only poll monitored ones
             device_data_list = []
             failed_devices = []
-            
+
             for ip in monitored_ips:
                 if ip in self.device_manager.devices:
                     try:
@@ -3587,7 +3629,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 )
 
             polling_duration_ms = (time.time() - polling_start_time) * 1000
-            
+
             # Log slow polling cycles (>10 seconds)
             if polling_duration_ms > 10000 and self.audit_logger:
                 performance_event = AuditEvent(
@@ -3601,11 +3643,11 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         "devices_failed": len(failed_devices),
                         "failed_device_ips": failed_devices,
                         "threshold_exceeded": "10000ms",
-                        "monitored_device_count": len(monitored_ips)
-                    }
+                        "monitored_device_count": len(monitored_ips),
+                    },
                 )
                 await self.audit_logger.log_event_async(performance_event)
-            
+
             # Log excessive device failures (>20% failure rate)
             if len(monitored_ips) > 0:
                 failure_rate = len(failed_devices) / len(monitored_ips)
@@ -3620,16 +3662,18 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                             "failed_devices": len(failed_devices),
                             "total_devices": len(monitored_ips),
                             "failed_device_ips": failed_devices,
-                            "threshold_exceeded": "20% failure rate"
-                        }
+                            "threshold_exceeded": "20% failure rate",
+                        },
                     )
                     await self.audit_logger.log_event_async(reliability_event)
 
-            logger.info(f"Polled and stored data for {len(device_data_list)} devices (duration: {polling_duration_ms:.1f}ms)")
-            
+            logger.info(
+                f"Polled and stored data for {len(device_data_list)} devices (duration: {polling_duration_ms:.1f}ms)"
+            )
+
         except Exception as e:
             logger.error(f"Error in polling cycle: {e}")
-            
+
             # Log polling system failures
             if self.audit_logger:
                 system_error_event = AuditEvent(
@@ -3640,9 +3684,10 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         "performance_monitoring": True,
                         "error_message": str(e),
                         "error_type": type(e).__name__,
-                        "polling_duration_ms": (time.time() - polling_start_time) * 1000,
-                        "system_component": "device_polling"
-                    }
+                        "polling_duration_ms": (time.time() - polling_start_time)
+                        * 1000,
+                        "system_component": "device_polling",
+                    },
                 )
                 await self.audit_logger.log_event_async(system_error_event)
 
