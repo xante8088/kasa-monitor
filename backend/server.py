@@ -876,6 +876,8 @@ class KasaMonitorApp:
                 )
                 return response
 
+            # Assign limiter to app state for SlowAPIMiddleware
+            self.app.state.limiter = limiter
             self.limiter = limiter
             logger.info("Rate limiting configured with audit logging")
 
