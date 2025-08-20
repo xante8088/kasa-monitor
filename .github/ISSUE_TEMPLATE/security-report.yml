@@ -1,0 +1,91 @@
+name: 🔒 Security Report
+description: Report a security vulnerability (for non-critical issues only)
+title: "[SECURITY] "
+labels: ["security", "needs-triage"]
+assignees:
+  - xante8088
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # ⚠️ Important Security Notice
+        
+        **For critical security vulnerabilities, please DO NOT use this form.**
+        
+        Instead, please report critical issues privately:
+        - Email: `security@kasa-monitor.example.com`
+        - Or use [GitHub's private vulnerability reporting](https://github.com/xante8088/kasa-monitor/security/advisories/new)
+        
+        This form should only be used for:
+        - Security questions or concerns
+        - Non-critical security improvements
+        - Security feature requests
+        
+        ---
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity Level
+      description: How severe is this security concern?
+      options:
+        - Low (Security improvement suggestion)
+        - Medium (Potential security weakness)
+        - High (Should be reported privately instead)
+        - Critical (STOP - Report privately instead)
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Security Concern Description
+      description: Describe the security concern or improvement suggestion
+      placeholder: Describe what you've found...
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Potential Impact
+      description: What could happen if this is exploited or not addressed?
+      placeholder: Describe the potential impact...
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Details
+      description: Where did you notice this? (version, deployment type, etc.)
+      placeholder: |
+        - Kasa Monitor Version: 
+        - Deployment Type: (Docker, manual, etc.)
+        - Operating System:
+        - Browser (if applicable):
+    validations:
+      required: false
+
+  - type: textarea
+    id: suggestions
+    attributes:
+      label: Suggested Improvements
+      description: Do you have suggestions for how to address this?
+      placeholder: Your suggestions for improvement...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Security Checklist
+      description: Please confirm the following
+      options:
+        - label: This is not a critical vulnerability (those should be reported privately)
+          required: true
+        - label: I have reviewed the existing security documentation
+          required: true
+        - label: I understand this report will be public
+          required: true

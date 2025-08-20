@@ -1,0 +1,40 @@
+# CodeQL configuration for Kasa Monitor
+name: "Kasa Monitor CodeQL Config"
+
+# Disable the default CodeQL suite and specify custom queries
+disable-default-queries: false
+
+# Additional query suites to run
+queries:
+  - uses: security-and-quality
+  - uses: security-experimental
+
+# Paths to include in analysis
+paths:
+  - src/
+  - backend/
+
+# Paths to exclude from analysis  
+paths-ignore:
+  - backend/venv/
+  - backend/migrations/
+  - backend/__pycache__/
+  - node_modules/
+  - backend/tests/
+  - "**/*.test.js"
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.js"
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"
+
+# Custom query filters
+query-filters:
+  - exclude:
+      id: py/unclear-docstring
+  - exclude:
+      id: py/too-many-arguments
+  - include:
+      tags: 
+        - security
+        - correctness
