@@ -1,0 +1,22 @@
+# Global code owners
+* @xante8088
+
+# Security-related files require additional review
+/backend/security_fixes/ @xante8088
+/backend/auth.py @xante8088
+/backend/jwt_secret_manager.py @xante8088
+/backend/advanced_security.py @xante8088
+
+# CI/CD and deployment files
+/.github/ @xante8088
+/docker-compose*.yml @xante8088
+/Dockerfile* @xante8088
+
+# Documentation requires review
+/wiki/ @xante8088
+*.md @xante8088
+
+# Configuration files
+*.env* @xante8088
+/backend/requirements.txt @xante8088
+/package.json @xante8088
