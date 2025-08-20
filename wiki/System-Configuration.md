@@ -62,34 +62,43 @@ DATABASE_BACKUP_ENABLED=true
 DATABASE_BACKUP_SCHEDULE="0 2 * * *"
 DATABASE_BACKUP_RETENTION_DAYS=30
 
-# InfluxDB (Optional)
+# InfluxDB (Optional - Use environment variables)
 INFLUXDB_ENABLED=false
 INFLUXDB_URL=http://influxdb:8086
-INFLUXDB_TOKEN=your-secure-token
-INFLUXDB_ORG=kasa-monitor
-INFLUXDB_BUCKET=device-data
+DOCKER_INFLUXDB_INIT_USERNAME=admin
+DOCKER_INFLUXDB_INIT_PASSWORD=$(openssl rand -base64 24)
+DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=$(openssl rand -hex 32)
+DOCKER_INFLUXDB_INIT_ORG=kasa-monitor
+DOCKER_INFLUXDB_INIT_BUCKET=device-data
 INFLUXDB_RETENTION_DAYS=90
 ```
 
 ### Security Settings
 
 ```bash
-# Authentication
-JWT_SECRET_KEY=your-very-long-random-string
+# Authentication (CRITICAL - Generate secure values)
+JWT_SECRET_KEY=$(openssl rand -base64 32)  # Required for production
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 REFRESH_TOKEN_EXPIRE_DAYS=7
 
 # Session
-SESSION_SECRET=another-random-string
+SESSION_SECRET=$(openssl rand -base64 32)
 SESSION_TIMEOUT_MINUTES=30
 SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_HTTPONLY=true
 
-# CORS
-ALLOWED_ORIGINS=https://yourdomain.com
+# CORS (Comma-separated list, no wildcards in production)
+CORS_ALLOWED_ORIGINS=https://yourdomain.com,https://app.yourdomain.com
+ENVIRONMENT=production  # Enforces strict CORS checking
 ALLOWED_METHODS=GET,POST,PUT,DELETE
 ALLOWED_HEADERS=Content-Type,Authorization
+
+# File Upload Security
+MAX_UPLOAD_SIZE_MB=10
+ALLOWED_UPLOAD_EXTENSIONS=.zip,.py,.json,.pem,.crt,.key
+REQUIRE_PLUGIN_SIGNATURES=true
+UPLOAD_QUARANTINE_DIR=/app/quarantine
 ```
 
 ### Performance Settings
@@ -668,3 +677,10 @@ docker exec kasa-monitor sqlite3 /app/data/kasa_monitor.db \
 - [Security Guide](Security-Guide) - Security settings
 - [Performance Tuning](Performance-Tuning) - Performance configuration
 - [Backup & Recovery](Backup-Recovery) - Configuration backup
+
+---
+
+**Document Version:** 1.1.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Updated security settings with JWT secret management, CORS configuration, file upload security, and InfluxDB credential security

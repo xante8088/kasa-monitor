@@ -84,6 +84,8 @@ services:
     environment:
       - NODE_ENV=production
       - LOG_LEVEL=info
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}  # Required for production
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
       
     # Health check
     healthcheck:
@@ -149,10 +151,11 @@ services:
       - influxdb_config:/etc/influxdb2
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
-      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUX_USERNAME}
-      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUX_PASSWORD}
-      - DOCKER_INFLUXDB_INIT_ORG=kasa-monitor
-      - DOCKER_INFLUXDB_INIT_BUCKET=device-data
+      - DOCKER_INFLUXDB_INIT_USERNAME=${DOCKER_INFLUXDB_INIT_USERNAME}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${DOCKER_INFLUXDB_INIT_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=${DOCKER_INFLUXDB_INIT_ORG:-kasa-monitor}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${DOCKER_INFLUXDB_INIT_BUCKET:-device-data}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${DOCKER_INFLUXDB_INIT_ADMIN_TOKEN}
       - DOCKER_INFLUXDB_INIT_RETENTION=90d
     deploy:
       resources:
@@ -212,22 +215,28 @@ SQLITE_PATH=/app/data/kasa_monitor.db
 DATABASE_BACKUP_ENABLED=true
 DATABASE_BACKUP_SCHEDULE="0 2 * * *"
 
-# InfluxDB
+# InfluxDB (Use environment variables, not hardcoded values)
 INFLUXDB_URL=http://influxdb:8086
-INFLUX_USERNAME=admin
-INFLUX_PASSWORD=SecurePassword123!
-INFLUXDB_TOKEN=your-secure-token
-INFLUXDB_ORG=kasa-monitor
-INFLUXDB_BUCKET=device-data
+DOCKER_INFLUXDB_INIT_USERNAME=admin
+DOCKER_INFLUXDB_INIT_PASSWORD=$(openssl rand -base64 24)  # Generate secure password
+DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=$(openssl rand -hex 32)  # Generate secure token
+DOCKER_INFLUXDB_INIT_ORG=kasa-monitor
+DOCKER_INFLUXDB_INIT_BUCKET=device-data
 
 # Redis
 REDIS_URL=redis://redis:6379
 REDIS_PASSWORD=
 
-# Security
-JWT_SECRET_KEY=your-very-long-random-string
-SESSION_SECRET=another-random-string
-ALLOWED_ORIGINS=https://yourdomain.com
+# Security (CRITICAL - Generate secure values for production)
+JWT_SECRET_KEY=$(openssl rand -base64 32)  # Generate secure key
+SESSION_SECRET=$(openssl rand -base64 32)
+CORS_ALLOWED_ORIGINS=https://yourdomain.com,https://app.yourdomain.com
+
+# File Upload Security
+MAX_UPLOAD_SIZE_MB=10
+ALLOWED_UPLOAD_EXTENSIONS=.zip,.py,.json
+REQUIRE_PLUGIN_SIGNATURES=true
+UPLOAD_QUARANTINE_DIR=/app/quarantine
 
 # Performance
 POLLING_INTERVAL=60
@@ -684,3 +693,97 @@ docker network inspect bridge
 - [Security Guide](Security-Guide) - Security hardening
 - [Backup & Recovery](Backup-Recovery) - Data protection
 - [Performance Tuning](Performance-Tuning) - Optimization
+
+## Security Hardening
+
+### Critical Security Configuration
+
+**1. JWT Secret Management:**
+```bash
+# Generate secure JWT secret (required for production)
+export JWT_SECRET_KEY=$(openssl rand -base64 32)
+echo "JWT_SECRET_KEY=${JWT_SECRET_KEY}" >> .env.production
+
+# The application uses jwt_secret_manager.py for:
+# - Secure key storage with 600 permissions
+# - Key rotation support
+# - Backward compatibility during rotation
+```
+
+**2. CORS Configuration:**
+```bash
+# Configure allowed origins (no wildcards in production)
+CORS_ALLOWED_ORIGINS=https://yourdomain.com,https://app.yourdomain.com
+ENVIRONMENT=production  # Enforces strict CORS checking
+```
+
+**3. Database Credentials:**
+```bash
+# Generate secure InfluxDB credentials
+export DOCKER_INFLUXDB_INIT_PASSWORD=$(openssl rand -base64 24)
+export DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=$(openssl rand -hex 32)
+
+# Never hardcode credentials in docker-compose.yml
+# Always use environment variables or Docker secrets
+```
+
+**4. File Upload Security:**
+```yaml
+environment:
+  - MAX_UPLOAD_SIZE_MB=10
+  - ALLOWED_UPLOAD_EXTENSIONS=.zip,.py,.json
+  - REQUIRE_PLUGIN_SIGNATURES=true
+  - UPLOAD_QUARANTINE_DIR=/app/quarantine
+```
+
+### Docker Secrets Integration
+
+```yaml
+# docker-compose with secrets
+services:
+  kasa-monitor:
+    secrets:
+      - jwt_secret
+      - db_password
+      - influx_token
+    environment:
+      - JWT_SECRET_KEY_FILE=/run/secrets/jwt_secret
+      - DB_PASSWORD_FILE=/run/secrets/db_password
+      - INFLUX_TOKEN_FILE=/run/secrets/influx_token
+
+secrets:
+  jwt_secret:
+    external: true
+  db_password:
+    external: true
+  influx_token:
+    external: true
+```
+
+**Create secrets:**
+```bash
+# Create Docker secrets
+echo "$(openssl rand -base64 32)" | docker secret create jwt_secret -
+echo "$(openssl rand -base64 24)" | docker secret create db_password -
+echo "$(openssl rand -hex 32)" | docker secret create influx_token -
+```
+
+### Security Checklist
+
+- [ ] JWT_SECRET_KEY configured with secure 256-bit key
+- [ ] CORS_ALLOWED_ORIGINS restricted to your domains
+- [ ] Database passwords use environment variables
+- [ ] File upload restrictions configured
+- [ ] Container running with security_opt: no-new-privileges
+- [ ] Volumes mounted as read-only where possible
+- [ ] Network isolation configured
+- [ ] SSL/TLS certificates installed
+- [ ] Firewall rules configured
+- [ ] Regular security updates applied
+
+---
+
+**Document Version:** 1.1.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Added security hardening section with JWT, CORS, database credentials, and file upload security configurations

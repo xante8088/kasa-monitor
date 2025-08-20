@@ -9,7 +9,7 @@ http://localhost:8000/api
 
 ## Authentication
 
-Most endpoints require JWT authentication.
+Most endpoints require JWT authentication. The application uses secure JWT secret management with rotation support.
 
 ### Get Token
 ```http
@@ -552,6 +552,11 @@ Form Data:
   file: (certificate file)
 ```
 
+**Security Notes:**
+- File size limited by MAX_UPLOAD_SIZE_MB (default: 10MB)
+- File type validation enforced
+- Files are quarantined and validated before processing
+
 #### Upload SSL Private Key
 ```http
 POST /api/system/ssl/upload-key
@@ -561,6 +566,11 @@ Content-Type: multipart/form-data
 Form Data:
   file: (private key file)
 ```
+
+**Security Notes:**
+- File size limited by MAX_UPLOAD_SIZE_MB (default: 10MB)
+- File type validation enforced
+- Files are quarantined and validated before processing
 
 ### Backup Management
 
@@ -799,6 +809,22 @@ X-RateLimit-Remaining: 95
 X-RateLimit-Reset: 1704456000
 ```
 
+## CORS Policy
+
+Cross-Origin Resource Sharing (CORS) is strictly enforced:
+- Origins must be explicitly whitelisted via CORS_ALLOWED_ORIGINS
+- No wildcard origins allowed in production
+- Preflight requests are validated
+- CORS violations are logged for security monitoring
+
+## File Upload Security
+
+All file uploads are subject to:
+- Size limits (MAX_UPLOAD_SIZE_MB, default: 10MB)
+- File type validation (extension and MIME type)
+- Quarantine and validation before processing
+- Plugin signature verification (when REQUIRE_PLUGIN_SIGNATURES=true)
+
 ## Examples
 
 ### Python
@@ -866,3 +892,10 @@ Future versions will use `/api/v2/` format.
 - Check the [FAQ](FAQ)
 - Open an [issue](https://github.com/xante8088/kasa-monitor/issues)
 - See [examples](https://github.com/xante8088/kasa-monitor/tree/main/examples)
+
+---
+
+**Document Version:** 1.1.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Added security notes for file uploads, CORS policy, and JWT authentication updates

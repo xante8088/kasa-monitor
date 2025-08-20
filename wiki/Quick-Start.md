@@ -137,13 +137,22 @@ services:
       - kasa_data:/app/data
     environment:
       - TZ=America/New_York  # Your timezone
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}  # Generate with: openssl rand -base64 32
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000  # Add your domain for production
     restart: unless-stopped
 
 volumes:
   kasa_data:
 ```
 
-2. **Start the stack**:
+2. **Create `.env` file for production**:
+```bash
+# Generate secure keys
+echo "JWT_SECRET_KEY=$(openssl rand -base64 32)" > .env
+echo "CORS_ALLOWED_ORIGINS=https://yourdomain.com" >> .env
+```
+
+3. **Start the stack**:
 ```bash
 docker-compose up -d
 ```
@@ -284,7 +293,7 @@ Congratulations! You're now monitoring your smart home energy usage! 🏠⚡
 
 ---
 
-**Document Version:** 1.0.0  
+**Document Version:** 1.1.0  
 **Last Updated:** 2025-08-20  
 **Review Status:** Current  
-**Change Summary:** Added port clarification, troubleshooting section, and improved setup instructions
+**Change Summary:** Added security configuration for JWT and CORS in Docker Compose setup

@@ -219,15 +219,35 @@ async def download_backup(backup_name: str):
 @router.post("/backup/upload")
 async def upload_backup(file: UploadFile = File(...), description: str = ""):
     """Upload a backup file"""
-    bm = get_backup_manager()
-
-    # Save uploaded file
-    backup_name = f"uploaded_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file.filename}"
-    backup_path = Path(bm.backup_dir) / backup_name
-
-    with open(backup_path, "wb") as f:
+    # Secure file upload validation
+    try:
+        from security_fixes.critical.file_upload_security import SecureFileUploadManager
+        upload_manager = SecureFileUploadManager()
+        upload_result = await upload_manager.handle_upload(file, "backup")
+        
+        bm = get_backup_manager()
+        backup_name = f"uploaded_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file.filename}"
+        backup_path = Path(bm.backup_dir) / backup_name
+        
+        # Move approved file from quarantine to backup directory
+        if not upload_manager.approve_quarantined_file(upload_result["quarantine_path"], str(backup_path)):
+            raise HTTPException(status_code=500, detail="Failed to move backup file")
+            
+    except ImportError:
+        # Fallback to basic validation
+        if not file.filename or not file.filename.lower().endswith(('.zip', '.7z', '.json')):
+            raise HTTPException(status_code=400, detail="Invalid backup file type")
+        
         content = await file.read()
-        f.write(content)
+        if len(content) > 100 * 1024 * 1024:  # 100MB limit for backups
+            raise HTTPException(status_code=400, detail="Backup file too large")
+        
+        bm = get_backup_manager()
+        backup_name = f"uploaded_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file.filename}"
+        backup_path = Path(bm.backup_dir) / backup_name
+
+        with open(backup_path, "wb") as f:
+            f.write(content)
 
     # Add to metadata
     backup_info = {

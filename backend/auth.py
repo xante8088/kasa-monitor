@@ -30,12 +30,12 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import jwt
 
 from models import Permission, User, UserRole
+from jwt_secret_manager import get_current_jwt_secret, get_all_valid_jwt_secrets
 
 # Load environment variables
 load_dotenv()
 
 # Security configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", secrets.token_urlsafe(32))
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -134,25 +134,42 @@ class AuthManager:
         )
         to_encode.update({"exp": expire})  # Add exp as datetime object
 
-        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+        # Use secure secret manager for token creation
+        current_secret = get_current_jwt_secret()
+        encoded_jwt = jwt.encode(to_encode, current_secret, algorithm=ALGORITHM)
         return encoded_jwt
 
     @staticmethod
     def verify_token(token: str) -> Dict[str, Any]:
-        """Verify and decode a JWT token."""
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            return payload
-        except jwt.ExpiredSignatureError:
+        """Verify and decode a JWT token with key rotation support."""
+        # Try all valid secrets (current + recent previous for grace period)
+        valid_secrets = get_all_valid_jwt_secrets()
+        
+        last_exception = None
+        for secret in valid_secrets:
+            try:
+                payload = jwt.decode(token, secret, algorithms=[ALGORITHM])
+                return payload
+            except jwt.ExpiredSignatureError as e:
+                # Token is expired - don't try other secrets
+                last_exception = e
+                break
+            except (jwt.InvalidTokenError, jwt.JWTError) as e:
+                # Invalid token with this secret, try next one
+                last_exception = e
+                continue
+                
+        # No secret worked, raise appropriate exception
+        if isinstance(last_exception, jwt.ExpiredSignatureError):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token expired",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        except jwt.JWTError as e:
+        else:
+            # Invalid token - none of the secrets worked
             import logging
-
-            logging.error(f"JWT verification error: {str(e)}")
+            logging.error(f"JWT verification failed with all secrets: {str(last_exception)}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",

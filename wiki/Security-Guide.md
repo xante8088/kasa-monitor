@@ -212,6 +212,47 @@ deploy:
 
 ## Application Security
 
+### CORS Configuration
+
+**Environment-Based CORS:**
+```bash
+# Set allowed origins in .env file
+CORS_ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
+
+# Production mode enforces strict origin checking
+ENVIRONMENT=production
+```
+
+The application uses `security_fixes/critical/cors_fix.py` for secure CORS handling:
+- Validates origins against whitelist
+- Supports pattern matching for subdomains
+- Blocks wildcard origins in production
+- Logs CORS violations for security monitoring
+
+### File Upload Security
+
+**Upload Validation:**
+```bash
+# Configure in environment
+MAX_UPLOAD_SIZE_MB=10
+ALLOWED_UPLOAD_EXTENSIONS=.zip,.py,.json
+REQUIRE_PLUGIN_SIGNATURES=true
+```
+
+The application uses `security_fixes/critical/file_upload_security.py`:
+- File type validation (extension and MIME type)
+- Size limits enforcement
+- Quarantine system for suspicious files
+- Virus scanning integration (when available)
+- Content validation for specific file types
+- Secure filename sanitization
+
+**Quarantine System:**
+- Uploaded files are first placed in quarantine
+- Validation checks are performed
+- Only validated files are moved to final destination
+- Failed validations are logged and files deleted
+
 ### Authentication
 
 **Strong Password Policy:**
@@ -243,8 +284,12 @@ bcrypt.checkpw(password.encode('utf-8'), hashed)
 
 **Secure JWT Settings:**
 ```python
-# Strong secret key
-JWT_SECRET_KEY = secrets.token_urlsafe(32)
+# Strong secret key with automatic rotation support
+# The system now uses jwt_secret_manager.py for secure key management
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')  # Required in production
+
+# Generate secure key:
+# openssl rand -base64 32
 
 # Short expiration
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
@@ -253,6 +298,12 @@ REFRESH_TOKEN_EXPIRE_DAYS = 7
 # Algorithm
 ALGORITHM = "HS256"  # Consider RS256 for production
 ```
+
+**Key Rotation:**
+The application now supports JWT key rotation with grace periods:
+- Keys are stored securely in `data/jwt_secrets.json` with 600 permissions
+- Old keys are retained for validation during rotation
+- Automatic rotation can be triggered via API (admin only)
 
 **Token Storage:**
 ```javascript
@@ -450,12 +501,24 @@ openssl enc -aes-256-cbc -d \
 # Never commit .env files
 echo ".env" >> .gitignore
 
+# Required security variables for production
+JWT_SECRET_KEY=$(openssl rand -base64 32)
+DOCKER_INFLUXDB_INIT_PASSWORD=$(openssl rand -base64 24)
+DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=$(openssl rand -hex 32)
+
 # Use Docker secrets
+docker secret create jwt_secret jwt_secret.txt
 docker secret create db_password password.txt
 
 # Or use encrypted config
 ansible-vault encrypt config.yml
 ```
+
+**Database Credentials:**
+- InfluxDB credentials now use environment variables
+- No hardcoded passwords in docker-compose.yml
+- Passwords are loaded from .env files
+- Production deployments should use Docker secrets or external secret management
 
 **Secrets Management:**
 ```yaml
@@ -626,3 +689,10 @@ If you discover a security vulnerability:
 - [Docker Security](https://docs.docker.com/security/)
 - [NIST Cybersecurity](https://www.nist.gov/cybersecurity)
 - [CIS Benchmarks](https://www.cisecurity.org)
+
+---
+
+**Document Version:** 1.1.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Added JWT secret management, CORS security, file upload security, and database credential security sections

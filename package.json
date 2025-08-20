@@ -9,7 +9,11 @@
     "start": "next start",
     "lint": "next lint",
     "backend": "python backend/server.py",
-    "sync-version": "node scripts/sync-version.js"
+    "sync-version": "node scripts/sync-version.js",
+    "check-doc-versions": "node scripts/check-doc-versions.js",
+    "update-doc-versions": "node scripts/update-doc-versions.js",
+    "update-doc-dates": "node scripts/update-doc-versions.js --auto --update-dates",
+    "doc-version-report": "node scripts/check-doc-versions.js --report"
   },
   "dependencies": {
     "@influxdata/influxdb-client": "^1.35.0",

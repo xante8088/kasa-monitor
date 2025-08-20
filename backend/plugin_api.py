@@ -20,9 +20,11 @@ along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
 import json
+import logging
 import shutil
 import sqlite3
 import tempfile
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -34,6 +36,8 @@ from plugin_security import PluginSecurityManager, TrustLevel
 from pydantic import BaseModel, Field
 
 from hook_system import HookManager, HookPriority, HookType
+
+logger = logging.getLogger(__name__)
 from plugin_system import (
     PluginLoader,
     PluginManifest,
@@ -337,13 +341,28 @@ class PluginAPIRouter:
             background_tasks: BackgroundTasks = None,
         ):
             """Upload and install a plugin with security verification."""
-            # Save uploaded file
-            temp_dir = tempfile.mkdtemp()
-            temp_file = Path(temp_dir) / file.filename
+            # Secure file upload validation
+            try:
+                from security_fixes.critical.file_upload_security import SecureFileUploadManager
+                upload_manager = SecureFileUploadManager()
+                upload_result = await upload_manager.handle_upload(file, "plugin")
+                temp_file = Path(upload_result["quarantine_path"])
+            except ImportError:
+                logger.warning("Secure file upload not available, using basic validation")
+                # Fallback to basic validation
+                if not file.filename.endswith('.zip'):
+                    raise HTTPException(status_code=400, detail="Only .zip files are allowed for plugins")
+                if file.size and file.size > 10 * 1024 * 1024:  # 10MB limit
+                    raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+                
+                # Save uploaded file with basic security
+                temp_dir = tempfile.mkdtemp()
+                safe_filename = f"plugin_{int(time.time())}_{file.filename}"
+                temp_file = Path(temp_dir) / safe_filename
 
-            with open(temp_file, "wb") as f:
                 content = await file.read()
-                f.write(content)
+                with open(temp_file, "wb") as f:
+                    f.write(content)
 
             # Perform security check
             if not skip_signature_check:

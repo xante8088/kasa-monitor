@@ -102,14 +102,20 @@ if not USE_EXISTING:
 else:
     app = existing_app
 
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Add secure CORS middleware
+try:
+    from security_fixes.critical.cors_fix import setup_cors_security
+    cors_config = setup_cors_security(app)
+    logger.info(f"Secure CORS configured for environment: {cors_config.environment}")
+except ImportError:
+    logger.warning("CORS security fix not available, using basic CORS")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["*"],
+    )
 
 # Include all routers
 app.include_router(health_router, tags=["health"])

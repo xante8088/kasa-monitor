@@ -81,6 +81,9 @@ See [Network Configuration](Network-Configuration) for detailed setup.
 
 ```yaml
 environment:
+  # Security (REQUIRED FOR PRODUCTION)
+  - JWT_SECRET_KEY=CHANGE_ME_TO_SECURE_256_BIT_KEY  # Generate with: openssl rand -base64 32
+  
   # Database
   - SQLITE_PATH=/app/data/kasa_monitor.db
   
@@ -89,15 +92,28 @@ environment:
   - DISCOVERY_ENABLED=false
   - MANUAL_DEVICES_ENABLED=true
   
+  # CORS Security
+  - CORS_ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
+  
+  # File Upload Security
+  - MAX_UPLOAD_SIZE_MB=10
+  - ALLOWED_UPLOAD_EXTENSIONS=.zip,.py,.json
+  - REQUIRE_PLUGIN_SIGNATURES=true
+  
   # Optional: TP-Link Cloud
   - TPLINK_USERNAME=your@email.com
   - TPLINK_PASSWORD=yourpassword
   
-  # Optional: InfluxDB
+  # Optional: InfluxDB (use env vars instead of hardcoding)
   - INFLUXDB_URL=http://influxdb:8086
-  - INFLUXDB_TOKEN=your-token
+  - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}  # Set in .env file
   - INFLUXDB_ORG=kasa-monitor
   - INFLUXDB_BUCKET=device-data
+  
+  # InfluxDB Docker Init (for docker-compose)
+  - DOCKER_INFLUXDB_INIT_USERNAME=${DOCKER_INFLUXDB_INIT_USERNAME}
+  - DOCKER_INFLUXDB_INIT_PASSWORD=${DOCKER_INFLUXDB_INIT_PASSWORD}
+  - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${DOCKER_INFLUXDB_INIT_ADMIN_TOKEN}
   
   # Performance (Raspberry Pi)
   - NODE_OPTIONS=--max-old-space-size=1024
@@ -346,3 +362,10 @@ See [Network Configuration](Network-Configuration) for detailed troubleshooting.
 - Check [Common Issues](Common-Issues)
 - Browse [FAQ](FAQ)
 - Open an [issue](https://github.com/xante8088/kasa-monitor/issues)
+
+---
+
+**Document Version:** 1.0.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Added security environment variables for JWT, CORS, file uploads, and InfluxDB credentials

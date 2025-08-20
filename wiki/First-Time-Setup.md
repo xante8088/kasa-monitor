@@ -404,14 +404,32 @@ docker restart kasa-monitor
 
 ### 1. Security Hardening
 
+**Essential Security Configuration:**
+
 ```bash
-# Change default ports
-# Enable HTTPS
-# Set up firewall rules
-# Configure fail2ban
+# Generate secure JWT secret (REQUIRED for production)
+export JWT_SECRET_KEY=$(openssl rand -base64 32)
+echo "JWT_SECRET_KEY=${JWT_SECRET_KEY}" >> .env
+
+# Configure CORS for your domain
+echo "CORS_ALLOWED_ORIGINS=https://yourdomain.com" >> .env
+
+# Set file upload restrictions
+echo "MAX_UPLOAD_SIZE_MB=10" >> .env
+echo "REQUIRE_PLUGIN_SIGNATURES=true" >> .env
+
+# Generate secure database credentials (if using InfluxDB)
+export INFLUX_PASSWORD=$(openssl rand -base64 24)
+export INFLUX_TOKEN=$(openssl rand -hex 32)
 ```
 
-See [Security Guide](Security-Guide) for details.
+**Additional Security Steps:**
+- Enable HTTPS with SSL certificates
+- Configure firewall rules
+- Set up fail2ban for brute force protection
+- Implement network isolation
+
+See [Security Guide](Security-Guide) for complete hardening instructions.
 
 ### 2. Backup Configuration
 
@@ -461,4 +479,7 @@ After completing setup:
 
 ---
 
-**Congratulations!** Your Kasa Monitor is now configured and ready to help you track and optimize your energy usage! 🎉
+**Document Version:** 1.1.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Added essential security configuration steps for JWT, CORS, file uploads, and database credentials

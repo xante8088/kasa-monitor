@@ -37,6 +37,29 @@ jobs:
           npm install -g markdown-link-check@3.11.2
           echo "✅ Tools installed"
       
+      - name: Check documentation version compliance
+        id: version_check
+        run: |
+          echo "=== Checking Documentation Version Compliance ==="
+          
+          # Run the version check script
+          node scripts/check-doc-versions.js || true
+          
+          # Count issues
+          compliant_count=$(node scripts/check-doc-versions.js 2>/dev/null | grep -c "✓" || echo "0")
+          issue_count=$(node scripts/check-doc-versions.js 2>/dev/null | grep -c "⚠" || echo "0")
+          missing_count=$(node scripts/check-doc-versions.js 2>/dev/null | grep -c "✗" || echo "0")
+          
+          echo ""
+          echo "Version compliance summary:"
+          echo "  Compliant: $compliant_count"
+          echo "  With issues: $issue_count"
+          echo "  Missing footer: $missing_count"
+          
+          echo "::set-output name=compliant_count::$compliant_count"
+          echo "::set-output name=issue_count::$issue_count"
+          echo "::set-output name=missing_count::$missing_count"
+      
       - name: Check for outdated documentation
         id: outdated_check
         run: |
