@@ -20,8 +20,11 @@ docker run -d \
 
 Open your browser and navigate to:
 ```
-http://localhost:3000
+Frontend: http://localhost:3000
+Backend API: http://localhost:5272
 ```
+
+**Note**: The frontend (React app) runs on port 3000, while the backend API runs on port 5272. For most users, you'll primarily use the frontend interface.
 
 ### Step 3: Create Admin Account
 
@@ -258,4 +261,30 @@ Now that you're up and running:
 - [ ] Real-time data visible
 - [ ] Cost calculations working
 
+## 🔧 Quick Troubleshooting
+
+### Can't Access the Application?
+- **Check ports**: Frontend (3000) and Backend (5272) should be accessible
+- **Firewall**: Make sure Docker ports aren't blocked
+- **Container status**: Run `docker ps` to verify the container is running
+
+### Devices Not Found?
+- **Network**: Ensure devices are on the same subnet as the Docker host
+- **Discovery**: Try manual device addition using IP addresses
+- **Permissions**: On Linux, ensure Docker has network access
+
+### Performance Issues?
+- **Resources**: Check Docker container has sufficient memory (512MB+ recommended)
+- **Database**: Large amounts of historical data may slow queries
+- **Network**: Reduce polling frequency in settings if needed
+
+Need more help? Check the [Common Issues](Common-Issues.md) guide.
+
 Congratulations! You're now monitoring your smart home energy usage! 🏠⚡
+
+---
+
+**Document Version:** 1.0.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Added port clarification, troubleshooting section, and improved setup instructions
