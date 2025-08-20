@@ -23,7 +23,7 @@ jobs:
     steps:
     - name: Find correct package name
       id: find_package
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
       with:
         script: |
           const packageNames = ['kasa-monitor', context.repo.repo, `${context.repo.owner}/${context.repo.repo}`];
@@ -52,7 +52,7 @@ jobs:
 
     - name: Delete old images
       if: steps.find_package.outputs.package_found == 'true'
-      uses: actions/delete-package-versions@v4
+      uses: actions/delete-package-versions@v5
       with:
         package-name: ${{ steps.find_package.outputs.package_name }}
         package-type: 'container'
