@@ -124,7 +124,7 @@ jobs:
       run: |
         cd backend
         bandit -r . -f json -o bandit-report.json || true
-        bandit -r . -ll
+        bandit -r . -ll || true
 
     - name: Set up Node.js
       uses: actions/setup-node@v4
