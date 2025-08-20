@@ -34,9 +34,8 @@ RUN npm run build
 # Stage 2: Python Backend Base
 FROM python:3.11-slim AS backend-base
 
-# Install system dependencies for ARM64/Raspberry Pi with cache mount
-RUN --mount=type=cache,target=/var/cache/apt,id=apt-backend \
-    apt-get update && apt-get install -y \
+# Install system dependencies for ARM64/Raspberry Pi
+RUN apt-get update && apt-get install -y \
     build-essential \
     gcc \
     g++ \
@@ -58,9 +57,8 @@ RUN --mount=type=cache,target=/root/.cache/pip,id=pip-backend \
 # Stage 3: Final Runtime Image
 FROM python:3.11-slim AS runtime
 
-# Install Node.js and runtime dependencies with cache mount
-RUN --mount=type=cache,target=/var/cache/apt,id=apt-runtime \
-    apt-get update && apt-get install -y \
+# Install Node.js and runtime dependencies
+RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
     nodejs \
