@@ -20,7 +20,7 @@ python-dotenv
 reportlab
 openpyxl
 pandas
-black==24.8.0
+black==25.1.0
 jinja2
 aiosmtplib
 psutil
