@@ -596,3 +596,10 @@ DELETE /api/users/{id}/permissions/{permission}
 - [First Time Setup](First-Time-Setup) - Initial admin creation
 - [API Documentation](API-Documentation) - User API endpoints
 - [Database Schema](Database-Schema) - User tables structure
+
+---
+
+**Document Version:** 1.0.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Initial version tracking added

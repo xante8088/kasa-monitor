@@ -615,3 +615,10 @@ curl -G http://localhost:8086/query \
 - [Backup & Recovery](Backup-Recovery) - Database backup procedures
 - [Performance Tuning](Performance-Tuning) - Database optimization
 - [Installation](Installation) - Initial database setup
+
+---
+
+**Document Version:** 1.0.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Initial version tracking added

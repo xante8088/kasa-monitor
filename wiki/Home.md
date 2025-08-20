@@ -99,6 +99,7 @@ Kasa Monitor is licensed under the [GNU General Public License v3.0](https://git
 
 ---
 
-<div align="center">
-  <sub>Built with ❤️ for the smart home community</sub>
-</div>
+**Document Version:** 0.5.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Initial version tracking added

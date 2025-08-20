@@ -412,3 +412,10 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
 - Review [Common Issues](Common-Issues)
 - Search [GitHub Issues](https://github.com/xante8088/kasa-monitor/issues)
 - Ask in [Discussions](https://github.com/xante8088/kasa-monitor/discussions)
+
+---
+
+**Document Version:** 1.0.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Initial version tracking added

@@ -532,3 +532,10 @@ Need automatic discovery?
 - [Docker Networking](https://docs.docker.com/network/)
 - [Macvlan Documentation](https://docs.docker.com/network/macvlan/)
 - [Network Troubleshooting](https://docs.docker.com/network/troubleshooting/)
+
+---
+
+**Document Version:** 1.0.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Initial version tracking added

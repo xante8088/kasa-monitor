@@ -231,4 +231,7 @@ SELECT * FROM plugins WHERE plugin_id = 'my-plugin';
 
 ---
 
-*Note: This documentation reflects the current basic implementation. Many advanced features are planned for future releases. For production use, thoroughly test plugins in your environment.*
+**Document Version:** 0.9.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Initial version tracking added

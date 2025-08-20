@@ -554,3 +554,10 @@ docker logs kasa-monitor --tail 200 > debug.log
 - [Installation](Installation) - Setup guide
 - [Network Configuration](Network-Configuration) - Network setup
 - [Docker Issues](Docker-Issues) - Docker-specific problems
+
+---
+
+**Document Version:** 1.0.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Initial version tracking added

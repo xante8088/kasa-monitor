@@ -467,3 +467,10 @@ docker logs kasa-monitor 2>&1 | grep -i "discover" | tail -10
 - [Docker Deployment](Docker-Deployment) - Container networking
 - [Common Issues](Common-Issues) - General troubleshooting
 - [API Documentation](API-Documentation) - Discovery API endpoints
+
+---
+
+**Document Version:** 1.0.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Initial version tracking added

@@ -166,57 +166,10 @@ Create `_Sidebar.md`:
 Create `_Footer.md`:
 
 ```markdown
----
-[Home](Home) | [Installation](Installation) | [API](API-Documentation) | [FAQ](FAQ) | [GitHub](https://github.com/xante8088/kasa-monitor)
-
-© 2025 Kasa Monitor - [GPL-3.0 License](https://github.com/xante8088/kasa-monitor/blob/main/LICENSE)
-```
-
-## Maintenance
-
-### Keeping Wiki Updated
-
-1. **Regular Updates**
-   - Update with new features
-   - Fix broken links
-   - Add new guides
-
-2. **Version Sync**
-   - Tag wiki updates with releases
-   - Note version compatibility
-
-3. **Community Contributions**
-   - Accept wiki PRs
-   - Review and merge updates
-
-## Tips
-
-1. **Preview Changes**: Use GitHub preview before saving
-2. **Test Links**: Verify all internal links work
-3. **Use Templates**: Create consistent page structure
-4. **Add Examples**: Include code and config examples
-5. **Keep Current**: Update with each release
-
-## Access Control
-
-Wiki permissions follow repository permissions:
-- **Public Repo**: Anyone can read, contributors can edit
-- **Private Repo**: Only collaborators can access
-
-To restrict editing:
-1. Go to Settings → Manage Access
-2. Set wiki to "Restrict editing to collaborators"
-
-## Backup
-
-Always keep a local copy:
-```bash
-# Backup wiki
-git clone https://github.com/xante8088/kasa-monitor.wiki.git wiki-backup
-cd wiki-backup
-git archive --format=tar.gz -o ../wiki-backup-$(date +%Y%m%d).tar.gz HEAD
-```
 
 ---
 
-Ready to upload? Start with Method 1 for easy web-based setup!
+**Document Version:** 0.9.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Initial version tracking added

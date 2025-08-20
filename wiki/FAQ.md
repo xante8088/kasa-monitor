@@ -236,4 +236,7 @@ Please report security issues privately. See [Security Policy](Security-Guide#re
 
 ---
 
-*Don't see your question? [Ask in Discussions](https://github.com/xante8088/kasa-monitor/discussions/new?category=q-a)*
+**Document Version:** 1.0.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Initial version tracking added

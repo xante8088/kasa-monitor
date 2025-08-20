@@ -410,3 +410,10 @@ curl -H "Authorization: Bearer $TOKEN" \
 - [Understanding kWh](https://www.eia.gov/energyexplained/)
 - [Energy Efficiency Tips](https://www.energy.gov/energysaver)
 - [Smart Home Energy Guide](https://www.energystar.gov)
+
+---
+
+**Document Version:** 1.0.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Initial version tracking added

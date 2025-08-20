@@ -298,3 +298,10 @@ Set up triggers:
 - Click ❓ icon for contextual help
 - Check [FAQ](FAQ) for common questions
 - Report issues on [GitHub](https://github.com/xante8088/kasa-monitor/issues)
+
+---
+
+**Document Version:** 0.1.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Initial version tracking added

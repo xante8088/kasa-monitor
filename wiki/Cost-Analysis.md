@@ -451,3 +451,10 @@ curl -H "Authorization: Bearer $TOKEN" \
 - [FAQ](FAQ) - Common questions
 - [Support](https://github.com/xante8088/kasa-monitor/issues)
 - [Community](https://github.com/xante8088/kasa-monitor/discussions)
+
+---
+
+**Document Version:** 1.0.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Initial version tracking added

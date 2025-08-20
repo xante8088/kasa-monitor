@@ -585,3 +585,10 @@ docker inspect kasa-monitor | jq '.[0].State.Health.Status'
 - [Installation](Installation) - Installation instructions
 - [Common Issues](Common-Issues) - General troubleshooting
 - [Device Discovery Issues](Device-Discovery-Issues) - Network-specific issues
+
+---
+
+**Document Version:** 1.0.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Initial version tracking added

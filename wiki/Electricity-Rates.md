@@ -477,3 +477,10 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
 - [EIA Electricity Data](https://www.eia.gov/electricity/)
 - [OpenEI Utility Rates](https://openei.org/wiki/Utility_Rate_Database)
 - [Energy.gov Rate Info](https://www.energy.gov/rates)
+
+---
+
+**Document Version:** 1.0.0  
+**Last Updated:** 2025-08-20  
+**Review Status:** Current  
+**Change Summary:** Initial version tracking added
