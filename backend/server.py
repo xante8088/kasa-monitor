@@ -171,7 +171,13 @@ try:
 except ImportError:
     # Create a dummy class if slowapi is not available
     class RateLimitExceeded(Exception):
-        def __init__(self, detail="Rate limit exceeded", limit=None, retry_after=None, reset_time=None):
+        def __init__(
+            self,
+            detail="Rate limit exceeded",
+            limit=None,
+            retry_after=None,
+            reset_time=None,
+        ):
             self.detail = detail
             self.limit = limit
             self.retry_after = retry_after
