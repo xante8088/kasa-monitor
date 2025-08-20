@@ -318,30 +318,55 @@ DELETE /api/users/{user_id}
 Authorization: Bearer {admin_token}
 ```
 
-### Permissions
+### Two-Factor Authentication
 
-#### Get All Permissions
+#### Check 2FA Status
 ```http
-GET /api/permissions
+GET /api/auth/2fa/status
 Authorization: Bearer {token}
 ```
 
-#### Get Role Permissions
+**Response:**
+```json
+{
+  "enabled": false
+}
+```
+
+#### Setup 2FA
 ```http
-GET /api/roles/permissions
+POST /api/auth/2fa/setup
 Authorization: Bearer {token}
 ```
 
-#### Update Role Permissions
+**Response:**
+```json
+{
+  "secret": "JBSWY3DPEHPK3PXP",
+  "qr_code": "data:image/png;base64,...",
+  "backup_codes": [
+    "ABC123",
+    "DEF456",
+    "GHI789"
+  ]
+}
+```
+
+#### Verify 2FA
 ```http
-POST /api/roles/{role}/permissions
-Authorization: Bearer {admin_token}
+POST /api/auth/2fa/verify
+Authorization: Bearer {token}
 Content-Type: application/json
 
 {
-  "permission": "devices.control",
-  "action": "add"  // or "remove"
+  "token": "123456"
 }
+```
+
+#### Disable 2FA
+```http
+POST /api/auth/2fa/disable
+Authorization: Bearer {token}
 ```
 
 ### System Configuration
@@ -396,6 +421,303 @@ GET /api/settings/network
   "discovery_enabled": false,
   "manual_devices_enabled": true,
   "host_ip": "172.17.0.1"
+}
+```
+
+### Data Export
+
+#### Get Export Formats
+```http
+GET /api/exports/formats
+```
+
+**Response:**
+```json
+[
+  {
+    "format": "csv",
+    "description": "Comma-separated values",
+    "extensions": [".csv"]
+  },
+  {
+    "format": "json",
+    "description": "JSON format",
+    "extensions": [".json"]
+  },
+  {
+    "format": "excel",
+    "description": "Excel spreadsheet",
+    "extensions": [".xlsx"]
+  }
+]
+```
+
+#### Get Available Devices for Export
+```http
+GET /api/exports/devices
+```
+
+#### Get Available Metrics
+```http
+GET /api/exports/metrics
+```
+
+#### Create Export
+```http
+POST /api/exports/create
+Content-Type: application/json
+
+{
+  "devices": ["192.168.1.100", "192.168.1.101"],
+  "date_range": {
+    "start": "2024-01-01",
+    "end": "2024-01-31"
+  },
+  "format": "csv",
+  "aggregation": "hourly",
+  "metrics": ["power", "energy", "cost"]
+}
+```
+
+#### Get Export History
+```http
+GET /api/exports/history?limit=50
+```
+
+#### Download Export
+```http
+GET /api/exports/download/{export_id}
+```
+
+#### Delete Export
+```http
+DELETE /api/exports/{export_id}
+```
+
+### SSL Certificate Management
+
+#### Get SSL Files
+```http
+GET /api/ssl/files
+Authorization: Bearer {admin_token}
+```
+
+**Response:**
+```json
+{
+  "cert_exists": true,
+  "key_exists": true,
+  "cert_info": {
+    "subject": "CN=localhost",
+    "issuer": "CN=localhost",
+    "valid_from": "2024-01-01",
+    "valid_until": "2025-01-01"
+  }
+}
+```
+
+#### Generate CSR
+```http
+POST /api/ssl/generate-csr
+Authorization: Bearer {admin_token}
+Content-Type: application/json
+
+{
+  "common_name": "kasa-monitor.local",
+  "organization": "My Organization",
+  "country": "US",
+  "state": "CA",
+  "locality": "San Francisco"
+}
+```
+
+#### Download SSL Files
+```http
+GET /api/ssl/download/{filename}
+Authorization: Bearer {admin_token}
+```
+
+Where filename can be:
+- `cert.pem` - SSL certificate
+- `key.pem` - Private key
+- `csr.pem` - Certificate signing request
+
+#### Upload SSL Certificate
+```http
+POST /api/system/ssl/upload-cert
+Authorization: Bearer {admin_token}
+Content-Type: multipart/form-data
+
+Form Data:
+  file: (certificate file)
+```
+
+#### Upload SSL Private Key
+```http
+POST /api/system/ssl/upload-key
+Authorization: Bearer {admin_token}
+Content-Type: multipart/form-data
+
+Form Data:
+  file: (private key file)
+```
+
+### Backup Management
+
+#### List Backups
+```http
+GET /api/backups
+Authorization: Bearer {admin_token}
+```
+
+**Response:**
+```json
+[
+  {
+    "filename": "kasa_backup_20240115_103000.7z",
+    "size": 1048576,
+    "created": "2024-01-15T10:30:00Z",
+    "type": "manual",
+    "includes": ["database", "config", "logs"]
+  }
+]
+```
+
+#### Create Backup
+```http
+POST /api/backups/create
+Authorization: Bearer {admin_token}
+Content-Type: application/json
+
+{
+  "type": "manual",
+  "include_logs": true,
+  "include_exports": false,
+  "compression": "high"
+}
+```
+
+#### Download Backup
+```http
+GET /api/backups/{filename}/download
+Authorization: Bearer {admin_token}
+```
+
+#### Delete Backup
+```http
+DELETE /api/backups/{filename}
+Authorization: Bearer {admin_token}
+```
+
+#### Restore Backup
+```http
+POST /api/backups/restore
+Authorization: Bearer {admin_token}
+Content-Type: multipart/form-data
+
+Form Data:
+  file: (backup file)
+  options: {"restore_config": true, "restore_database": true}
+```
+
+#### Get Backup Progress
+```http
+GET /api/backups/progress
+Authorization: Bearer {admin_token}
+```
+
+### Backup Schedules
+
+#### Get Backup Schedules
+```http
+GET /api/backups/schedules
+Authorization: Bearer {admin_token}
+```
+
+#### Create Backup Schedule
+```http
+POST /api/backups/schedules
+Authorization: Bearer {admin_token}
+Content-Type: application/json
+
+{
+  "name": "Daily Backup",
+  "cron": "0 2 * * *",
+  "enabled": true,
+  "retention_days": 30,
+  "options": {
+    "include_logs": true,
+    "compression": "normal"
+  }
+}
+```
+
+#### Update Backup Schedule
+```http
+PUT /api/backups/schedules/{schedule_id}
+Authorization: Bearer {admin_token}
+```
+
+#### Delete Backup Schedule
+```http
+DELETE /api/backups/schedules/{schedule_id}
+Authorization: Bearer {admin_token}
+```
+
+### Health Monitoring
+
+#### Basic Health Check
+```http
+GET /api/health
+```
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+#### Detailed Health Check
+```http
+GET /api/health/detailed
+Authorization: Bearer {admin_token}
+```
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "components": {
+    "database": {
+      "status": "healthy",
+      "response_time_ms": 5,
+      "details": {
+        "size_mb": 45.2,
+        "device_count": 10,
+        "reading_count": 50000
+      }
+    },
+    "device_manager": {
+      "status": "healthy",
+      "connected_devices": 8,
+      "failed_devices": 2
+    },
+    "cache": {
+      "status": "healthy",
+      "hit_rate": 0.85,
+      "memory_usage_mb": 128
+    },
+    "scheduler": {
+      "status": "healthy",
+      "jobs_pending": 3,
+      "jobs_running": 1
+    }
+  },
+  "uptime_seconds": 86400,
+  "memory_usage_mb": 256,
+  "cpu_usage_percent": 15.5
 }
 ```
 

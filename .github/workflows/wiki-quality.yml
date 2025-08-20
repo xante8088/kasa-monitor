@@ -1,0 +1,355 @@
+name: Wiki Quality Assurance
+
+on:
+  pull_request:
+    paths:
+      - 'wiki/**'
+      - '.markdownlint.json'
+  workflow_dispatch:
+    inputs:
+      generate_report:
+        description: 'Generate detailed quality report'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  quality-check:
+    runs-on: ubuntu-latest
+    name: Documentation Quality Check
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for comparison
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install quality tools
+        run: |
+          echo "=== Installing Documentation Quality Tools ==="
+          npm install -g markdownlint-cli@0.39.0
+          npm install -g markdown-link-check@3.11.2
+          echo "✅ Tools installed successfully"
+      
+      - name: Lint markdown files
+        id: markdown_lint
+        continue-on-error: true
+        run: |
+          echo "=== Running Markdown Linter ==="
+          
+          # Create markdownlint config if it doesn't exist
+          if [[ ! -f ".markdownlint.json" ]]; then
+            echo "Creating default markdownlint configuration..."
+            cat > .markdownlint.json << 'EOF'
+          {
+            "MD013": {
+              "line_length": 120,
+              "tables": false,
+              "code_blocks": false
+            },
+            "MD033": false,
+            "MD041": false,
+            "MD024": {
+              "allow_different_nesting": true
+            },
+            "MD025": true,
+            "MD026": true,
+            "MD027": true,
+            "MD028": true,
+            "MD029": true,
+            "MD030": true,
+            "MD031": true,
+            "MD032": true,
+            "MD034": false,
+            "MD036": true,
+            "MD037": true,
+            "MD038": true,
+            "MD039": true,
+            "MD040": true,
+            "MD042": true,
+            "MD045": true,
+            "MD046": true,
+            "MD047": true,
+            "MD048": true,
+            "MD049": true,
+            "MD050": true
+          }
+          EOF
+          fi
+          
+          # Run markdownlint and capture results
+          echo "Analyzing markdown files..."
+          lint_output=$(markdownlint wiki/**/*.md --config .markdownlint.json 2>&1 || true)
+          
+          if [[ -z "$lint_output" ]]; then
+            echo "✅ All markdown files pass linting checks"
+            echo "::set-output name=lint_status::passed"
+          else
+            echo "⚠️  Markdown linting issues found:"
+            echo "$lint_output"
+            echo "::set-output name=lint_status::warnings"
+            
+            # Count issues
+            issue_count=$(echo "$lint_output" | wc -l)
+            echo ""
+            echo "Total issues: $issue_count"
+          fi
+      
+      - name: Check internal links
+        id: link_check
+        continue-on-error: true
+        run: |
+          echo "=== Checking Internal Documentation Links ==="
+          
+          # Create markdown-link-check config
+          cat > .markdown-link-check.json << 'EOF'
+          {
+            "ignorePatterns": [
+              {
+                "pattern": "^https?://localhost"
+              },
+              {
+                "pattern": "^https?://127\\.0\\.0\\.1"
+              }
+            ],
+            "timeout": "10s",
+            "retryOn429": true,
+            "retryCount": 3,
+            "fallbackRetryDelay": "5s",
+            "aliveStatusCodes": [200, 206, 301, 302, 303]
+          }
+          EOF
+          
+          # Check links in all markdown files
+          echo "Checking links in wiki documentation..."
+          failed_files=0
+          total_files=0
+          
+          find wiki/ -name "*.md" -type f | while read -r file; do
+            total_files=$((total_files + 1))
+            echo ""
+            echo "Checking: $(basename $file)"
+            
+            if markdown-link-check "$file" --config .markdown-link-check.json --quiet; then
+              echo "  ✅ All links valid"
+            else
+              echo "  ⚠️  Some links may be broken"
+              failed_files=$((failed_files + 1))
+            fi
+          done
+          
+          echo ""
+          echo "=== Link Check Summary ==="
+          echo "Files checked: $total_files"
+          echo "Files with issues: $failed_files"
+          
+          if [[ $failed_files -eq 0 ]]; then
+            echo "::set-output name=link_status::passed"
+          else
+            echo "::set-output name=link_status::warnings"
+          fi
+      
+      - name: Validate documentation completeness
+        id: completeness_check
+        run: |
+          echo "=== Checking Documentation Completeness ==="
+          
+          # Define critical documentation files
+          critical_files=(
+            "wiki/Home.md"
+            "wiki/API-Documentation.md"
+            "wiki/Architecture-Overview.md"
+            "wiki/Security-Guide.md"
+            "wiki/Installation.md"
+            "wiki/Quick-Start.md"
+            "wiki/Development-Setup.md"
+            "wiki/User-Management.md"
+          )
+          
+          missing_critical=0
+          echo "Checking critical documentation files..."
+          for file in "${critical_files[@]}"; do
+            if [[ -f "$file" ]]; then
+              # Check if file has substantial content (more than 10 lines)
+              lines=$(wc -l < "$file")
+              if [[ $lines -lt 10 ]]; then
+                echo "⚠️  $file exists but appears incomplete (only $lines lines)"
+              else
+                echo "✅ $file exists with $lines lines"
+              fi
+            else
+              echo "❌ Missing critical file: $file"
+              missing_critical=$((missing_critical + 1))
+            fi
+          done
+          
+          if [[ $missing_critical -gt 0 ]]; then
+            echo ""
+            echo "❌ Missing $missing_critical critical documentation files"
+            echo "::set-output name=completeness_status::failed"
+            exit 1
+          else
+            echo ""
+            echo "✅ All critical documentation files present"
+            echo "::set-output name=completeness_status::passed"
+          fi
+      
+      - name: Check for placeholder content
+        id: placeholder_check
+        run: |
+          echo "=== Checking for Placeholder Content ==="
+          
+          # Search for common placeholder patterns
+          placeholder_patterns="TODO\|FIXME\|TBD\|PLACEHOLDER\|INSERT\|XXX\|\[PENDING\]\|\[UPDATE\]"
+          
+          echo "Searching for placeholder content..."
+          placeholders=$(grep -rn "$placeholder_patterns" wiki/ --include="*.md" 2>/dev/null || true)
+          
+          if [[ -n "$placeholders" ]]; then
+            echo "⚠️  Found placeholder content that needs attention:"
+            echo ""
+            echo "$placeholders" | while IFS=: read -r file line content; do
+              echo "  $(basename $file):$line - $(echo $content | cut -c1-80)..."
+            done
+            
+            placeholder_count=$(echo "$placeholders" | wc -l)
+            echo ""
+            echo "Total placeholders found: $placeholder_count"
+            echo "::set-output name=placeholder_status::warnings"
+            echo "::warning::Found $placeholder_count placeholder items in documentation"
+          else
+            echo "✅ No placeholder content found"
+            echo "::set-output name=placeholder_status::passed"
+          fi
+      
+      - name: Analyze documentation changes
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "=== Analyzing Documentation Changes ==="
+          
+          # Get list of changed files
+          changed_files=$(git diff --name-only origin/${{ github.base_ref }}..HEAD -- wiki/)
+          
+          if [[ -n "$changed_files" ]]; then
+            echo "Documentation files changed in this PR:"
+            echo "$changed_files" | while read -r file; do
+              echo "  - $file"
+            done
+            
+            # Count additions and deletions
+            echo ""
+            echo "Change statistics:"
+            git diff --stat origin/${{ github.base_ref }}..HEAD -- wiki/
+            
+            # Check for large deletions
+            deletions=$(git diff --numstat origin/${{ github.base_ref }}..HEAD -- wiki/ | awk '{sum+=$2} END {print sum}')
+            if [[ $deletions -gt 100 ]]; then
+              echo ""
+              echo "⚠️  Large deletion detected: $deletions lines removed"
+              echo "::warning::Large deletion in documentation: $deletions lines removed"
+            fi
+          else
+            echo "No documentation changes in this PR"
+          fi
+      
+      - name: Generate documentation report
+        if: github.event.inputs.generate_report == 'true' || github.event_name == 'pull_request'
+        run: |
+          echo "=== Generating Documentation Quality Report ==="
+          
+          cat > wiki-quality-report.md << 'EOF'
+          # Documentation Quality Report
+          
+          Generated: $(date)
+          Repository: ${{ github.repository }}
+          Ref: ${{ github.ref }}
+          Commit: ${{ github.sha }}
+          
+          ## Summary
+          
+          | Check | Status |
+          |-------|--------|
+          | Markdown Linting | ${{ steps.markdown_lint.outputs.lint_status }} |
+          | Link Validation | ${{ steps.link_check.outputs.link_status }} |
+          | Completeness | ${{ steps.completeness_check.outputs.completeness_status }} |
+          | Placeholders | ${{ steps.placeholder_check.outputs.placeholder_status }} |
+          
+          ## File Statistics
+          
+          EOF
+          
+          # Add file statistics
+          echo "### Wiki Documentation Files" >> wiki-quality-report.md
+          echo "" >> wiki-quality-report.md
+          echo "Total files: $(find wiki/ -name "*.md" -type f | wc -l)" >> wiki-quality-report.md
+          echo "" >> wiki-quality-report.md
+          echo "| File | Lines | Words | Size |" >> wiki-quality-report.md
+          echo "|------|-------|-------|------|" >> wiki-quality-report.md
+          
+          find wiki/ -name "*.md" -type f | sort | while read -r file; do
+            lines=$(wc -l < "$file")
+            words=$(wc -w < "$file")
+            size=$(du -h "$file" | cut -f1)
+            echo "| $(basename $file) | $lines | $words | $size |" >> wiki-quality-report.md
+          done
+          
+          echo "" >> wiki-quality-report.md
+          echo "## Recent Updates" >> wiki-quality-report.md
+          echo "" >> wiki-quality-report.md
+          echo '```' >> wiki-quality-report.md
+          git log --oneline --since="1 week ago" -- wiki/ | head -10 >> wiki-quality-report.md || echo "No recent updates" >> wiki-quality-report.md
+          echo '```' >> wiki-quality-report.md
+          
+          echo "" >> wiki-quality-report.md
+          echo "---" >> wiki-quality-report.md
+          echo "*Report generated by GitHub Actions workflow*" >> wiki-quality-report.md
+          
+          echo "✅ Quality report generated: wiki-quality-report.md"
+      
+      - name: Upload documentation report
+        if: github.event.inputs.generate_report == 'true' || github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wiki-quality-report
+          path: wiki-quality-report.md
+          retention-days: 30
+      
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Build comment body
+            let comment = '## 📚 Documentation Quality Check\n\n';
+            
+            // Add check results
+            comment += '### Check Results\n\n';
+            comment += '| Check | Status |\n';
+            comment += '|-------|--------|\n';
+            comment += `| Markdown Linting | ${{ steps.markdown_lint.outputs.lint_status == 'passed' && '✅ Passed' || '⚠️ Warnings' }} |\n`;
+            comment += `| Link Validation | ${{ steps.link_check.outputs.link_status == 'passed' && '✅ Passed' || '⚠️ Warnings' }} |\n`;
+            comment += `| Completeness | ${{ steps.completeness_check.outputs.completeness_status == 'passed' && '✅ Passed' || '❌ Failed' }} |\n`;
+            comment += `| Placeholders | ${{ steps.placeholder_check.outputs.placeholder_status == 'passed' && '✅ None found' || '⚠️ Found' }} |\n`;
+            
+            comment += '\n';
+            comment += '📊 [View detailed quality report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n';
+            comment += '\n---\n';
+            comment += '*This comment was automatically generated by the Wiki Quality Assurance workflow.*';
+            
+            // Post comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });

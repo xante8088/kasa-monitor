@@ -1,0 +1,435 @@
+name: Wiki Maintenance
+
+on:
+  schedule:
+    # Run every Monday at 2 AM UTC
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
+    inputs:
+      create_issues:
+        description: 'Create GitHub issues for problems found'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    name: Weekly Documentation Maintenance
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for analysis
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install analysis tools
+        run: |
+          echo "=== Installing Documentation Analysis Tools ==="
+          npm install -g markdown-link-check@3.11.2
+          echo "✅ Tools installed"
+      
+      - name: Check for outdated documentation
+        id: outdated_check
+        run: |
+          echo "=== Checking for Outdated Documentation ==="
+          
+          # Define age thresholds
+          CRITICAL_AGE_DAYS=180  # 6 months
+          WARNING_AGE_DAYS=90    # 3 months
+          
+          # Find outdated files
+          current_date=$(date +%s)
+          critical_files=""
+          warning_files=""
+          
+          echo "Analyzing documentation age..."
+          echo ""
+          
+          find wiki/ -name "*.md" -type f | while read -r file; do
+            # Get last modification time from git
+            last_modified=$(git log -1 --format="%at" -- "$file" 2>/dev/null || stat -f%m "$file" 2>/dev/null || stat -c%Y "$file" 2>/dev/null)
+            
+            if [[ -n "$last_modified" ]]; then
+              age_days=$(( (current_date - last_modified) / 86400 ))
+              
+              if [[ $age_days -gt $CRITICAL_AGE_DAYS ]]; then
+                critical_files="${critical_files}$(basename $file) (${age_days} days old)\n"
+                echo "❌ CRITICAL: $(basename $file) - $age_days days old"
+              elif [[ $age_days -gt $WARNING_AGE_DAYS ]]; then
+                warning_files="${warning_files}$(basename $file) (${age_days} days old)\n"
+                echo "⚠️  WARNING: $(basename $file) - $age_days days old"
+              else
+                echo "✅ CURRENT: $(basename $file) - $age_days days old"
+              fi
+            fi
+          done
+          
+          # Save results
+          echo "$critical_files" > critical-outdated.txt
+          echo "$warning_files" > warning-outdated.txt
+          
+          # Count issues
+          critical_count=$(echo -e "$critical_files" | grep -c "." || echo "0")
+          warning_count=$(echo -e "$warning_files" | grep -c "." || echo "0")
+          
+          echo ""
+          echo "=== Summary ==="
+          echo "Critical (>$CRITICAL_AGE_DAYS days): $critical_count files"
+          echo "Warning (>$WARNING_AGE_DAYS days): $warning_count files"
+          
+          echo "::set-output name=critical_count::$critical_count"
+          echo "::set-output name=warning_count::$warning_count"
+      
+      - name: Validate cross-references
+        id: crossref_check
+        run: |
+          echo "=== Validating Cross-References Between Wiki Pages ==="
+          
+          broken_links=""
+          total_links=0
+          broken_count=0
+          
+          # Check all markdown files for internal links
+          find wiki/ -name "*.md" -type f | while read -r file; do
+            echo "Checking: $(basename $file)"
+            
+            # Extract markdown links to other .md files
+            grep -oE '\[([^\]]+)\]\(([^)]+\.md[^)]*)\)' "$file" 2>/dev/null | while read -r link; do
+              total_links=$((total_links + 1))
+              
+              # Extract the target file
+              target=$(echo "$link" | sed -n 's/.*(\([^)]*\.md\).*/\1/p')
+              # Remove any URL parameters or anchors
+              target_file=$(echo "$target" | cut -d'#' -f1 | cut -d'?' -f1)
+              
+              # Check if it's a relative path
+              if [[ ! "$target_file" =~ ^https?:// ]]; then
+                # Resolve the path relative to wiki directory
+                if [[ "$target_file" =~ ^/ ]]; then
+                  # Absolute path from repo root
+                  full_path="${target_file#/}"
+                else
+                  # Relative path from wiki directory
+                  full_path="wiki/$target_file"
+                fi
+                
+                if [[ ! -f "$full_path" ]]; then
+                  broken_links="${broken_links}  - $(basename $file) -> $target_file\n"
+                  broken_count=$((broken_count + 1))
+                  echo "  ❌ Broken link: $target_file"
+                fi
+              fi
+            done
+          done
+          
+          echo ""
+          echo "=== Cross-Reference Summary ==="
+          echo "Total internal links checked: $total_links"
+          echo "Broken links found: $broken_count"
+          
+          if [[ $broken_count -gt 0 ]]; then
+            echo ""
+            echo "Broken links:"
+            echo -e "$broken_links"
+          fi
+          
+          echo "$broken_links" > broken-links.txt
+          echo "::set-output name=broken_count::$broken_count"
+      
+      - name: Check external links
+        id: external_links
+        continue-on-error: true
+        run: |
+          echo "=== Checking External Links ==="
+          
+          # Create config for external link checking
+          cat > .markdown-link-check.json << 'EOF'
+          {
+            "ignorePatterns": [
+              { "pattern": "^https?://localhost" },
+              { "pattern": "^https?://127\\.0\\.0\\.1" },
+              { "pattern": "^https?://example\\.com" }
+            ],
+            "timeout": "10s",
+            "retryOn429": true,
+            "retryCount": 2,
+            "fallbackRetryDelay": "3s",
+            "aliveStatusCodes": [200, 206, 301, 302, 303]
+          }
+          EOF
+          
+          failed_files=""
+          failed_count=0
+          
+          find wiki/ -name "*.md" -type f | head -10 | while read -r file; do
+            echo "Checking external links in: $(basename $file)"
+            
+            if ! markdown-link-check "$file" --config .markdown-link-check.json --quiet; then
+              failed_files="${failed_files}$(basename $file)\n"
+              failed_count=$((failed_count + 1))
+            fi
+          done
+          
+          echo ""
+          echo "Files with broken external links: $failed_count"
+          echo "$failed_files" > failed-external-links.txt
+          echo "::set-output name=failed_external::$failed_count"
+      
+      - name: Analyze documentation coverage
+        run: |
+          echo "=== Analyzing Documentation Coverage ==="
+          
+          # Check for key sections in important files
+          coverage_issues=""
+          
+          # Define required sections for key documents
+          declare -A required_sections
+          required_sections["API-Documentation.md"]="Authentication,Endpoints,Error Codes,Rate Limiting"
+          required_sections["Security-Guide.md"]="Authentication,Authorization,Encryption,Best Practices"
+          required_sections["Installation.md"]="Prerequisites,Installation Steps,Configuration,Verification"
+          required_sections["Architecture-Overview.md"]="Components,Data Flow,Technologies,Deployment"
+          
+          for file in "${!required_sections[@]}"; do
+            if [[ -f "wiki/$file" ]]; then
+              echo ""
+              echo "Checking $file for required sections..."
+              
+              IFS=',' read -ra sections <<< "${required_sections[$file]}"
+              for section in "${sections[@]}"; do
+                if ! grep -qi "$section" "wiki/$file"; then
+                  coverage_issues="${coverage_issues}  - $file missing section: $section\n"
+                  echo "  ⚠️  Missing section: $section"
+                else
+                  echo "  ✅ Found section: $section"
+                fi
+              done
+            else
+              coverage_issues="${coverage_issues}  - Missing file: $file\n"
+              echo "❌ Missing required file: $file"
+            fi
+          done
+          
+          echo "$coverage_issues" > coverage-issues.txt
+      
+      - name: Generate wiki statistics
+        run: |
+          echo "=== Generating Wiki Statistics ==="
+          
+          cat > wiki-statistics.md << 'EOF'
+          # Wiki Documentation Statistics
+          
+          Generated: $(date)
+          Repository: ${{ github.repository }}
+          
+          ## Overview
+          
+          EOF
+          
+          # Count files and calculate statistics
+          total_files=$(find wiki/ -name "*.md" -type f | wc -l)
+          total_lines=$(find wiki/ -name "*.md" -type f -exec wc -l {} + | tail -1 | awk '{print $1}')
+          total_words=$(find wiki/ -name "*.md" -type f -exec wc -w {} + | tail -1 | awk '{print $1}')
+          total_size=$(du -sh wiki/ | cut -f1)
+          
+          echo "| Metric | Value |" >> wiki-statistics.md
+          echo "|--------|-------|" >> wiki-statistics.md
+          echo "| Total Files | $total_files |" >> wiki-statistics.md
+          echo "| Total Lines | $total_lines |" >> wiki-statistics.md
+          echo "| Total Words | $total_words |" >> wiki-statistics.md
+          echo "| Total Size | $total_size |" >> wiki-statistics.md
+          
+          # Add maintenance findings
+          echo "" >> wiki-statistics.md
+          echo "## Maintenance Findings" >> wiki-statistics.md
+          echo "" >> wiki-statistics.md
+          echo "| Check | Count | Status |" >> wiki-statistics.md
+          echo "|-------|-------|--------|" >> wiki-statistics.md
+          echo "| Critical Outdated (>180 days) | ${{ steps.outdated_check.outputs.critical_count }} | $([ ${{ steps.outdated_check.outputs.critical_count }} -eq 0 ] && echo '✅' || echo '❌') |" >> wiki-statistics.md
+          echo "| Warning Outdated (>90 days) | ${{ steps.outdated_check.outputs.warning_count }} | $([ ${{ steps.outdated_check.outputs.warning_count }} -eq 0 ] && echo '✅' || echo '⚠️') |" >> wiki-statistics.md
+          echo "| Broken Internal Links | ${{ steps.crossref_check.outputs.broken_count }} | $([ ${{ steps.crossref_check.outputs.broken_count }} -eq 0 ] && echo '✅' || echo '❌') |" >> wiki-statistics.md
+          echo "| Failed External Link Checks | ${{ steps.external_links.outputs.failed_external }} | $([ ${{ steps.external_links.outputs.failed_external }} -eq 0 ] && echo '✅' || echo '⚠️') |" >> wiki-statistics.md
+          
+          # Add file details
+          echo "" >> wiki-statistics.md
+          echo "## File Details" >> wiki-statistics.md
+          echo "" >> wiki-statistics.md
+          echo "| File | Lines | Words | Last Modified |" >> wiki-statistics.md
+          echo "|------|-------|-------|---------------|" >> wiki-statistics.md
+          
+          find wiki/ -name "*.md" -type f | sort | while read -r file; do
+            lines=$(wc -l < "$file")
+            words=$(wc -w < "$file")
+            # Get last modification date from git
+            last_modified=$(git log -1 --format="%ai" -- "$file" 2>/dev/null || echo "Unknown")
+            echo "| $(basename $file) | $lines | $words | $last_modified |" >> wiki-statistics.md
+          done
+          
+          # Add recent activity
+          echo "" >> wiki-statistics.md
+          echo "## Recent Documentation Updates" >> wiki-statistics.md
+          echo "" >> wiki-statistics.md
+          echo '```' >> wiki-statistics.md
+          git log --oneline --since="1 month ago" -- wiki/ | head -20 >> wiki-statistics.md || echo "No recent updates" >> wiki-statistics.md
+          echo '```' >> wiki-statistics.md
+          
+          echo "" >> wiki-statistics.md
+          echo "---" >> wiki-statistics.md
+          echo "*Report generated by Wiki Maintenance workflow*" >> wiki-statistics.md
+          
+          echo "✅ Statistics report generated"
+      
+      - name: Upload maintenance reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: wiki-maintenance-reports
+          path: |
+            wiki-statistics.md
+            critical-outdated.txt
+            warning-outdated.txt
+            broken-links.txt
+            coverage-issues.txt
+          retention-days: 90
+      
+      - name: Create maintenance issues
+        if: github.event.inputs.create_issues == 'true' || github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Helper function to read file safely
+            function readFileSafe(path) {
+              try {
+                return fs.readFileSync(path, 'utf8').trim();
+              } catch (e) {
+                return '';
+              }
+            }
+            
+            // Prepare issue data
+            const issues = [];
+            
+            // Check for critical outdated documentation
+            const criticalCount = parseInt('${{ steps.outdated_check.outputs.critical_count }}' || '0');
+            if (criticalCount > 0) {
+              const criticalFiles = readFileSafe('critical-outdated.txt');
+              issues.push({
+                title: `📚 Critical: ${criticalCount} documentation files are severely outdated`,
+                body: `## Outdated Documentation Alert
+            
+            The following documentation files haven't been updated in over 180 days and require urgent review:
+            
+            ${criticalFiles.split('\n').map(f => `- ${f}`).join('\n')}
+            
+            ### Action Required
+            - Review these files for accuracy
+            - Update outdated information
+            - Remove deprecated content
+            - Add new features and changes
+            
+            *This issue was automatically created by the Wiki Maintenance workflow.*`,
+                labels: ['documentation', 'priority-high', 'maintenance']
+              });
+            }
+            
+            // Check for broken links
+            const brokenCount = parseInt('${{ steps.crossref_check.outputs.broken_count }}' || '0');
+            if (brokenCount > 0) {
+              const brokenLinks = readFileSafe('broken-links.txt');
+              issues.push({
+                title: `🔗 ${brokenCount} broken internal links in documentation`,
+                body: `## Broken Links Detected
+            
+            The following internal links in the wiki documentation are broken:
+            
+            ${brokenLinks || 'See workflow logs for details'}
+            
+            ### Action Required
+            - Fix broken links by updating paths
+            - Remove links to deleted pages
+            - Create missing documentation pages
+            
+            *This issue was automatically created by the Wiki Maintenance workflow.*`,
+                labels: ['documentation', 'bug', 'maintenance']
+              });
+            }
+            
+            // Check for coverage issues
+            const coverageIssues = readFileSafe('coverage-issues.txt');
+            if (coverageIssues) {
+              issues.push({
+                title: '📋 Documentation coverage gaps detected',
+                body: `## Documentation Coverage Issues
+            
+            The following coverage gaps were detected in the documentation:
+            
+            ${coverageIssues.split('\n').map(i => i.trim()).filter(i => i).join('\n')}
+            
+            ### Action Required
+            - Add missing sections to documentation
+            - Ensure all required topics are covered
+            - Review documentation completeness
+            
+            *This issue was automatically created by the Wiki Maintenance workflow.*`,
+                labels: ['documentation', 'enhancement', 'maintenance']
+              });
+            }
+            
+            // Create issues
+            for (const issue of issues) {
+              try {
+                // Check if similar issue already exists
+                const { data: existingIssues } = await github.rest.issues.listForRepo({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  state: 'open',
+                  labels: 'documentation,maintenance'
+                });
+                
+                const similarIssue = existingIssues.find(i => 
+                  i.title.toLowerCase().includes(issue.title.toLowerCase().substring(0, 30))
+                );
+                
+                if (!similarIssue) {
+                  await github.rest.issues.create({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    title: issue.title,
+                    body: issue.body,
+                    labels: issue.labels
+                  });
+                  console.log(`Created issue: ${issue.title}`);
+                } else {
+                  console.log(`Similar issue already exists: ${issue.title}`);
+                  
+                  // Add comment to existing issue
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: similarIssue.number,
+                    body: `## Weekly Maintenance Update
+            
+            The maintenance check has run again and found similar issues:
+            
+            ${issue.body.split('\n').slice(2, 10).join('\n')}
+            
+            Please review and address these items.`
+                  });
+                }
+              } catch (error) {
+                console.error(`Failed to create issue: ${issue.title}`, error);
+              }
+            }
+            
+            if (issues.length === 0) {
+              console.log('No maintenance issues found - documentation is in good shape!');
+            }

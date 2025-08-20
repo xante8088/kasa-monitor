@@ -151,8 +151,10 @@ backend/
 │   └── reading.py        # Reading models
 ├── services/              # External services
 │   ├── discovery.py      # Device discovery
-│   ├── influxdb.py       # InfluxDB client
-│   └── redis.py          # Redis client
+│   ├── audit_logging.py  # Audit logging service
+│   ├── backup_manager.py # Backup management
+│   ├── data_export.py    # Data export service
+│   └── ssl_manager.py    # SSL certificate management
 └── utils/                 # Utilities
     ├── scheduler.py      # Task scheduling
     └── logger.py         # Logging setup
@@ -496,29 +498,28 @@ spec:
 ### Caching Strategy
 
 ```python
-# Multi-level caching
+# In-memory caching
 class CacheManager:
     def __init__(self):
-        self.memory_cache = {}  # L1 cache
-        self.redis_client = redis.Redis()  # L2 cache
+        self.memory_cache = {}  # In-memory cache
+        self.cache_expiry = {}  # TTL tracking
     
     async def get(self, key: str):
-        # Check L1 cache
+        # Check if key exists and is not expired
         if key in self.memory_cache:
-            return self.memory_cache[key]
-        
-        # Check L2 cache
-        value = self.redis_client.get(key)
-        if value:
-            self.memory_cache[key] = value
-            return value
-        
+            if key in self.cache_expiry:
+                if datetime.now() < self.cache_expiry[key]:
+                    return self.memory_cache[key]
+                else:
+                    # Expired, remove from cache
+                    del self.memory_cache[key]
+                    del self.cache_expiry[key]
         return None
     
     async def set(self, key: str, value: any, ttl: int = 300):
-        # Set in both caches
+        # Set in memory cache with expiration
         self.memory_cache[key] = value
-        self.redis_client.setex(key, ttl, value)
+        self.cache_expiry[key] = datetime.now() + timedelta(seconds=ttl)
 ```
 
 ### Database Optimization
@@ -689,7 +690,7 @@ class DeviceMonitor:
 
 - **Frontend**: Next.js 13+, React 18, TypeScript, TailwindCSS
 - **Backend**: FastAPI, Python 3.9+, Pydantic, SQLAlchemy
-- **Database**: SQLite (primary), InfluxDB (time-series), Redis (cache)
+- **Database**: SQLite (all data storage including time-series)
 - **Container**: Docker, Docker Compose
 - **Testing**: Jest, Pytest, React Testing Library
 - **CI/CD**: GitHub Actions, Docker Hub
@@ -706,7 +707,7 @@ class DeviceMonitor:
 **Backend:**
 - `python-kasa` - Device communication
 - `alembic` - Database migrations
-- `celery` - Task queue
+- `apscheduler` - Task scheduling
 - `prometheus-client` - Metrics
 - `structlog` - Structured logging
 

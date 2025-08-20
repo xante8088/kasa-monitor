@@ -1,0 +1,348 @@
+name: Pull Request Documentation Checks
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  documentation-requirements:
+    runs-on: ubuntu-latest
+    name: Check Documentation Requirements
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for comparison
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Analyze code changes
+        id: code_analysis
+        run: |
+          echo "=== Analyzing Code Changes for Documentation Impact ==="
+          
+          # Get all changed files
+          changed_files=$(git diff --name-only origin/${{ github.base_ref }}..HEAD)
+          
+          # Initialize flags
+          api_changes=false
+          frontend_changes=false
+          backend_changes=false
+          config_changes=false
+          security_changes=false
+          
+          # Analyze changes
+          echo "$changed_files" | while read -r file; do
+            # Check for API changes
+            if [[ "$file" =~ backend/.*\.(py)$ ]]; then
+              backend_changes=true
+              # Check for new API endpoints
+              if git diff origin/${{ github.base_ref }}..HEAD -- "$file" | grep -E "@.*\.(get|post|put|delete|patch)" > /dev/null 2>&1; then
+                api_changes=true
+              fi
+            fi
+            
+            # Check for frontend changes
+            if [[ "$file" =~ src/.*\.(tsx?|jsx?)$ ]]; then
+              frontend_changes=true
+            fi
+            
+            # Check for configuration changes
+            if [[ "$file" =~ \.(env|json|yaml|yml|toml)$ ]]; then
+              config_changes=true
+            fi
+            
+            # Check for security-related changes
+            if [[ "$file" =~ (auth|security|permission|login|password|token|secret) ]]; then
+              security_changes=true
+            fi
+          done
+          
+          # Set outputs
+          echo "::set-output name=api_changes::$api_changes"
+          echo "::set-output name=frontend_changes::$frontend_changes"
+          echo "::set-output name=backend_changes::$backend_changes"
+          echo "::set-output name=config_changes::$config_changes"
+          echo "::set-output name=security_changes::$security_changes"
+          
+          # Report findings
+          echo ""
+          echo "=== Change Analysis Summary ==="
+          echo "API Changes: $api_changes"
+          echo "Frontend Changes: $frontend_changes"
+          echo "Backend Changes: $backend_changes"
+          echo "Configuration Changes: $config_changes"
+          echo "Security-related Changes: $security_changes"
+      
+      - name: Check for new API endpoints
+        if: steps.code_analysis.outputs.api_changes == 'true'
+        run: |
+          echo "=== Checking for New API Endpoints ==="
+          
+          # Find all new API endpoints
+          new_endpoints=$(git diff origin/${{ github.base_ref }}..HEAD -- 'backend/**/*.py' | \
+            grep -E "^\+.*@.*\.(get|post|put|delete|patch)" | \
+            sed 's/^+//' || true)
+          
+          if [[ -n "$new_endpoints" ]]; then
+            echo "⚠️  New API endpoints detected:"
+            echo "$new_endpoints"
+            echo ""
+            echo "::warning::New API endpoints require documentation updates in wiki/API-Documentation.md"
+            
+            # Check if API documentation was updated
+            if git diff --name-only origin/${{ github.base_ref }}..HEAD | grep -q "wiki/API-Documentation.md"; then
+              echo "✅ API documentation file was updated"
+            else
+              echo "❌ API documentation was NOT updated"
+              echo "::error::New API endpoints added but wiki/API-Documentation.md was not updated"
+            fi
+          else
+            echo "No new API endpoints detected"
+          fi
+      
+      - name: Check for feature additions
+        run: |
+          echo "=== Checking for New Features ==="
+          
+          # Check commit messages for feature indicators
+          feature_commits=$(git log origin/${{ github.base_ref }}..HEAD --oneline | \
+            grep -iE "(feat|feature|add|implement)" || true)
+          
+          if [[ -n "$feature_commits" ]]; then
+            echo "Commits indicating new features:"
+            echo "$feature_commits"
+            echo ""
+            
+            # Check if any wiki documentation was updated
+            wiki_changes=$(git diff --name-only origin/${{ github.base_ref }}..HEAD -- wiki/ || true)
+            
+            if [[ -n "$wiki_changes" ]]; then
+              echo "✅ Wiki documentation was updated:"
+              echo "$wiki_changes"
+            else
+              echo "⚠️  No wiki documentation updates found"
+              echo "::warning::New features detected but no documentation updates in wiki/"
+            fi
+          else
+            echo "No feature additions detected in commit messages"
+          fi
+      
+      - name: Check for breaking changes
+        run: |
+          echo "=== Checking for Breaking Changes ==="
+          
+          # Check for potential breaking changes
+          breaking_indicators=(
+            "BREAKING CHANGE"
+            "BREAKING:"
+            "breaking change"
+            "migration required"
+            "deprecated"
+            "removed"
+          )
+          
+          breaking_changes=false
+          for indicator in "${breaking_indicators[@]}"; do
+            if git log origin/${{ github.base_ref }}..HEAD | grep -i "$indicator" > /dev/null 2>&1; then
+              breaking_changes=true
+              echo "⚠️  Potential breaking change indicator found: $indicator"
+            fi
+          done
+          
+          if [[ "$breaking_changes" == "true" ]]; then
+            echo ""
+            echo "::warning::Breaking changes detected - ensure migration guide is updated"
+            
+            # Check if migration or upgrade documentation exists
+            if [[ -f "wiki/Migration-Guide.md" ]] || [[ -f "wiki/Upgrade-Guide.md" ]]; then
+              echo "Migration/Upgrade guide exists - ensure it's updated"
+            else
+              echo "::warning::No Migration-Guide.md or Upgrade-Guide.md found in wiki/"
+            fi
+          else
+            echo "No breaking changes detected"
+          fi
+      
+      - name: Validate documentation updates
+        if: contains(github.event.pull_request.labels.*.name, 'documentation') || contains(github.event.pull_request.title, 'doc')
+        run: |
+          echo "=== Validating Documentation Updates ==="
+          
+          # Get wiki changes
+          wiki_changes=$(git diff --name-only origin/${{ github.base_ref }}..HEAD -- wiki/)
+          
+          if [[ -z "$wiki_changes" ]]; then
+            echo "❌ PR is labeled as documentation but no wiki files were changed"
+            echo "::error::Documentation PR must include changes to wiki/ directory"
+            exit 1
+          fi
+          
+          echo "Documentation files changed:"
+          echo "$wiki_changes"
+          
+          # Check for substantial changes (not just formatting)
+          total_additions=0
+          total_deletions=0
+          
+          while IFS=$'\t' read -r additions deletions file; do
+            total_additions=$((total_additions + additions))
+            total_deletions=$((total_deletions + deletions))
+            echo "  $file: +$additions -$deletions"
+          done < <(git diff --numstat origin/${{ github.base_ref }}..HEAD -- wiki/)
+          
+          echo ""
+          echo "Total: +$total_additions -$total_deletions lines"
+          
+          if [[ $total_additions -lt 10 ]] && [[ $total_deletions -lt 10 ]]; then
+            echo "⚠️  Very minor documentation changes detected"
+            echo "::warning::Documentation changes appear minimal (less than 10 lines)"
+          fi
+      
+      - name: Check configuration documentation
+        if: steps.code_analysis.outputs.config_changes == 'true'
+        run: |
+          echo "=== Checking Configuration Documentation ==="
+          
+          config_files=$(git diff --name-only origin/${{ github.base_ref }}..HEAD | \
+            grep -E "\.(env|json|yaml|yml|toml)$" || true)
+          
+          if [[ -n "$config_files" ]]; then
+            echo "Configuration files changed:"
+            echo "$config_files"
+            echo ""
+            
+            # Check if configuration documentation exists and was updated
+            config_docs_updated=false
+            
+            for doc in "System-Configuration.md" "Installation.md" "Development-Setup.md" "Docker-Deployment.md"; do
+              if git diff --name-only origin/${{ github.base_ref }}..HEAD | grep -q "wiki/$doc"; then
+                echo "✅ $doc was updated"
+                config_docs_updated=true
+              fi
+            done
+            
+            if [[ "$config_docs_updated" == "false" ]]; then
+              echo "⚠️  Configuration files changed but configuration documentation was not updated"
+              echo "::warning::Consider updating configuration documentation in wiki/"
+            fi
+          fi
+      
+      - name: Generate documentation checklist
+        id: generate_checklist
+        run: |
+          echo "=== Generating Documentation Checklist ==="
+          
+          checklist=""
+          
+          # Add items based on detected changes
+          if [[ "${{ steps.code_analysis.outputs.api_changes }}" == "true" ]]; then
+            checklist="${checklist}- [ ] Update API documentation (wiki/API-Documentation.md)\n"
+          fi
+          
+          if [[ "${{ steps.code_analysis.outputs.frontend_changes }}" == "true" ]]; then
+            checklist="${checklist}- [ ] Update user interface documentation\n"
+            checklist="${checklist}- [ ] Update screenshots if UI changed significantly\n"
+          fi
+          
+          if [[ "${{ steps.code_analysis.outputs.security_changes }}" == "true" ]]; then
+            checklist="${checklist}- [ ] Update Security Guide (wiki/Security-Guide.md)\n"
+            checklist="${checklist}- [ ] Document any new security considerations\n"
+          fi
+          
+          if [[ "${{ steps.code_analysis.outputs.config_changes }}" == "true" ]]; then
+            checklist="${checklist}- [ ] Update configuration documentation\n"
+            checklist="${checklist}- [ ] Document new environment variables\n"
+          fi
+          
+          # Always include
+          checklist="${checklist}- [ ] Verify all links in documentation work\n"
+          checklist="${checklist}- [ ] Check for typos and grammar\n"
+          checklist="${checklist}- [ ] Ensure examples are up-to-date\n"
+          
+          # Save checklist for PR comment
+          echo "$checklist" > doc-checklist.txt
+          echo "::set-output name=has_checklist::true"
+      
+      - name: Comment on PR with documentation status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Build comment
+            let comment = '## 📋 Documentation Review Checklist\n\n';
+            
+            // Add analysis summary
+            comment += '### Change Analysis\n\n';
+            
+            const changes = {
+              api: '${{ steps.code_analysis.outputs.api_changes }}' === 'true',
+              frontend: '${{ steps.code_analysis.outputs.frontend_changes }}' === 'true',
+              backend: '${{ steps.code_analysis.outputs.backend_changes }}' === 'true',
+              config: '${{ steps.code_analysis.outputs.config_changes }}' === 'true',
+              security: '${{ steps.code_analysis.outputs.security_changes }}' === 'true'
+            };
+            
+            comment += '| Component | Changes Detected | Documentation Impact |\n';
+            comment += '|-----------|-----------------|---------------------|\n';
+            comment += `| API | ${changes.api ? '✅ Yes' : '➖ No'} | ${changes.api ? '⚠️ Required' : '✅ None'} |\n`;
+            comment += `| Frontend | ${changes.frontend ? '✅ Yes' : '➖ No'} | ${changes.frontend ? '📝 Recommended' : '✅ None'} |\n`;
+            comment += `| Backend | ${changes.backend ? '✅ Yes' : '➖ No'} | ${changes.backend ? '📝 Recommended' : '✅ None'} |\n`;
+            comment += `| Configuration | ${changes.config ? '✅ Yes' : '➖ No'} | ${changes.config ? '⚠️ Required' : '✅ None'} |\n`;
+            comment += `| Security | ${changes.security ? '✅ Yes' : '➖ No'} | ${changes.security ? '⚠️ Required' : '✅ None'} |\n`;
+            
+            // Add checklist if it exists
+            if (fs.existsSync('doc-checklist.txt')) {
+              const checklist = fs.readFileSync('doc-checklist.txt', 'utf8');
+              if (checklist.trim()) {
+                comment += '\n### Documentation Tasks\n\n';
+                comment += 'Please ensure the following documentation is updated:\n\n';
+                comment += checklist;
+              }
+            }
+            
+            // Add helpful links
+            comment += '\n### 📚 Documentation Resources\n\n';
+            comment += '- [Wiki Documentation](https://github.com/${{ github.repository }}/wiki)\n';
+            comment += '- [API Documentation Guide](https://github.com/${{ github.repository }}/wiki/API-Documentation)\n';
+            comment += '- [Contributing Guide](https://github.com/${{ github.repository }}/wiki/Contributing-Guide)\n';
+            
+            comment += '\n---\n';
+            comment += '*This checklist was automatically generated based on the changes in this PR. ';
+            comment += 'Please check off items as you complete them or explain why they\'re not needed.*';
+            
+            // Check if we already commented
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('Documentation Review Checklist')
+            );
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }

@@ -1,0 +1,247 @@
+name: Sync Wiki Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'wiki/**'
+      - 'DOCUMENTATION-ANALYSIS.md'
+      - 'WIKI-CHANGES-SUMMARY.md'
+      - 'GITHUB-WIKI-AUTOMATION-PLAN.md'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'wiki/**'
+  workflow_dispatch:  # Manual trigger for documentation specialist to use
+    inputs:
+      dry_run:
+        description: 'Run in dry-run mode (no actual sync)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-wiki:
+    runs-on: ubuntu-latest
+    name: Validate Wiki Documentation
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better wiki commits
+      
+      - name: Validate wiki structure
+        id: validation
+        run: |
+          echo "=== Validating Wiki Documentation Structure ==="
+          
+          # Check for required Home.md file
+          if [[ ! -f "wiki/Home.md" ]]; then
+            echo "❌ Error: Home.md is required for GitHub wiki"
+            exit 1
+          else
+            echo "✅ Home.md found"
+          fi
+          
+          # Check for essential documentation files
+          required_files=(
+            "API-Documentation.md"
+            "Architecture-Overview.md"
+            "Security-Guide.md"
+            "Installation.md"
+            "Quick-Start.md"
+          )
+          
+          echo ""
+          echo "Checking required documentation files..."
+          for file in "${required_files[@]}"; do
+            if [[ -f "wiki/$file" ]]; then
+              echo "✅ $file exists"
+            else
+              echo "⚠️  Warning: $file is missing (not critical)"
+            fi
+          done
+          
+          # Count total wiki files
+          file_count=$(find wiki/ -name "*.md" -type f | wc -l)
+          echo ""
+          echo "📊 Total markdown files in wiki: $file_count"
+          
+          # Check for wiki-style links that may need conversion
+          echo ""
+          echo "Checking for wiki-style links..."
+          wiki_links=$(find wiki/ -name "*.md" -exec grep -l "\[\[.*\]\]" {} \; 2>/dev/null || true)
+          if [[ -n "$wiki_links" ]]; then
+            echo "⚠️  Files with wiki-style links (will be converted):"
+            echo "$wiki_links"
+          else
+            echo "✅ No wiki-style links found"
+          fi
+          
+          # Check for broken internal markdown links
+          echo ""
+          echo "Checking for potentially broken internal links..."
+          broken_links=0
+          while IFS= read -r file; do
+            # Extract markdown links pointing to .md files
+            grep -oE '\[([^\]]+)\]\(([^)]+\.md[^)]*)\)' "$file" 2>/dev/null | while read -r link; do
+              target=$(echo "$link" | sed -n 's/.*(\([^)]*\.md\).*/\1/p')
+              # Remove any anchors from the target
+              target_file=$(echo "$target" | cut -d'#' -f1)
+              # Check if it's a relative path and if the file exists
+              if [[ ! "$target_file" =~ ^https?:// ]] && [[ ! -f "wiki/$target_file" ]]; then
+                echo "⚠️  Potential broken link in $(basename $file): $target_file"
+                broken_links=$((broken_links + 1))
+              fi
+            done
+          done < <(find wiki/ -name "*.md" -type f)
+          
+          if [[ $broken_links -eq 0 ]]; then
+            echo "✅ No broken internal links detected"
+          fi
+          
+          # Check for placeholder content
+          echo ""
+          echo "Checking for placeholder content..."
+          placeholders=$(grep -r "TODO\|FIXME\|TBD\|PLACEHOLDER\|INSERT" wiki/ --include="*.md" 2>/dev/null || true)
+          if [[ -n "$placeholders" ]]; then
+            echo "⚠️  Found placeholder content (review recommended):"
+            echo "$placeholders" | head -5
+            placeholder_count=$(echo "$placeholders" | wc -l)
+            if [[ $placeholder_count -gt 5 ]]; then
+              echo "... and $((placeholder_count - 5)) more instances"
+            fi
+          else
+            echo "✅ No placeholder content found"
+          fi
+          
+          echo ""
+          echo "=== Validation Complete ==="
+          echo "::set-output name=file_count::$file_count"
+
+  sync-wiki:
+    runs-on: ubuntu-latest
+    needs: [validate-wiki]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    name: Sync to GitHub Wiki
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better wiki commits
+      
+      - name: Prepare wiki content
+        run: |
+          echo "=== Preparing Wiki Content for Sync ==="
+          
+          # Create a backup of original files for reference
+          cp -r wiki/ wiki-backup/
+          
+          # Log the files that will be synced
+          echo "Files to be synced:"
+          find wiki/ -name "*.md" -type f | sort | while read -r file; do
+            echo "  - $(basename $file)"
+          done
+          
+          # Count total files
+          total_files=$(find wiki/ -name "*.md" -type f | wc -l)
+          echo ""
+          echo "Total files to sync: $total_files"
+      
+      - name: Configure dry-run mode
+        id: dry_run_config
+        run: |
+          if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+            echo "🔍 DRY RUN MODE ENABLED - No actual sync will occur"
+            echo "::set-output name=dry_run::true"
+          else
+            echo "🚀 LIVE SYNC MODE - Wiki will be updated"
+            echo "::set-output name=dry_run::false"
+          fi
+      
+      - name: Sync to GitHub Wiki
+        uses: Andrew-Chen-Wang/github-wiki-action@v4
+        with:
+          repository: ${{ github.repository }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: wiki/
+          strategy: clone  # Use incremental commits
+          preprocess: true  # Convert links and rename README if needed
+          dry-run: ${{ steps.dry_run_config.outputs.dry_run }}
+      
+      - name: Post-sync validation
+        if: steps.dry_run_config.outputs.dry_run == 'false'
+        run: |
+          echo "=== Post-Sync Validation ==="
+          echo "✅ Wiki sync completed successfully"
+          echo ""
+          echo "Sync summary:"
+          echo "  - Repository: ${{ github.repository }}"
+          echo "  - Branch: ${{ github.ref }}"
+          echo "  - Commit: ${{ github.sha }}"
+          echo "  - Triggered by: ${{ github.actor }}"
+          echo ""
+          echo "📚 Wiki URL: https://github.com/${{ github.repository }}/wiki"
+
+  notify-sync-status:
+    runs-on: ubuntu-latest
+    needs: [sync-wiki]
+    if: always() && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+    name: Notify Sync Status
+    
+    steps:
+      - name: Create check run for wiki sync
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const sha = context.sha;
+            const workflow_url = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
+            
+            const conclusion = '${{ needs.sync-wiki.result }}' === 'success' ? 'success' : 'failure';
+            const title = conclusion === 'success' 
+              ? 'Wiki Documentation Synced Successfully' 
+              : 'Wiki Documentation Sync Failed';
+            
+            const summary = conclusion === 'success'
+              ? `✅ Documentation has been successfully synced to the GitHub Wiki.
+              
+              View the wiki: https://github.com/${owner}/${repo}/wiki
+              Workflow run: ${workflow_url}
+              
+              Triggered by: ${{ github.actor }}
+              Commit: ${sha.substring(0, 7)}`
+              : `❌ Documentation sync to GitHub Wiki failed.
+              
+              Please check the workflow logs for details: ${workflow_url}
+              
+              Triggered by: ${{ github.actor }}
+              Commit: ${sha.substring(0, 7)}`;
+            
+            try {
+              await github.rest.checks.create({
+                owner,
+                repo,
+                name: 'Wiki Documentation Sync',
+                head_sha: sha,
+                status: 'completed',
+                conclusion: conclusion,
+                output: {
+                  title: title,
+                  summary: summary
+                }
+              });
+              
+              console.log(`Check run created: ${conclusion}`);
+            } catch (error) {
+              console.error('Failed to create check run:', error);
+              // Don't fail the workflow if we can't create the check
+            }

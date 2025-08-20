@@ -1,0 +1,257 @@
+name: Test Wiki Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Test mode to run'
+        required: true
+        default: 'dry-run'
+        type: choice
+        options:
+          - 'dry-run'
+          - 'validate-only'
+          - 'full-test'
+      verbose:
+        description: 'Enable verbose output'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  test-validation:
+    runs-on: ubuntu-latest
+    name: Test Wiki Validation
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Test configuration
+        run: |
+          echo "=== Test Configuration ==="
+          echo "Test Mode: ${{ github.event.inputs.test_mode }}"
+          echo "Verbose: ${{ github.event.inputs.verbose }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Repository: ${{ github.repository }}"
+          echo ""
+      
+      - name: Validate wiki structure
+        run: |
+          echo "=== Testing Wiki Structure Validation ==="
+          
+          # Check wiki directory exists
+          if [[ -d "wiki" ]]; then
+            echo "✅ Wiki directory exists"
+          else
+            echo "❌ Wiki directory not found"
+            exit 1
+          fi
+          
+          # Count markdown files
+          file_count=$(find wiki/ -name "*.md" -type f | wc -l)
+          echo "📊 Found $file_count markdown files"
+          
+          # Check for Home.md
+          if [[ -f "wiki/Home.md" ]]; then
+            echo "✅ Home.md exists (required for GitHub wiki)"
+            if [[ "${{ github.event.inputs.verbose }}" == "true" ]]; then
+              echo ""
+              echo "Home.md preview:"
+              head -20 wiki/Home.md
+            fi
+          else
+            echo "❌ Home.md not found (required for GitHub wiki)"
+            exit 1
+          fi
+          
+          # List all wiki files
+          if [[ "${{ github.event.inputs.verbose }}" == "true" ]]; then
+            echo ""
+            echo "All wiki files:"
+            find wiki/ -name "*.md" -type f | sort | while read -r file; do
+              size=$(du -h "$file" | cut -f1)
+              echo "  - $(basename $file) ($size)"
+            done
+          fi
+      
+      - name: Test link validation
+        if: github.event.inputs.test_mode != 'validate-only'
+        run: |
+          echo "=== Testing Link Validation ==="
+          
+          # Check for internal markdown links
+          echo "Checking internal links..."
+          broken_count=0
+          
+          find wiki/ -name "*.md" -type f | while read -r file; do
+            # Extract markdown links
+            grep -oE '\[([^\]]+)\]\(([^)]+)\)' "$file" 2>/dev/null | while read -r link; do
+              target=$(echo "$link" | sed -n 's/.*(\([^)]*\)).*/\1/p')
+              
+              # Check if it's an internal .md link
+              if [[ "$target" =~ \.md($|#) ]] && [[ ! "$target" =~ ^https?:// ]]; then
+                target_file=$(echo "$target" | cut -d'#' -f1)
+                
+                # Check if file exists
+                if [[ ! -f "wiki/$target_file" ]]; then
+                  echo "  ⚠️  Broken link in $(basename $file): $target_file"
+                  broken_count=$((broken_count + 1))
+                fi
+              fi
+            done
+          done
+          
+          echo ""
+          if [[ $broken_count -eq 0 ]]; then
+            echo "✅ No broken internal links found"
+          else
+            echo "⚠️  Found $broken_count broken internal links"
+          fi
+      
+      - name: Test placeholder detection
+        run: |
+          echo "=== Testing Placeholder Detection ==="
+          
+          placeholders=$(grep -r "TODO\|FIXME\|TBD\|PLACEHOLDER" wiki/ --include="*.md" | wc -l || echo "0")
+          
+          if [[ $placeholders -gt 0 ]]; then
+            echo "⚠️  Found $placeholders placeholder items"
+            if [[ "${{ github.event.inputs.verbose }}" == "true" ]]; then
+              echo ""
+              echo "Placeholder locations:"
+              grep -rn "TODO\|FIXME\|TBD\|PLACEHOLDER" wiki/ --include="*.md" | head -10
+            fi
+          else
+            echo "✅ No placeholders found"
+          fi
+      
+      - name: Test markdown linting
+        if: github.event.inputs.test_mode == 'full-test'
+        run: |
+          echo "=== Testing Markdown Linting ==="
+          
+          # Check if markdownlint config exists
+          if [[ -f ".markdownlint.json" ]]; then
+            echo "✅ Markdownlint configuration found"
+            
+            # Install markdownlint-cli
+            echo "Installing markdownlint-cli..."
+            npm install -g markdownlint-cli@0.39.0
+            
+            # Run linting on a sample file
+            echo ""
+            echo "Testing linting on Home.md..."
+            if markdownlint wiki/Home.md --config .markdownlint.json; then
+              echo "✅ Home.md passes linting"
+            else
+              echo "⚠️  Home.md has linting warnings (this is okay)"
+            fi
+          else
+            echo "⚠️  No markdownlint configuration found"
+          fi
+
+  test-dry-run:
+    runs-on: ubuntu-latest
+    needs: test-validation
+    if: github.event.inputs.test_mode == 'dry-run' || github.event.inputs.test_mode == 'full-test'
+    name: Test Wiki Sync (Dry Run)
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Prepare test sync
+        run: |
+          echo "=== Preparing Test Wiki Sync ==="
+          echo "This will run in DRY RUN mode - no actual changes will be made"
+          echo ""
+          
+          # Create a test change
+          echo "" >> wiki/Home.md
+          echo "<!-- Test sync at $(date) -->" >> wiki/Home.md
+          
+          echo "Added test comment to Home.md for sync testing"
+      
+      - name: Test wiki sync action (DRY RUN)
+        uses: Andrew-Chen-Wang/github-wiki-action@v4
+        with:
+          repository: ${{ github.repository }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: wiki/
+          strategy: clone
+          preprocess: true
+          dry-run: true  # Always dry-run in test
+      
+      - name: Verify dry run
+        run: |
+          echo "=== Dry Run Test Complete ==="
+          echo "✅ Wiki sync action executed successfully in dry-run mode"
+          echo ""
+          echo "In production, this would have synced:"
+          echo "  - Repository: ${{ github.repository }}"
+          echo "  - Wiki URL: https://github.com/${{ github.repository }}/wiki"
+          echo "  - Files: $(find wiki/ -name "*.md" | wc -l) markdown files"
+
+  test-summary:
+    runs-on: ubuntu-latest
+    needs: [test-validation, test-dry-run]
+    if: always()
+    name: Test Summary
+    
+    steps:
+      - name: Generate test report
+        run: |
+          echo "=== Wiki Sync Test Summary ==="
+          echo ""
+          echo "Test Configuration:"
+          echo "  - Mode: ${{ github.event.inputs.test_mode }}"
+          echo "  - Repository: ${{ github.repository }}"
+          echo "  - Actor: ${{ github.actor }}"
+          echo ""
+          echo "Test Results:"
+          echo "  - Validation: ${{ needs.test-validation.result }}"
+          echo "  - Dry Run: ${{ needs.test-dry-run.result || 'skipped' }}"
+          echo ""
+          
+          if [[ "${{ needs.test-validation.result }}" == "success" ]]; then
+            echo "✅ Wiki automation is ready for use!"
+            echo ""
+            echo "Next Steps:"
+            echo "1. Enable the wiki in your GitHub repository settings"
+            echo "2. Create an initial wiki page manually (required by GitHub)"
+            echo "3. Run the 'Sync Wiki Documentation' workflow to sync all documentation"
+            echo "4. Set up branch protection to trigger on wiki changes"
+          else
+            echo "❌ Some tests failed. Please review the logs above."
+          fi
+      
+      - name: Create check run
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const success = '${{ needs.test-validation.result }}' === 'success';
+            
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Wiki Sync Test',
+              head_sha: context.sha,
+              status: 'completed',
+              conclusion: success ? 'success' : 'failure',
+              output: {
+                title: success ? 'Wiki sync test passed' : 'Wiki sync test failed',
+                summary: `Test mode: ${{ github.event.inputs.test_mode }}
+            Validation: ${{ needs.test-validation.result }}
+            Dry Run: ${{ needs.test-dry-run.result || 'skipped' }}
+            
+            ${success ? '✅ Wiki automation is ready!' : '❌ Please review test results'}`
+              }
+            });
