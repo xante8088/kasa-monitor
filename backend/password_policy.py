@@ -21,6 +21,7 @@ along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 import hashlib
 import json
 import re
+import secrets
 import sqlite3
 from datetime import datetime, timedelta
 from enum import Enum

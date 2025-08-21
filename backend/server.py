@@ -24,6 +24,7 @@ import io
 import json
 import logging
 import os
+import re
 import shutil
 import tempfile
 import zipfile
@@ -85,6 +86,17 @@ from models import (
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def sanitize_for_log(input_str: str) -> str:
+    """Sanitize user input for safe logging to prevent log injection attacks."""
+    if not isinstance(input_str, str):
+        input_str = str(input_str)
+    # Remove or replace control characters that could be used for log injection
+    # This includes newlines, carriage returns, tabs, and other control chars
+    sanitized = re.sub(r'[\r\n\t\x00-\x1f\x7f-\x9f]', '_', input_str)
+    # Limit length to prevent log flooding
+    return sanitized[:200] + "..." if len(sanitized) > 200 else sanitized
 
 
 def patch_timezone_handling():
@@ -1499,7 +1511,8 @@ class KasaMonitorApp:
                                 await self.audit_logger.log_event_async(audit_event)
 
                             logger.info(
-                                f"Test user authenticated: {login_data.username}"
+                                "Test user authenticated: %s", 
+                                sanitize_for_log(login_data.username)
                             )
                             return Token(
                                 access_token=access_token,

@@ -25,6 +25,7 @@ import base64
 import hashlib
 import json
 import os
+import secrets
 import zipfile
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -288,10 +289,10 @@ class PluginVerifier:
 
                 for key_name, public_key in self.trusted_keys.items():
                     try:
-                        if (
-                            signature_data.get("algorithm")
-                            == SignatureAlgorithm.RSA_PSS_SHA256.value
-                        ):
+                        # Use constant-time comparison for algorithm verification
+                        provided_algo = signature_data.get("algorithm", "")
+                        expected_algo = SignatureAlgorithm.RSA_PSS_SHA256.value
+                        if secrets.compare_digest(str(provided_algo), str(expected_algo)):
                             public_key.verify(
                                 signature,
                                 signature_bytes,

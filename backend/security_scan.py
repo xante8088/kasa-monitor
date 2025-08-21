@@ -4,6 +4,7 @@
 import json
 import os
 import re
+import secrets
 from datetime import datetime
 from pathlib import Path
 
@@ -189,10 +190,9 @@ def check_security_configs():
                             "type": "config",
                         }
                     )
-                if (
-                    "change-in-production" in secret_value
-                    or "your-secret-key-here" in secret_value
-                ):
+                # Check for default/example values (not timing sensitive for static strings)
+                default_values = ["change-in-production", "your-secret-key-here"]
+                if any(default in secret_value.lower() for default in default_values):
                     security_issues["critical"].append(
                         {
                             "file": ".env",
