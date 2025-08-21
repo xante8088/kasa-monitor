@@ -1,0 +1,31 @@
+# Security Scanner Requirements
+# Install with: pip install -r requirements-security.txt
+
+# Core dependencies
+requests>=2.31.0
+urllib3>=2.0.7
+cryptography>=41.0.7
+
+# CLI and formatting
+click>=8.1.7
+rich>=13.7.0
+tabulate>=0.9.0
+
+# Security analysis
+bandit>=1.7.5
+safety>=3.0.1
+semgrep>=1.45.0
+
+# SARIF support
+sarif-om>=1.0.4
+jschema-to-python>=1.2.3
+
+# Development dependencies (optional)
+pytest>=7.4.3
+pytest-cov>=4.1.0
+black>=23.11.0
+flake8>=6.1.0
+mypy>=1.7.1
+
+# Type hints
+types-requests>=2.31.0.10

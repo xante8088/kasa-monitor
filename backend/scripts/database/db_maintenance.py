@@ -1,3 +1,4 @@
+from sqlalchemy import text
 #!/usr/bin/env python3
 """Database maintenance scripts for Kasa Monitor.
 
@@ -220,7 +221,7 @@ class DatabaseMaintenance:
             stats["tables"] = {}
             for table in tables:
                 table_name = table[0]
-                cursor = conn.execute(f"SELECT COUNT(*) FROM {table_name}")
+                cursor = conn.execute(text("SELECT COUNT(*) FROM :table_name").bindparams(table_name=table_name))
                 count = cursor.fetchone()[0]
                 stats["tables"][table_name] = count
 

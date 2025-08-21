@@ -1,0 +1,428 @@
+name: Automated Security Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  schedule:
+    # Daily security scan at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      severity_threshold:
+        description: 'Minimum severity to fail the check'
+        required: false
+        default: 'high'
+        type: choice
+        options:
+          - critical
+          - high
+          - medium
+          - low
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+  actions: read
+  checks: write
+
+jobs:
+  security-analysis:
+    name: Security Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for better analysis
+    
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: javascript, python
+        queries: security-and-quality
+    
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v3
+    
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:javascript"
+    
+    - name: Run Security Audit
+      id: security-audit
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const owner = context.repo.owner;
+          const repo = context.repo.repo;
+          
+          // Get code scanning alerts
+          const alerts = await github.rest.codeScanning.listAlertsForRepo({
+            owner,
+            repo,
+            state: 'open',
+            per_page: 100
+          });
+          
+          // Categorize by severity
+          const severityCount = {
+            critical: 0,
+            error: 0,
+            high: 0,
+            warning: 0,
+            medium: 0,
+            low: 0,
+            note: 0
+          };
+          
+          const criticalAlerts = [];
+          const highAlerts = [];
+          
+          alerts.data.forEach(alert => {
+            const severity = alert.rule.severity.toLowerCase();
+            if (severityCount.hasOwnProperty(severity)) {
+              severityCount[severity]++;
+            }
+            
+            if (severity === 'critical' || severity === 'error') {
+              criticalAlerts.push({
+                number: alert.number,
+                rule: alert.rule.id,
+                description: alert.rule.description,
+                path: alert.most_recent_instance.location.path,
+                line: alert.most_recent_instance.location.start_line
+              });
+            } else if (severity === 'high' || severity === 'warning') {
+              highAlerts.push({
+                number: alert.number,
+                rule: alert.rule.id,
+                description: alert.rule.description
+              });
+            }
+          });
+          
+          // Calculate security score
+          let score = 100;
+          score -= severityCount.critical * 20;
+          score -= severityCount.error * 15;
+          score -= severityCount.high * 10;
+          score -= severityCount.warning * 5;
+          score -= severityCount.medium * 3;
+          score -= severityCount.low * 1;
+          score = Math.max(0, score);
+          
+          // Set outputs
+          core.setOutput('total_alerts', alerts.data.length);
+          core.setOutput('critical_count', severityCount.critical + severityCount.error);
+          core.setOutput('high_count', severityCount.high + severityCount.warning);
+          core.setOutput('security_score', score);
+          core.setOutput('critical_alerts', JSON.stringify(criticalAlerts));
+          core.setOutput('high_alerts', JSON.stringify(highAlerts));
+          
+          // Determine if build should fail
+          const threshold = '${{ github.event.inputs.severity_threshold || 'high' }}';
+          let shouldFail = false;
+          
+          if (threshold === 'critical' && (severityCount.critical + severityCount.error) > 0) {
+            shouldFail = true;
+          } else if (threshold === 'high' && (severityCount.critical + severityCount.error + severityCount.high + severityCount.warning) > 0) {
+            shouldFail = true;
+          } else if (threshold === 'medium' && alerts.data.length > 0) {
+            shouldFail = true;
+          }
+          
+          if (shouldFail) {
+            core.setFailed(`Security check failed: Found ${alerts.data.length} security issues`);
+          }
+          
+          return {
+            total: alerts.data.length,
+            severityCount,
+            score,
+            criticalAlerts,
+            highAlerts
+          };
+    
+    - name: Generate Security Report
+      if: always()
+      run: |
+        cat << EOF > security-report.md
+        # Security Analysis Report
+        
+        **Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        **Repository:** ${{ github.repository }}
+        **Branch:** ${{ github.ref_name }}
+        **Commit:** ${{ github.sha }}
+        
+        ## Summary
+        
+        - **Security Score:** ${{ steps.security-audit.outputs.security_score }}/100
+        - **Total Alerts:** ${{ steps.security-audit.outputs.total_alerts }}
+        - **Critical/Error:** ${{ steps.security-audit.outputs.critical_count }}
+        - **High/Warning:** ${{ steps.security-audit.outputs.high_count }}
+        
+        ## Status
+        
+        EOF
+        
+        if [ "${{ steps.security-audit.outputs.critical_count }}" -gt "0" ]; then
+          echo "🔴 **CRITICAL SECURITY ISSUES DETECTED**" >> security-report.md
+        elif [ "${{ steps.security-audit.outputs.high_count }}" -gt "0" ]; then
+          echo "🟡 **HIGH PRIORITY ISSUES FOUND**" >> security-report.md
+        else
+          echo "🟢 **SECURITY CHECK PASSED**" >> security-report.md
+        fi
+        
+        echo "" >> security-report.md
+        echo "---" >> security-report.md
+        echo "*Generated by GitHub Security Review Workflow*" >> security-report.md
+    
+    - name: Upload Security Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-report
+        path: security-report.md
+        retention-days: 30
+    
+    - name: Comment on Pull Request
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          
+          const totalAlerts = ${{ steps.security-audit.outputs.total_alerts }};
+          const criticalCount = ${{ steps.security-audit.outputs.critical_count }};
+          const highCount = ${{ steps.security-audit.outputs.high_count }};
+          const score = ${{ steps.security-audit.outputs.security_score }};
+          const criticalAlerts = JSON.parse('${{ steps.security-audit.outputs.critical_alerts }}');
+          const highAlerts = JSON.parse('${{ steps.security-audit.outputs.high_alerts }}');
+          
+          let status = '🟢 **PASSED**';
+          let statusEmoji = '✅';
+          
+          if (criticalCount > 0) {
+            status = '🔴 **CRITICAL ISSUES**';
+            statusEmoji = '❌';
+          } else if (highCount > 0) {
+            status = '🟡 **NEEDS REVIEW**';
+            statusEmoji = '⚠️';
+          }
+          
+          let comment = `## ${statusEmoji} Security Review Results\n\n`;
+          comment += `**Security Score:** ${score}/100\n\n`;
+          comment += `### Alert Summary\n`;
+          comment += `| Severity | Count |\n`;
+          comment += `|----------|-------|\n`;
+          comment += `| Critical/Error | ${criticalCount} |\n`;
+          comment += `| High/Warning | ${highCount} |\n`;
+          comment += `| Total | ${totalAlerts} |\n\n`;
+          
+          if (criticalAlerts.length > 0) {
+            comment += `### 🔴 Critical Security Issues\n\n`;
+            comment += `These issues must be resolved before merging:\n\n`;
+            
+            criticalAlerts.slice(0, 5).forEach(alert => {
+              comment += `- **${alert.rule}** in \`${alert.path}:${alert.line}\`\n`;
+              comment += `  ${alert.description}\n`;
+            });
+            
+            if (criticalAlerts.length > 5) {
+              comment += `\n*...and ${criticalAlerts.length - 5} more critical issues*\n`;
+            }
+            comment += '\n';
+          }
+          
+          if (highAlerts.length > 0 && criticalCount === 0) {
+            comment += `### ⚠️ High Priority Issues\n\n`;
+            
+            highAlerts.slice(0, 3).forEach(alert => {
+              comment += `- **${alert.rule}**: ${alert.description}\n`;
+            });
+            
+            if (highAlerts.length > 3) {
+              comment += `\n*...and ${highAlerts.length - 3} more high priority issues*\n`;
+            }
+            comment += '\n';
+          }
+          
+          comment += `### Required Actions\n\n`;
+          
+          if (criticalCount > 0) {
+            comment += `1. ❌ Fix all critical security issues\n`;
+            comment += `2. 🔄 Re-run security checks after fixes\n`;
+            comment += `3. 👀 Request security team review\n`;
+          } else if (highCount > 0) {
+            comment += `1. ⚠️ Review and address high priority issues\n`;
+            comment += `2. 📝 Document any accepted risks\n`;
+            comment += `3. ✅ Confirm security requirements are met\n`;
+          } else {
+            comment += `1. ✅ All security checks passed\n`;
+            comment += `2. 👍 Ready for merge from security perspective\n`;
+          }
+          
+          comment += `\n---\n`;
+          comment += `*Security scan performed at ${new Date().toISOString()}*\n`;
+          comment += `*[View detailed report](https://github.com/${context.repo.owner}/${context.repo.repo}/security/code-scanning)*`;
+          
+          // Find and update existing comment or create new one
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          
+          const botComment = comments.find(comment => 
+            comment.user.type === 'Bot' && 
+            comment.body.includes('Security Review Results')
+          );
+          
+          if (botComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body: comment
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+          }
+    
+    - name: Create Check Run
+      if: always()
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const totalAlerts = ${{ steps.security-audit.outputs.total_alerts }};
+          const criticalCount = ${{ steps.security-audit.outputs.critical_count }};
+          const score = ${{ steps.security-audit.outputs.security_score }};
+          
+          let conclusion = 'success';
+          let title = '✅ Security check passed';
+          
+          if (criticalCount > 0) {
+            conclusion = 'failure';
+            title = `❌ ${criticalCount} critical security issues found`;
+          } else if (totalAlerts > 0) {
+            conclusion = 'neutral';
+            title = `⚠️ ${totalAlerts} security alerts require review`;
+          }
+          
+          await github.rest.checks.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            name: 'Security Review',
+            head_sha: context.sha,
+            status: 'completed',
+            conclusion,
+            output: {
+              title,
+              summary: `Security Score: ${score}/100\n\nTotal Alerts: ${totalAlerts}`,
+              text: 'View detailed security report in the workflow artifacts.'
+            }
+          });
+
+  dependency-check:
+    name: Dependency Security Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Run Dependency Review
+      if: github.event_name == 'pull_request'
+      uses: actions/dependency-review-action@v4
+      with:
+        fail-on-severity: high
+        deny-licenses: GPL-3.0, AGPL-3.0
+    
+    - name: Run Trivy Security Scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        severity: 'CRITICAL,HIGH'
+    
+    - name: Upload Trivy results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'
+        category: 'dependency-check'
+
+  secrets-scan:
+    name: Secrets Detection
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: TruffleHog Secrets Scan
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: ${{ github.event.repository.default_branch }}
+        head: HEAD
+        extra_args: --debug --only-verified
+
+  security-summary:
+    name: Security Summary
+    needs: [security-analysis, dependency-check, secrets-scan]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Generate Summary
+      run: |
+        echo "# 🔒 Security Review Complete" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "## Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.security-analysis.result }}" == "success" ]; then
+          echo "| Code Security | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| Code Security | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.dependency-check.result }}" == "success" ]; then
+          echo "| Dependencies | ✅ Secure |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| Dependencies | ❌ Vulnerabilities Found |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.secrets-scan.result }}" == "success" ]; then
+          echo "| Secrets Scan | ✅ Clean |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| Secrets Scan | ❌ Secrets Detected |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
+        echo "*Review complete at $(date -u +"%Y-%m-%d %H:%M:%S UTC")*" >> $GITHUB_STEP_SUMMARY

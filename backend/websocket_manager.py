@@ -381,7 +381,9 @@ async def get_current_user_ws(
 
     try:
         # Decode JWT token (integrate with your auth system)
-        secret_key = os.getenv("JWT_SECRET_KEY", "your-secret-key")
+        secret_key = os.getenv("JWT_SECRET_KEY")
+        if not secret_key:
+            raise ValueError("JWT_SECRET_KEY environment variable not set")
         payload = jwt.decode(token, secret_key, algorithms=["HS256"])
 
         return {

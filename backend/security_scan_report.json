@@ -1,0 +1,22 @@
+{
+  "scan_date": "2025-08-20T22:42:04.648531",
+  "summary": {
+    "total": 1,
+    "critical": 1,
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "issues": {
+    "critical": [
+      {
+        "file": ".env",
+        "issue": "JWT secret key contains default/example value",
+        "type": "config"
+      }
+    ],
+    "high": [],
+    "medium": [],
+    "low": []
+  }
+}
