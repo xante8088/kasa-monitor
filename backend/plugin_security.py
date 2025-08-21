@@ -292,7 +292,9 @@ class PluginVerifier:
                         # Use constant-time comparison for algorithm verification
                         provided_algo = signature_data.get("algorithm", "")
                         expected_algo = SignatureAlgorithm.RSA_PSS_SHA256.value
-                        if secrets.compare_digest(str(provided_algo), str(expected_algo)):
+                        if secrets.compare_digest(
+                            str(provided_algo), str(expected_algo)
+                        ):
                             public_key.verify(
                                 signature,
                                 signature_bytes,

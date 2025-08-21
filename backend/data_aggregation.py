@@ -117,7 +117,9 @@ class DataAggregator:
 
         next_hour = target_hour + timedelta(hours=1)
 
-        logger.info("Aggregating hourly data for %s", sanitize_for_log(str(target_hour)))
+        logger.info(
+            "Aggregating hourly data for %s", sanitize_for_log(str(target_hour))
+        )
 
         # Get all devices
         devices = await self.db_manager.get_all_devices()

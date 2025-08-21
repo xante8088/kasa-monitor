@@ -7,6 +7,9 @@ import asyncio
 import json
 import logging
 import os
+
+# Import the sanitize_for_log function from server module
+import sys
 from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
@@ -14,8 +17,6 @@ from typing import Any, Dict, List, Optional, Set
 from fastapi import WebSocket, WebSocketDisconnect
 from jose import jwt
 
-# Import the sanitize_for_log function from server module
-import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from server import sanitize_for_log
 
@@ -98,7 +99,11 @@ class ConnectionManager:
                 await websocket.send_json(message)
                 self.stats["messages_sent"] += 1
             except Exception as e:
-                logger.error("Error sending message to %s: %s", sanitize_for_log(client_id), sanitize_for_log(str(e)))
+                logger.error(
+                    "Error sending message to %s: %s",
+                    sanitize_for_log(client_id),
+                    sanitize_for_log(str(e)),
+                )
                 self.stats["errors"] += 1
                 self.disconnect(client_id)
 
@@ -220,7 +225,11 @@ class WebSocketEventHandler:
             handler = self.handlers[message_type]
             await handler(client_id, message)
         except Exception as e:
-            logger.error("Error handling message from %s: %s", sanitize_for_log(client_id), sanitize_for_log(str(e)))
+            logger.error(
+                "Error handling message from %s: %s",
+                sanitize_for_log(client_id),
+                sanitize_for_log(str(e)),
+            )
             await self.manager.send_personal_message(
                 {
                     "type": "error",
@@ -434,7 +443,11 @@ async def websocket_endpoint(
     except WebSocketDisconnect:
         manager.disconnect(client_id)
     except Exception as e:
-        logger.error("WebSocket error for %s: %s", sanitize_for_log(client_id), sanitize_for_log(str(e)))
+        logger.error(
+            "WebSocket error for %s: %s",
+            sanitize_for_log(client_id),
+            sanitize_for_log(str(e)),
+        )
         manager.disconnect(client_id)
 
 

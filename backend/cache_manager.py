@@ -17,11 +17,10 @@ from typing import Any, Callable, Dict, List, Optional
 
 # Import the sanitize_for_log function from server module
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from server import sanitize_for_log
-
 import redis.asyncio as redis
 from aiocache import Cache
 from aiocache.serializers import JsonSerializer, PickleSerializer
+from server import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +115,11 @@ class CacheManager:
             return default
 
         except Exception as e:
-            logger.error("Cache get error for key %s: %s", sanitize_for_log(key), sanitize_for_log(str(e)))
+            logger.error(
+                "Cache get error for key %s: %s",
+                sanitize_for_log(key),
+                sanitize_for_log(str(e)),
+            )
             self.stats["errors"] += 1
             return default
 
@@ -153,7 +156,11 @@ class CacheManager:
             return True
 
         except Exception as e:
-            logger.error("Cache set error for key %s: %s", sanitize_for_log(key), sanitize_for_log(str(e)))
+            logger.error(
+                "Cache set error for key %s: %s",
+                sanitize_for_log(key),
+                sanitize_for_log(str(e)),
+            )
             self.stats["errors"] += 1
             return False
 

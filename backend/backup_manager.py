@@ -12,6 +12,9 @@ import os
 import shutil
 import sqlite3
 import subprocess
+
+# Import the sanitize_for_log function from server module
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -24,12 +27,10 @@ from apscheduler.triggers.cron import CronTrigger
 from cryptography.fernet import Fernet
 from cryptography.hazmat.backends import default_backend
 
-# Import the sanitize_for_log function from server module
-import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from server import sanitize_for_log
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from server import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -278,7 +279,9 @@ class BackupManager:
             # Clean old backups
             await self.cleanup_old_backups()
 
-            logger.info("Backup created successfully: %s", sanitize_for_log(backup_name))
+            logger.info(
+                "Backup created successfully: %s", sanitize_for_log(backup_name)
+            )
             self.backup_progress = 100
             self.current_backup_status = "completed"
 
@@ -802,7 +805,9 @@ class BackupManager:
                 working_file.unlink()
 
             result["status"] = "completed"
-            logger.info("Backup restored successfully: %s", sanitize_for_log(backup_name))
+            logger.info(
+                "Backup restored successfully: %s", sanitize_for_log(backup_name)
+            )
 
             # Log successful restore completion
             if self.audit_logger:
@@ -891,7 +896,9 @@ class BackupManager:
                 backup_file = self.backup_dir / backup["filename"]
                 if backup_file.exists():
                     backup_file.unlink()
-                    logger.info("Removed old backup: %s", sanitize_for_log(backup['name']))
+                    logger.info(
+                        "Removed old backup: %s", sanitize_for_log(backup["name"])
+                    )
                 backups_to_remove.append(backup)
             else:
                 remaining_backups.append(backup)
@@ -930,17 +937,17 @@ class BackupManager:
     async def get_backup_file_by_name(self, filename: str) -> Optional[str]:
         """Get backup file path by filename"""
         # Validate filename to prevent path traversal
-        if not filename or '..' in filename or '/' in filename or '\\' in filename:
+        if not filename or ".." in filename or "/" in filename or "\\" in filename:
             return None
-        
+
         # Use safe basename only
         safe_filename = os.path.basename(filename)
         file_path = self.backup_dir / safe_filename
-        
+
         # Ensure the resolved path is still within backup directory
         if not str(file_path.resolve()).startswith(str(self.backup_dir.resolve())):
             return None
-            
+
         if file_path.exists():
             return str(file_path)
         return None
@@ -948,13 +955,13 @@ class BackupManager:
     async def delete_backup_by_name(self, filename: str) -> bool:
         """Delete a backup by filename"""
         # Validate filename to prevent path traversal
-        if not filename or '..' in filename or '/' in filename or '\\' in filename:
+        if not filename or ".." in filename or "/" in filename or "\\" in filename:
             return False
-        
+
         # Use safe basename only
         safe_filename = os.path.basename(filename)
         file_path = self.backup_dir / safe_filename
-        
+
         # Ensure the resolved path is still within backup directory
         if not str(file_path.resolve()).startswith(str(self.backup_dir.resolve())):
             return False

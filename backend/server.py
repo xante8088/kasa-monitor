@@ -94,7 +94,7 @@ def sanitize_for_log(input_str: str) -> str:
         input_str = str(input_str)
     # Remove or replace control characters that could be used for log injection
     # This includes newlines, carriage returns, tabs, and other control chars
-    sanitized = re.sub(r'[\r\n\t\x00-\x1f\x7f-\x9f]', '_', input_str)
+    sanitized = re.sub(r"[\r\n\t\x00-\x1f\x7f-\x9f]", "_", input_str)
     # Limit length to prevent log flooding
     return sanitized[:200] + "..." if len(sanitized) > 200 else sanitized
 
@@ -1073,7 +1073,11 @@ class KasaMonitorApp:
                     device_data = await self.device_manager.get_device_data(ip)
                     if device_data:
                         await self.db_manager.store_device_reading(device_data)
-                        logger.info("Manually added device %s (%s)", sanitize_for_log(alias), sanitize_for_log(ip))
+                        logger.info(
+                            "Manually added device %s (%s)",
+                            sanitize_for_log(alias),
+                            sanitize_for_log(ip),
+                        )
 
                         # Audit log device addition
                         if self.audit_logger:
@@ -1104,7 +1108,11 @@ class KasaMonitorApp:
                         status_code=404, detail=f"Cannot connect to device at {ip}"
                     )
             except Exception as e:
-                logger.error("Error adding manual device %s: %s", sanitize_for_log(ip), sanitize_for_log(str(e)))
+                logger.error(
+                    "Error adding manual device %s: %s",
+                    sanitize_for_log(ip),
+                    sanitize_for_log(str(e)),
+                )
 
                 # Audit log failed device addition
                 if self.audit_logger:
@@ -1158,7 +1166,11 @@ class KasaMonitorApp:
                 logger.info("Removed device %s", sanitize_for_log(device_ip))
                 return {"status": "success", "message": f"Device {device_ip} removed"}
             except Exception as e:
-                logger.error("Error removing device %s: %s", sanitize_for_log(device_ip), sanitize_for_log(str(e)))
+                logger.error(
+                    "Error removing device %s: %s",
+                    sanitize_for_log(device_ip),
+                    sanitize_for_log(str(e)),
+                )
 
                 # Audit log failed device removal
                 if self.audit_logger:
@@ -1511,8 +1523,8 @@ class KasaMonitorApp:
                                 await self.audit_logger.log_event_async(audit_event)
 
                             logger.info(
-                                "Test user authenticated: %s", 
-                                sanitize_for_log(login_data.username)
+                                "Test user authenticated: %s",
+                                sanitize_for_log(login_data.username),
                             )
                             return Token(
                                 access_token=access_token,
@@ -2388,9 +2400,14 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             """Download an SSL file."""
             try:
                 # Validate filename to prevent path traversal
-                if not filename or '..' in filename or '/' in filename or '\\' in filename:
+                if (
+                    not filename
+                    or ".." in filename
+                    or "/" in filename
+                    or "\\" in filename
+                ):
                     raise HTTPException(status_code=400, detail="Invalid filename")
-                
+
                 # Use safe basename only
                 safe_filename = os.path.basename(filename)
                 ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
@@ -2486,9 +2503,14 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                     raise HTTPException(status_code=400, detail="Invalid confirmation")
 
                 # Validate filename to prevent path traversal
-                if not filename or '..' in filename or '/' in filename or '\\' in filename:
+                if (
+                    not filename
+                    or ".." in filename
+                    or "/" in filename
+                    or "\\" in filename
+                ):
                     raise HTTPException(status_code=400, detail="Invalid filename")
-                
+
                 # Use safe basename only
                 safe_filename = os.path.basename(filename)
                 ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
