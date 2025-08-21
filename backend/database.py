@@ -792,7 +792,8 @@ class DatabaseManager:
             row = await cursor.fetchone()
             return row[0] if row else None
         except Exception as e:
-            print(f"Error getting password hash: {e}")
+            # Log error without exposing sensitive details
+            print("Error getting password hash: Database operation failed")
             return None
 
     async def update_user_login(self, username: str) -> bool:
@@ -1009,7 +1010,8 @@ class DatabaseManager:
             await self.sqlite_conn.commit()
             return True
         except Exception as e:
-            print(f"Error updating password: {e}")
+            # Log error without exposing sensitive details
+            print("Error updating password: Database operation failed")
             return False
 
     async def count_admin_users(self) -> int:
@@ -1035,7 +1037,8 @@ class DatabaseManager:
             row = await cursor.fetchone()
             return row[0] if row else None
         except Exception as e:
-            print(f"Error getting TOTP secret: {e}")
+            # Log error without exposing sensitive details
+            print("Error getting TOTP secret: Database operation failed")
             return None
 
     async def store_temp_totp_secret(self, user_id: int, secret: str) -> bool:
@@ -1052,7 +1055,8 @@ class DatabaseManager:
             await self.sqlite_conn.commit()
             return True
         except Exception as e:
-            print(f"Error storing temp TOTP secret: {e}")
+            # Log error without exposing sensitive details
+            print("Error storing temp TOTP secret: Database operation failed")
             return False
 
     async def get_temp_totp_secret(self, user_id: int) -> Optional[str]:
@@ -1064,7 +1068,8 @@ class DatabaseManager:
             row = await cursor.fetchone()
             return row[0] if row and row[0] else None
         except Exception as e:
-            print(f"Error getting temp TOTP secret: {e}")
+            # Log error without exposing sensitive details
+            print("Error getting temp TOTP secret: Database operation failed")
             return None
 
     async def confirm_totp_secret(self, user_id: int, secret: str) -> bool:
@@ -1081,7 +1086,8 @@ class DatabaseManager:
             await self.sqlite_conn.commit()
             return True
         except Exception as e:
-            print(f"Error confirming TOTP secret: {e}")
+            # Log error without exposing sensitive details
+            print("Error confirming TOTP secret: Database operation failed")
             return False
 
     async def disable_totp(self, user_id: int) -> bool:

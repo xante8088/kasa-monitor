@@ -1073,7 +1073,7 @@ class KasaMonitorApp:
                     device_data = await self.device_manager.get_device_data(ip)
                     if device_data:
                         await self.db_manager.store_device_reading(device_data)
-                        logger.info(f"Manually added device {alias} ({ip})")
+                        logger.info("Manually added device %s (%s)", sanitize_for_log(alias), sanitize_for_log(ip))
 
                         # Audit log device addition
                         if self.audit_logger:
@@ -1104,7 +1104,7 @@ class KasaMonitorApp:
                         status_code=404, detail=f"Cannot connect to device at {ip}"
                     )
             except Exception as e:
-                logger.error(f"Error adding manual device {ip}: {e}")
+                logger.error("Error adding manual device %s: %s", sanitize_for_log(ip), sanitize_for_log(str(e)))
 
                 # Audit log failed device addition
                 if self.audit_logger:
@@ -1155,10 +1155,10 @@ class KasaMonitorApp:
                     )
                     await self.audit_logger.log_event_async(audit_event)
 
-                logger.info(f"Removed device {device_ip}")
+                logger.info("Removed device %s", sanitize_for_log(device_ip))
                 return {"status": "success", "message": f"Device {device_ip} removed"}
             except Exception as e:
-                logger.error(f"Error removing device {device_ip}: {e}")
+                logger.error("Error removing device %s: %s", sanitize_for_log(device_ip), sanitize_for_log(str(e)))
 
                 # Audit log failed device removal
                 if self.audit_logger:
@@ -2387,14 +2387,21 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
         ):
             """Download an SSL file."""
             try:
+                # Validate filename to prevent path traversal
+                if not filename or '..' in filename or '/' in filename or '\\' in filename:
+                    raise HTTPException(status_code=400, detail="Invalid filename")
+                
+                # Use safe basename only
+                safe_filename = os.path.basename(filename)
                 ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
-                file_path = ssl_dir / filename
+                file_path = ssl_dir / safe_filename
 
                 # Validate file exists and is within ssl directory
                 if not file_path.exists():
                     raise HTTPException(status_code=404, detail="File not found")
 
-                if not str(file_path).startswith(str(ssl_dir)):
+                # Ensure the resolved path is still within ssl directory
+                if not str(file_path.resolve()).startswith(str(ssl_dir.resolve())):
                     raise HTTPException(status_code=400, detail="Invalid file path")
 
                 return FileResponse(
@@ -2478,14 +2485,21 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 if confirmation.lower() != "delete":
                     raise HTTPException(status_code=400, detail="Invalid confirmation")
 
+                # Validate filename to prevent path traversal
+                if not filename or '..' in filename or '/' in filename or '\\' in filename:
+                    raise HTTPException(status_code=400, detail="Invalid filename")
+                
+                # Use safe basename only
+                safe_filename = os.path.basename(filename)
                 ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
-                file_path = ssl_dir / filename
+                file_path = ssl_dir / safe_filename
 
                 # Validate file exists and is within ssl directory
                 if not file_path.exists():
                     raise HTTPException(status_code=404, detail="File not found")
 
-                if not str(file_path).startswith(str(ssl_dir)):
+                # Ensure the resolved path is still within ssl directory
+                if not str(file_path.resolve()).startswith(str(ssl_dir.resolve())):
                     raise HTTPException(status_code=400, detail="Invalid file path")
 
                 # Delete the file

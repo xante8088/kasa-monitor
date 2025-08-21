@@ -14,6 +14,11 @@ from typing import Any, Dict, List, Optional, Set
 from fastapi import WebSocket, WebSocketDisconnect
 from jose import jwt
 
+# Import the sanitize_for_log function from server module
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from server import sanitize_for_log
+
 logger = logging.getLogger(__name__)
 
 
@@ -66,7 +71,7 @@ class ConnectionManager:
             client_id,
         )
 
-        logger.info(f"Client {client_id} connected")
+        logger.info("Client %s connected", sanitize_for_log(client_id))
 
     def disconnect(self, client_id: str):
         """Remove a WebSocket connection"""
@@ -83,7 +88,7 @@ class ConnectionManager:
         if client_id in self.authenticated_clients:
             del self.authenticated_clients[client_id]
 
-        logger.info(f"Client {client_id} disconnected")
+        logger.info("Client %s disconnected", sanitize_for_log(client_id))
 
     async def send_personal_message(self, message: Dict[str, Any], client_id: str):
         """Send a message to a specific client"""
@@ -93,7 +98,7 @@ class ConnectionManager:
                 await websocket.send_json(message)
                 self.stats["messages_sent"] += 1
             except Exception as e:
-                logger.error(f"Error sending message to {client_id}: {e}")
+                logger.error("Error sending message to %s: %s", sanitize_for_log(client_id), sanitize_for_log(str(e)))
                 self.stats["errors"] += 1
                 self.disconnect(client_id)
 
@@ -215,7 +220,7 @@ class WebSocketEventHandler:
             handler = self.handlers[message_type]
             await handler(client_id, message)
         except Exception as e:
-            logger.error(f"Error handling message from {client_id}: {e}")
+            logger.error("Error handling message from %s: %s", sanitize_for_log(client_id), sanitize_for_log(str(e)))
             await self.manager.send_personal_message(
                 {
                     "type": "error",
@@ -429,7 +434,7 @@ async def websocket_endpoint(
     except WebSocketDisconnect:
         manager.disconnect(client_id)
     except Exception as e:
-        logger.error(f"WebSocket error for {client_id}: {e}")
+        logger.error("WebSocket error for %s: %s", sanitize_for_log(client_id), sanitize_for_log(str(e)))
         manager.disconnect(client_id)
 
 

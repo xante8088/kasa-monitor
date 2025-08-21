@@ -268,6 +268,7 @@ if __name__ == "__main__":
     else:
         # Generate and show current secret
         secret = manager.get_current_secret()
-        print(f"Current JWT Secret: {secret[:16]}... (truncated)")
+        # Never log actual JWT secret - only metadata
+        print("Current JWT Secret: [REDACTED] (secret loaded)")
         print(f"Secret length: {len(secret)} characters")
         print(f"Valid: {manager.validate_secret_strength(secret)}")

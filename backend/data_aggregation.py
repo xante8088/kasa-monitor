@@ -5,10 +5,16 @@ Handles data aggregation, downsampling, and statistical calculations
 
 import asyncio
 import logging
+import os
 import statistics
+import sys
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
+
+# Import the sanitize_for_log function from server module
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from server import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +117,7 @@ class DataAggregator:
 
         next_hour = target_hour + timedelta(hours=1)
 
-        logger.info(f"Aggregating hourly data for {target_hour}")
+        logger.info("Aggregating hourly data for %s", sanitize_for_log(str(target_hour)))
 
         # Get all devices
         devices = await self.db_manager.get_all_devices()
