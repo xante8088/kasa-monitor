@@ -20,7 +20,7 @@ python-dotenv
 reportlab
 openpyxl
 pandas
-black==24.8.0
+black==25.1.0
 jinja2
 aiosmtplib
 psutil
@@ -35,3 +35,4 @@ apscheduler
 pytest
 pytest-asyncio
 pytest-cov
+numpy>=1.22.2 # not directly required, pinned by Snyk to avoid a vulnerability
