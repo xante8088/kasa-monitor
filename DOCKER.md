@@ -52,8 +52,8 @@ docker-compose ps
 
 ### 3. Access Application
 - **Frontend**: http://your-pi-ip:3000
-- **Backend API**: http://your-pi-ip:8000
-- **API Documentation**: http://your-pi-ip:8000/docs
+- **Backend API**: http://your-pi-ip:5272
+- **API Documentation**: http://your-pi-ip:5272/docs
 
 ## ⚙️ Configuration
 
@@ -183,12 +183,12 @@ NODE_OPTIONS=--max-old-space-size=512
 ```bash
 # Check what's using ports
 sudo netstat -tulpn | grep :3000
-sudo netstat -tulpn | grep :8000
+sudo netstat -tulpn | grep :5272
 
 # Change ports in docker-compose.yml if needed:
 ports:
   - "3001:3000"  # Frontend
-  - "8001:8000"  # Backend
+  - "8001:5272"  # Backend
 ```
 
 **3. Slow Performance**
@@ -280,7 +280,7 @@ volumes:
 
 - [Docker Documentation](https://docs.docker.com/)
 - [Raspberry Pi Docker Guide](https://docs.docker.com/engine/install/debian/)
-- [Kasa Monitor API Documentation](http://your-pi-ip:8000/docs)
+- [Kasa Monitor API Documentation](http://your-pi-ip:5272/docs)
 
 ## 🆘 Support
 

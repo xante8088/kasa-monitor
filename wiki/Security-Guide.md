@@ -51,11 +51,11 @@ sudo ufw allow 22/tcp
 
 # Allow Kasa Monitor
 sudo ufw allow 3000/tcp  # Web interface
-sudo ufw allow 8000/tcp  # API
+sudo ufw allow 5272/tcp  # API
 
 # Allow from specific network only
 sudo ufw allow from 192.168.1.0/24 to any port 3000
-sudo ufw allow from 192.168.1.0/24 to any port 8000
+sudo ufw allow from 192.168.1.0/24 to any port 5272
 
 # Enable firewall
 sudo ufw enable
@@ -76,7 +76,7 @@ iptables -A INPUT -i lo -j ACCEPT
 
 # Allow Kasa Monitor from LAN only
 iptables -A INPUT -s 192.168.1.0/24 -p tcp --dport 3000 -j ACCEPT
-iptables -A INPUT -s 192.168.1.0/24 -p tcp --dport 8000 -j ACCEPT
+iptables -A INPUT -s 192.168.1.0/24 -p tcp --dport 5272 -j ACCEPT
 
 # Save rules
 iptables-save > /etc/iptables/rules.v4
@@ -565,7 +565,7 @@ class AuditLogger:
 # /etc/fail2ban/jail.local
 [kasa-monitor]
 enabled = true
-port = 3000,8000
+port = 3000,5272
 filter = kasa-monitor
 logpath = /var/log/kasa-monitor/access.log
 maxretry = 5

@@ -529,7 +529,7 @@ async def send_daily_report():
 #!/bin/bash
 # health-check.sh
 
-URL="http://localhost:8000/health"
+URL="http://localhost:5272/health"
 MAX_RETRIES=3
 RETRY_DELAY=5
 

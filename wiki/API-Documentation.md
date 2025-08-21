@@ -4,7 +4,7 @@ Complete REST API reference for Kasa Monitor.
 
 ## Base URL
 ```
-http://localhost:8000/api
+http://localhost:5272/api
 ```
 
 ## Authentication
@@ -735,7 +735,7 @@ Authorization: Bearer {admin_token}
 
 Connect to WebSocket for real-time updates:
 ```javascript
-const socket = io('ws://localhost:8000');
+const socket = io('ws://localhost:5272');
 
 socket.on('connect', () => {
   console.log('Connected to WebSocket');
@@ -832,7 +832,7 @@ All file uploads are subject to:
 import requests
 
 # Login
-response = requests.post('http://localhost:8000/api/auth/login', json={
+response = requests.post('http://localhost:5272/api/auth/login', json={
     'username': 'admin',
     'password': 'password123'
 })
@@ -840,14 +840,14 @@ token = response.json()['access_token']
 
 # Get devices
 headers = {'Authorization': f'Bearer {token}'}
-devices = requests.get('http://localhost:8000/api/devices', headers=headers)
+devices = requests.get('http://localhost:5272/api/devices', headers=headers)
 print(devices.json())
 ```
 
 ### JavaScript
 ```javascript
 // Login
-const loginRes = await fetch('http://localhost:8000/api/auth/login', {
+const loginRes = await fetch('http://localhost:5272/api/auth/login', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -858,7 +858,7 @@ const loginRes = await fetch('http://localhost:8000/api/auth/login', {
 const { access_token } = await loginRes.json();
 
 // Get devices
-const devicesRes = await fetch('http://localhost:8000/api/devices', {
+const devicesRes = await fetch('http://localhost:5272/api/devices', {
   headers: { 'Authorization': `Bearer ${access_token}` }
 });
 const devices = await devicesRes.json();
@@ -867,14 +867,14 @@ const devices = await devicesRes.json();
 ### cURL
 ```bash
 # Login
-TOKEN=$(curl -s -X POST http://localhost:8000/api/auth/login \
+TOKEN=$(curl -s -X POST http://localhost:5272/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"password123"}' \
   | jq -r .access_token)
 
 # Get devices
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/api/devices
+  http://localhost:5272/api/devices
 ```
 
 ## SDK Support

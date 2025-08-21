@@ -151,7 +151,7 @@ docker restart kasa-monitor
 
 2. **Check API connectivity:**
 ```bash
-curl http://localhost:8000/api/auth/setup-required
+curl http://localhost:5272/api/auth/setup-required
 ```
 
 3. **View logs:**
@@ -179,7 +179,7 @@ localStorage.getItem('token')
 3. **Verify API response:**
 ```bash
 # Test login endpoint
-curl -X POST http://localhost:8000/api/auth/login \
+curl -X POST http://localhost:5272/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"password"}'
 ```

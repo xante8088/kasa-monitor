@@ -45,17 +45,17 @@ docker run -it --entrypoint /bin/sh xante8088/kasa-monitor
 #### 1. Port Already in Use
 ```bash
 # Check if ports are in use
-sudo netstat -tulpn | grep -E "3000|8000"
+sudo netstat -tulpn | grep -E "3000|5272"
 sudo lsof -i :3000
-sudo lsof -i :8000
+sudo lsof -i :5272
 
 # Solution: Use different ports
-docker run -p 3001:3000 -p 8001:8000 xante8088/kasa-monitor
+docker run -p 3001:3000 -p 8001:5272 xante8088/kasa-monitor
 
 # Or in docker-compose.yml
 ports:
   - "3001:3000"
-  - "8001:8000"
+  - "8001:5272"
 ```
 
 #### 2. Missing Environment Variables
@@ -138,7 +138,7 @@ curl http://172.17.0.2:3000  # Use container IP
 # 7. Firewall issues
 sudo ufw status
 sudo ufw allow 3000/tcp
-sudo ufw allow 8000/tcp
+sudo ufw allow 5272/tcp
 ```
 
 ### Container Cannot Reach Devices
@@ -385,7 +385,7 @@ services:
     depends_on:
       - database
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5272/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -418,7 +418,7 @@ wsl --set-default-version 2
 # Settings -> Troubleshoot -> Reset to factory defaults
 
 # Firewall blocking
-New-NetFirewallRule -DisplayName "Docker" -Direction Inbound -Protocol TCP -LocalPort 3000,8000 -Action Allow
+New-NetFirewallRule -DisplayName "Docker" -Direction Inbound -Protocol TCP -LocalPort 3000,5272 -Action Allow
 ```
 
 ### macOS-Specific Issues
@@ -478,7 +478,7 @@ docker logs kasa-monitor > kasa-monitor.log 2>&1
 docker inspect kasa-monitor | jq '.[0].State.Health'
 
 # Run health check manually
-docker exec kasa-monitor /bin/sh -c "curl -f http://localhost:8000/health"
+docker exec kasa-monitor /bin/sh -c "curl -f http://localhost:5272/health"
 
 # View health check logs
 docker inspect kasa-monitor | jq '.[0].State.Health.Log'
@@ -509,12 +509,12 @@ docker run -d \
   --restart unless-stopped \
   -v kasa_data:/app/data \
   -p 3000:3000 \
-  -p 8000:8000 \
+  -p 5272:5272 \
   xante8088/kasa-monitor
 
 # Verify
 sleep 10
-curl http://localhost:8000/health
+curl http://localhost:5272/health
 ```
 
 ### Data Recovery

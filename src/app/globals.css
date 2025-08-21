@@ -1,6 +1,13 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@config "../../tailwind.config.js";
+
+@theme {
+  --color-kasa-primary: #00D4AA;
+  --color-kasa-secondary: #007F66;
+  --color-kasa-dark: #1a1a1a;
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
 
 @layer base {
   body {
@@ -22,7 +29,7 @@
   }
   
   .device-card {
-    @apply bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow;
+    @apply bg-white rounded-lg border border-gray-200 p-4 shadow-xs hover:shadow-md transition-shadow;
   }
   
   .status-indicator {

@@ -41,34 +41,34 @@ python main.py
 
 Once running, access the application at:
 
-- **Test Interface**: http://localhost:8000/test
+- **Test Interface**: http://localhost:5272/test
   - Interactive WebSocket testing
   - API endpoint testing
   - Real-time metrics display
 
-- **API Documentation**: http://localhost:8000/docs
+- **API Documentation**: http://localhost:5272/docs
   - Interactive Swagger UI
   - Try out all API endpoints
 
-- **Health Dashboard**: http://localhost:8000/health/detailed
+- **Health Dashboard**: http://localhost:5272/health/detailed
   - Comprehensive system health status
   - Component health checks
 
-- **Metrics**: http://localhost:8000/metrics
+- **Metrics**: http://localhost:5272/metrics
   - Prometheus-format metrics
   - Performance statistics
 
 ## 🧪 Testing Features
 
 ### 1. Health Monitoring
-Visit http://localhost:8000/test and click "Test Health Check" to see:
+Visit http://localhost:5272/test and click "Test Health Check" to see:
 - Database connectivity
 - Redis status
 - Filesystem health
 - System resources
 
 ### 2. WebSocket Real-time Updates
-1. Open http://localhost:8000/test
+1. Open http://localhost:5272/test
 2. Click "Connect" to establish WebSocket connection
 3. Click "Subscribe to All" to receive all events
 4. Click "Send Ping" to test bi-directional communication
@@ -90,48 +90,48 @@ Click "Test Cache Operation" to:
 #### Health Endpoints
 ```bash
 # Basic health check
-curl http://localhost:8000/health
+curl http://localhost:5272/health
 
 # Detailed health status
-curl http://localhost:8000/health/detailed
+curl http://localhost:5272/health/detailed
 
 # Readiness probe
-curl http://localhost:8000/health/ready
+curl http://localhost:5272/health/ready
 ```
 
 #### Database Management
 ```bash
 # List backups
-curl http://localhost:8000/api/database/backups
+curl http://localhost:5272/api/database/backups
 
 # Create backup
-curl -X POST http://localhost:8000/api/database/backup \
+curl -X POST http://localhost:5272/api/database/backup \
   -H "Content-Type: application/json" \
   -d '{"backup_type": "manual", "compress": true}'
 
 # Database statistics
-curl http://localhost:8000/api/database/stats
+curl http://localhost:5272/api/database/stats
 ```
 
 #### Data Management
 ```bash
 # Export devices to CSV
-curl http://localhost:8000/api/data/export/devices/csv -o devices.csv
+curl http://localhost:5272/api/data/export/devices/csv -o devices.csv
 
 # Cache statistics
-curl http://localhost:8000/api/data/cache/stats
+curl http://localhost:5272/api/data/cache/stats
 
 # Data aggregation status
-curl http://localhost:8000/api/data/aggregation/status
+curl http://localhost:5272/api/data/aggregation/status
 ```
 
 ## 🐛 Troubleshooting
 
 ### Port Already in Use
-If port 8000 is already in use:
+If port 5272 is already in use:
 ```bash
-# Find process using port 8000
-lsof -i :8000
+# Find process using port 5272
+lsof -i :5272
 
 # Kill the process
 kill -9 <PID>
@@ -220,8 +220,8 @@ docker-compose -f docker-compose.monitoring.yml up -d
 
 ## 📚 Next Steps
 
-1. Explore the API documentation at http://localhost:8000/docs
-2. Test WebSocket functionality at http://localhost:8000/test
-3. Monitor metrics at http://localhost:8000/metrics
-4. Check system health at http://localhost:8000/health/detailed
+1. Explore the API documentation at http://localhost:5272/docs
+2. Test WebSocket functionality at http://localhost:5272/test
+3. Monitor metrics at http://localhost:5272/metrics
+4. Check system health at http://localhost:5272/health/detailed
 5. Review the implemented features in MISSING_FEATURES.md

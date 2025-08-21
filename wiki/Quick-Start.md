@@ -220,7 +220,7 @@ docker logs kasa-monitor
 3. **Verify ports**:
 ```bash
 curl http://localhost:3000
-curl http://localhost:8000/api/devices
+curl http://localhost:5272/api/devices
 ```
 
 ### Forgot Admin Password?

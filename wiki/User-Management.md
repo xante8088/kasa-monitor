@@ -113,7 +113,7 @@ Complete guide for managing users, roles, and permissions in Kasa Monitor.
 
 ```bash
 # Create user via API
-curl -X POST http://localhost:8000/api/users \
+curl -X POST http://localhost:5272/api/users \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -146,7 +146,7 @@ create_user(
 
 ```bash
 # Promote to admin
-curl -X PATCH http://localhost:8000/api/users/2 \
+curl -X PATCH http://localhost:5272/api/users/2 \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"role": "admin"}'
@@ -156,7 +156,7 @@ curl -X PATCH http://localhost:8000/api/users/2 \
 
 ```bash
 # Update user details
-curl -X PATCH http://localhost:8000/api/users/2 \
+curl -X PATCH http://localhost:5272/api/users/2 \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -169,7 +169,7 @@ curl -X PATCH http://localhost:8000/api/users/2 \
 
 ```bash
 # Admin resets user password
-curl -X POST http://localhost:8000/api/users/2/reset-password \
+curl -X POST http://localhost:5272/api/users/2/reset-password \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"new_password": "NewSecurePass456!"}'
@@ -181,7 +181,7 @@ curl -X POST http://localhost:8000/api/users/2/reset-password \
 
 ```bash
 # Deactivate user
-curl -X PATCH http://localhost:8000/api/users/2 \
+curl -X PATCH http://localhost:5272/api/users/2 \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"is_active": false}'
@@ -191,7 +191,7 @@ curl -X PATCH http://localhost:8000/api/users/2 \
 
 ```bash
 # Permanently delete user
-curl -X DELETE http://localhost:8000/api/users/2 \
+curl -X DELETE http://localhost:5272/api/users/2 \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
@@ -560,7 +560,7 @@ docker exec kasa-monitor sqlite3 /app/data/kasa_monitor.db \
 **Permission denied**
 ```bash
 # Check user permissions
-curl http://localhost:8000/api/users/me/permissions \
+curl http://localhost:5272/api/users/me/permissions \
   -H "Authorization: Bearer $TOKEN"
 ```
 

@@ -284,7 +284,7 @@ export default function AuditLogsPage() {
       {exportError && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
           <div className="flex">
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <Shield className="h-5 w-5 text-red-400" />
             </div>
             <div className="ml-3">
@@ -309,7 +309,7 @@ export default function AuditLogsPage() {
       {exportSuccess && (
         <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-md">
           <div className="flex">
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <Download className="h-5 w-5 text-green-400" />
             </div>
             <div className="ml-3">
@@ -533,7 +533,7 @@ export default function AuditLogsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="flex-shrink-0 h-8 w-8 bg-gray-200 rounded-full flex items-center justify-center">
+                        <div className="shrink-0 h-8 w-8 bg-gray-200 rounded-full flex items-center justify-center">
                           <User className="h-4 w-4 text-gray-600" />
                         </div>
                         <div className="ml-3">
@@ -616,7 +616,7 @@ export default function AuditLogsPage() {
                 </p>
               </div>
               <div>
-                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+                <nav className="relative z-0 inline-flex rounded-md shadow-xs -space-x-px">
                   <button
                     onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1}
@@ -734,7 +734,7 @@ export default function AuditLogsPage() {
                 <button
                   type="button"
                   onClick={() => setShowDetailsModal(false)}
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-xs px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
                 >
                   Close
                 </button>

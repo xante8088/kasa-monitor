@@ -382,19 +382,19 @@ Future features:
 ### Get Current Power
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/api/device/192.168.1.100
+  http://localhost:5272/api/device/192.168.1.100
 ```
 
 ### Get Historical Data
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/device/192.168.1.100/history?start_time=2024-01-01&interval=1h"
+  "http://localhost:5272/api/device/192.168.1.100/history?start_time=2024-01-01&interval=1h"
 ```
 
 ### Export Data
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/device/192.168.1.100/export?format=csv" \
+  "http://localhost:5272/api/device/192.168.1.100/export?format=csv" \
   -o device-data.csv
 ```
 

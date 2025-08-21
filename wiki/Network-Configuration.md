@@ -220,7 +220,7 @@ services:
     container_name: kasa-monitor
     ports:
       - "3000:3000"  # Frontend
-      - "8000:8000"  # API
+      - "5272:5272"  # API
     networks:
       - kasa-network
     volumes:
@@ -315,7 +315,7 @@ services:
 sudo ufw allow 9999/udp
 
 # Allow API access
-sudo ufw allow 8000/tcp
+sudo ufw allow 5272/tcp
 
 # Allow web interface
 sudo ufw allow 3000/tcp

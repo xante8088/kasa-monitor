@@ -125,7 +125,7 @@ export default function AdminLayout({
                     }`}
                   >
                     <Icon
-                      className={`mr-3 h-5 w-5 flex-shrink-0 ${
+                      className={`mr-3 h-5 w-5 shrink-0 ${
                         isActive ? 'text-red-500' : 'text-gray-400 group-hover:text-gray-500'
                       }`}
                     />

@@ -31,7 +31,7 @@ This guide covers all installation methods for Kasa Monitor.
 docker run -d \
   --name kasa-monitor \
   -p 3000:3000 \
-  -p 8000:8000 \
+  -p 5272:5272 \
   -v kasa_data:/app/data \
   xante8088/kasa-monitor:latest
 ```
@@ -290,7 +290,7 @@ services:
 ```bash
 # Check services are running
 docker ps  # For Docker
-curl http://localhost:8000/api/devices  # API check
+curl http://localhost:5272/api/devices  # API check
 ```
 
 ### 3. Configure Firewall
@@ -298,7 +298,7 @@ curl http://localhost:8000/api/devices  # API check
 ```bash
 # Allow required ports
 sudo ufw allow 3000/tcp  # Frontend
-sudo ufw allow 8000/tcp  # API
+sudo ufw allow 5272/tcp  # API
 sudo ufw allow 9999/udp  # Device discovery
 ```
 

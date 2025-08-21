@@ -380,7 +380,7 @@ sudo iptables -L
 ### List Devices
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/api/devices
+  http://localhost:5272/api/devices
 ```
 
 ### Add Device
@@ -388,7 +388,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 curl -X POST -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"ip":"192.168.1.100","alias":"New Device"}' \
-  http://localhost:8000/api/devices/manual
+  http://localhost:5272/api/devices/manual
 ```
 
 ### Control Device
@@ -396,7 +396,7 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
 curl -X POST -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"action":"toggle"}' \
-  http://localhost:8000/api/device/192.168.1.100/control
+  http://localhost:5272/api/device/192.168.1.100/control
 ```
 
 ## Related Pages

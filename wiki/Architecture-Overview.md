@@ -450,7 +450,7 @@ WORKDIR /app
 COPY --from=backend-builder /usr/local/lib/python3.9 /usr/local/lib/python3.9
 COPY --from=frontend-builder /app/out /app/frontend/out
 COPY backend/ ./backend/
-EXPOSE 3000 8000
+EXPOSE 3000 5272
 CMD ["python", "-m", "backend.server"]
 ```
 

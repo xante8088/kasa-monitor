@@ -76,7 +76,7 @@ sudo netstat -lutn | grep 9999
 
 ```python
 # If discovery fails, add devices manually
-curl -X POST http://localhost:8000/api/devices/manual \
+curl -X POST http://localhost:5272/api/devices/manual \
   -H "Content-Type: application/json" \
   -d '{
     "ip": "192.168.1.100",
@@ -172,7 +172,7 @@ discovery:
 # Run discovery multiple times
 for i in {1..3}; do
   echo "Discovery attempt $i"
-  curl http://localhost:8000/api/devices/discover
+  curl http://localhost:5272/api/devices/discover
   sleep 2
 done
 ```
@@ -403,7 +403,7 @@ REGIONAL_PORTS = {
 }
 
 # Try multiple ports
-for port in [9999, 9998, 8000]:
+for port in [9999, 9998, 5272]:
     try:
         discover(port=port)
     except:
@@ -445,7 +445,7 @@ sudo ufw status | grep 9999
 
 # Try discovery
 echo "Running discovery..."
-curl -s http://localhost:8000/api/devices/discover | jq .
+curl -s http://localhost:5272/api/devices/discover | jq .
 
 # Check logs
 echo "Recent discovery logs:"

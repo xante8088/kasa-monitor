@@ -273,7 +273,7 @@ For smart home integration:
 ```yaml
 1. Install Kasa Monitor integration
 2. Configure API access:
-   URL: http://kasa-monitor:8000
+   URL: http://kasa-monitor:5272
    Token: [API token]
 3. Add entities to HA
 ```
@@ -335,7 +335,7 @@ ADMIN_EMAIL="admin@example.com"
 RATE="0.12"
 
 # Create admin via API
-curl -X POST http://localhost:8000/api/auth/setup \
+curl -X POST http://localhost:5272/api/auth/setup \
   -H "Content-Type: application/json" \
   -d "{
     \"username\": \"$ADMIN_USER\",
@@ -345,13 +345,13 @@ curl -X POST http://localhost:8000/api/auth/setup \
   }"
 
 # Login and get token
-TOKEN=$(curl -X POST http://localhost:8000/api/auth/login \
+TOKEN=$(curl -X POST http://localhost:5272/api/auth/login \
   -H "Content-Type: application/json" \
   -d "{\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\"}" \
   | jq -r .access_token)
 
 # Configure rates
-curl -X POST http://localhost:8000/api/rates \
+curl -X POST http://localhost:5272/api/rates \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d "{
@@ -363,7 +363,7 @@ curl -X POST http://localhost:8000/api/rates \
   }"
 
 # Discover devices
-curl -X POST http://localhost:8000/api/discover \
+curl -X POST http://localhost:5272/api/discover \
   -H "Authorization: Bearer $TOKEN"
 
 echo "Setup complete!"
@@ -375,7 +375,7 @@ echo "Setup complete!"
 
 ```bash
 # Check if setup is required
-curl http://localhost:8000/api/auth/setup-required
+curl http://localhost:5272/api/auth/setup-required
 
 # Should return: {"setup_required": true}
 ```

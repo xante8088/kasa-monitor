@@ -30,7 +30,7 @@ docker-compose logs -f
 
 **Access the application:**
 - Frontend: http://localhost:3000
-- API: http://localhost:8000/docs
+- API: http://localhost:5272/docs
 
 ## 🔧 Option 2: Customized Setup
 
@@ -171,7 +171,7 @@ Edit `docker-compose.yml`:
 ```yaml
 ports:
   - "3001:3000"  # Frontend on port 3001
-  - "8001:8000"  # API on port 8001
+  - "8001:5272"  # API on port 8001
 ```
 
 ### Expose to Network
@@ -180,7 +180,7 @@ By default, accessible from any network interface. To restrict:
 ```yaml
 ports:
   - "127.0.0.1:3000:3000"  # Local only
-  - "127.0.0.1:8000:8000"
+  - "127.0.0.1:5272:5272"
 ```
 
 ## 🔒 Security Setup

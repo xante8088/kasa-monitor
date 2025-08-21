@@ -576,7 +576,7 @@ def export_device_data(token, device_ip, start_date, end_date):
     }
     
     response = requests.post(
-        "http://localhost:8000/api/exports/create",
+        "http://localhost:5272/api/exports/create",
         json=export_request,
         headers={"Authorization": f"Bearer {token}"}
     )
@@ -586,7 +586,7 @@ def export_device_data(token, device_ip, start_date, end_date):
     # Wait for completion and download
     while True:
         status_response = requests.get(
-            f"http://localhost:8000/api/exports/{export_id}",
+            f"http://localhost:5272/api/exports/{export_id}",
             headers={"Authorization": f"Bearer {token}"}
         )
         
@@ -600,7 +600,7 @@ def export_device_data(token, device_ip, start_date, end_date):
     
     # Download data
     download_response = requests.get(
-        f"http://localhost:8000/api/exports/download/{export_id}",
+        f"http://localhost:5272/api/exports/download/{export_id}",
         headers={"Authorization": f"Bearer {token}"}
     )
     
@@ -678,7 +678,7 @@ class KasaDataExporter {
 }
 
 // Usage
-const exporter = new KasaDataExporter('http://localhost:8000', 'your_jwt_token');
+const exporter = new KasaDataExporter('http://localhost:5272', 'your_jwt_token');
 
 const exportConfig = {
     export_type: 'device_data',

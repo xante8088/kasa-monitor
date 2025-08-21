@@ -257,7 +257,7 @@ export default function PluginConfigModal({ plugin, isOpen, onClose, onConfigUpd
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div className="fixed inset-0 bg-gray-600/50 overflow-y-auto h-full w-full z-50">
       <div className="relative top-4 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-gray-200">

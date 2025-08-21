@@ -392,19 +392,19 @@ Connect with:
 ### Get Cost Summary
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/costs?start_date=2024-01-01"
+  "http://localhost:5272/api/costs?start_date=2024-01-01"
 ```
 
 ### Get Device Costs
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/device/192.168.1.100/stats"
+  "http://localhost:5272/api/device/192.168.1.100/stats"
 ```
 
 ### Export Cost Report
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/costs/export?format=pdf" \
+  "http://localhost:5272/api/costs/export?format=pdf" \
   -o cost-report.pdf
 ```
 

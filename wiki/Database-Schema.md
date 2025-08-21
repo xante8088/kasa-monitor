@@ -602,7 +602,7 @@ client = InfluxDBClient(
 
 ```bash
 # SQLite via API
-curl http://localhost:8000/api/devices
+curl http://localhost:5272/api/devices
 
 # InfluxDB direct
 curl -G http://localhost:8086/query \

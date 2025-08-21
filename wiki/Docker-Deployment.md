@@ -69,7 +69,7 @@ services:
     # Port mapping
     ports:
       - "127.0.0.1:3000:3000"  # Localhost only
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:5272:5272"
     
     # Volumes
     volumes:
@@ -89,7 +89,7 @@ services:
       
     # Health check
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5272/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -392,7 +392,7 @@ spec:
         image: xante8088/kasa-monitor:v1.0.0
         ports:
         - containerPort: 3000
-        - containerPort: 8000
+        - containerPort: 5272
         env:
         - name: NODE_ENV
           value: "production"
@@ -406,13 +406,13 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8000
+            port: 5272
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /ready
-            port: 8000
+            port: 5272
           initialDelaySeconds: 5
           periodSeconds: 5
         volumeMounts:
@@ -465,7 +465,7 @@ server {
     }
     
     location /api {
-        proxy_pass http://localhost:8000;
+        proxy_pass http://localhost:5272;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -475,7 +475,7 @@ server {
     
     # WebSocket support
     location /ws {
-        proxy_pass http://localhost:8000;
+        proxy_pass http://localhost:5272;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";

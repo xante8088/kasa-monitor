@@ -108,7 +108,7 @@ TEST_DATABASE_URL=sqlite:///./data/test.db
 
 # API
 API_HOST=0.0.0.0
-API_PORT=8000
+API_PORT=5272
 FRONTEND_URL=http://localhost:3000
 
 # Security (generate your own keys!)
@@ -157,8 +157,8 @@ npm run dev
 
 # Access at:
 # Frontend: http://localhost:3000
-# Backend API: http://localhost:8000
-# API Docs: http://localhost:8000/docs
+# Backend API: http://localhost:5272
+# API Docs: http://localhost:5272/docs
 ```
 
 #### Method 2: Docker Compose
@@ -190,11 +190,11 @@ services:
       - ./backend:/app/backend
       - ./data:/app/data
     ports:
-      - "8000:8000"
+      - "5272:5272"
     environment:
       - NODE_ENV=development
       - RELOAD=true
-    command: uvicorn backend.server:app --reload --host 0.0.0.0 --port 8000
+    command: uvicorn backend.server:app --reload --host 0.0.0.0 --port 5272
 
   frontend:
     build:
@@ -240,7 +240,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "backend.server:app",
         host="0.0.0.0",
-        port=8000,
+        port=5272,
         reload=True  # Enable hot reload
     )
 ```
@@ -299,7 +299,7 @@ if __name__ == "__main__":
         "backend.server:app",
         "--reload",
         "--port",
-        "8000"
+        "5272"
       ],
       "jinja": true,
       "justMyCode": true
@@ -498,10 +498,10 @@ debugger; // Breakpoint
 
 ```bash
 # Test endpoints with curl
-curl http://localhost:8000/api/devices
+curl http://localhost:5272/api/devices
 
 # Or with httpie
-http GET localhost:8000/api/devices
+http GET localhost:5272/api/devices
 
 # Use Postman or Insomnia for complex requests
 ```
@@ -622,14 +622,14 @@ console.timeEnd('ComponentRender');
 **Port already in use:**
 ```bash
 # Find process using port
-lsof -i :8000
+lsof -i :5272
 lsof -i :3000
 
 # Kill process
 kill -9 <PID>
 
 # Or change ports in .env
-API_PORT=8001
+API_PORT=5273
 FRONTEND_PORT=3001
 ```
 
@@ -658,8 +658,8 @@ rm data/*.db-shm
 ### API Documentation
 
 Access interactive API docs:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+- Swagger UI: http://localhost:5272/docs
+- ReDoc: http://localhost:5272/redoc
 
 ### Database GUI
 

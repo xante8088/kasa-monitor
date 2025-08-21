@@ -51,7 +51,7 @@ environment:
 | `TZ` | System timezone | UTC | Any valid timezone |
 | `LOG_LEVEL` | Logging verbosity | info | debug, info, warn, error |
 | `PORT` | Frontend port | 3000 | Any available port |
-| `API_PORT` | Backend API port | 8000 | Any available port |
+| `API_PORT` | Backend API port | 5272 | Any available port |
 
 ### Database Configuration
 
@@ -151,7 +151,7 @@ app:
 
 server:
   host: 0.0.0.0
-  port: 8000
+  port: 5272
   workers: 4
   timeout: 30
 

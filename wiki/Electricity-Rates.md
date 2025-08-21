@@ -420,7 +420,7 @@ Test your configuration:
 
 ```bash
 # API test
-curl -X POST http://localhost:8000/api/rates/test \
+curl -X POST http://localhost:5272/api/rates/test \
   -H "Content-Type: application/json" \
   -d '{
     "kwh": 750,
@@ -444,7 +444,7 @@ curl -X POST http://localhost:8000/api/rates/test \
 ### Get Current Rates
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/api/rates
+  http://localhost:5272/api/rates
 ```
 
 ### Update Rates
@@ -462,7 +462,7 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
       "tier3_rate": 0.15
     }
   }' \
-  http://localhost:8000/api/rates
+  http://localhost:5272/api/rates
 ```
 
 ## Related Pages
