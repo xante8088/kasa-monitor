@@ -4,7 +4,7 @@
 # syntax=docker/dockerfile:1
 
 # Stage 1: Build Frontend
-FROM node:18-alpine AS frontend-builder
+FROM node:24-alpine AS frontend-builder
 
 WORKDIR /app
 
@@ -32,7 +32,7 @@ COPY next-env.d.ts ./
 RUN npm run build
 
 # Stage 2: Python Backend Base
-FROM python:3.11-slim AS backend-base
+FROM python:3.13-slim AS backend-base
 
 # Install system dependencies for ARM64/Raspberry Pi
 RUN apt-get update && apt-get install -y \
@@ -55,7 +55,7 @@ RUN --mount=type=cache,target=/root/.cache/pip,id=pip-backend \
     pip install --no-cache-dir -r requirements.txt
 
 # Stage 3: Final Runtime Image
-FROM python:3.11-slim AS runtime
+FROM python:3.13-slim AS runtime
 
 # Install Node.js and runtime dependencies
 RUN apt-get update && apt-get install -y \
