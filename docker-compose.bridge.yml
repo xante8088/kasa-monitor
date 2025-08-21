@@ -23,7 +23,7 @@ services:
     
     ports:
       - "3000:3000"   # Frontend
-      - "8000:8000"   # Backend API
+      - "5272:5272"   # Backend API
     
     networks:
       - kasa-network
@@ -78,7 +78,7 @@ services:
           cpus: '0.5'
     
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/devices"]
+      test: ["CMD", "curl", "-f", "http://localhost:5272/health"]
       interval: 30s
       timeout: 10s
       retries: 3
