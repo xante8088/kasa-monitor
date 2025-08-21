@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { User, Mail, Shield, Trash2, Save, AlertTriangle, CheckCircle, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
+import { safeConsoleError, safeStorage } from '@/lib/security-utils'
 
 export default function ProfilePage() {
   const { user, logout } = useAuth()
@@ -38,13 +39,13 @@ export default function ProfilePage() {
 
   const checkTwoFAStatus = async () => {
     try {
-      const token = localStorage.getItem('token')
+      const token = safeStorage.getItem('token')
       const response = await axios.get('/api/auth/2fa/status', {
         headers: { Authorization: `Bearer ${token}` }
       })
       setTwoFAEnabled(response.data.enabled)
     } catch (error) {
-      console.error('Failed to check 2FA status:', error)
+      safeConsoleError('Failed to check 2FA status', error)
     }
   }
 
@@ -53,7 +54,7 @@ export default function ProfilePage() {
       setLoading(true)
       setMessage(null)
       
-      const token = localStorage.getItem('token')
+      const token = safeStorage.getItem('token')
       const updates: any = {}
       
       if (fullName !== user?.full_name) updates.full_name = fullName
@@ -95,7 +96,7 @@ export default function ProfilePage() {
       setLoading(true)
       setMessage(null)
       
-      const token = localStorage.getItem('token')
+      const token = safeStorage.getItem('token')
       const response = await axios.post('/api/auth/change-password', {
         current_password: currentPassword,
         new_password: newPassword
@@ -122,7 +123,7 @@ export default function ProfilePage() {
       setLoading(true)
       setMessage(null)
       
-      const token = localStorage.getItem('token')
+      const token = safeStorage.getItem('token')
       const response = await axios.post('/api/auth/2fa/setup', {}, {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -144,7 +145,7 @@ export default function ProfilePage() {
       setLoading(true)
       setMessage(null)
       
-      const token = localStorage.getItem('token')
+      const token = safeStorage.getItem('token')
       const response = await axios.post('/api/auth/2fa/verify', {
         token: twoFAToken
       }, {
@@ -170,7 +171,7 @@ export default function ProfilePage() {
       setLoading(true)
       setMessage(null)
       
-      const token = localStorage.getItem('token')
+      const token = safeStorage.getItem('token')
       const response = await axios.post('/api/auth/2fa/disable', {}, {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -197,7 +198,7 @@ export default function ProfilePage() {
       setLoading(true)
       setMessage(null)
       
-      const token = localStorage.getItem('token')
+      const token = safeStorage.getItem('token')
       const response = await axios.delete('/api/auth/account', {
         headers: { Authorization: `Bearer ${token}` }
       })

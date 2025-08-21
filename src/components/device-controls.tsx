@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Power } from 'lucide-react'
 import axios from 'axios'
+import { safeConsoleError, safeStorage, createSafeApiUrl } from '@/lib/security-utils'
 
 interface DeviceControlsProps {
   deviceIp: string
@@ -19,15 +20,19 @@ export function DeviceControls({ deviceIp, isOn, onUpdate }: DeviceControlsProps
     setError(null)
     try {
       const action = isOn ? 'off' : 'on'
-      const token = localStorage.getItem('token')
-      await axios.post(`/api/device/${deviceIp}/control?action=${action}`, {}, {
+      const token = safeStorage.getItem('token')
+      
+      // Use safe API URL construction to prevent injection
+      const safeUrl = createSafeApiUrl(`/api/device/${encodeURIComponent(deviceIp)}/control`, { action })
+      
+      await axios.post(safeUrl, {}, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       })
       setTimeout(onUpdate, 500) // Give device time to update
     } catch (error: any) {
-      console.error('Failed to control device:', error)
+      safeConsoleError('Failed to control device', error)
       const errorMessage = error.response?.data?.detail || error.message || 'Failed to control device'
       setError(errorMessage)
       // Clear error after 3 seconds

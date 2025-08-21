@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Download, FileText, FileSpreadsheet, Database, Code, Calendar, Settings, Eye, Clock, CheckSquare } from 'lucide-react';
+import { safeConsoleError, safeStorage } from '@/lib/security-utils';
 
 interface Device {
   id: string;
@@ -63,7 +64,7 @@ export default function DataExportModal({ isOpen, onClose }: DataExportModalProp
 
   const loadDevices = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       const response = await fetch('/api/exports/devices', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -72,13 +73,13 @@ export default function DataExportModal({ isOpen, onClose }: DataExportModalProp
         setAvailableDevices(data.devices);
       }
     } catch (error) {
-      console.error('Failed to load devices:', error);
+      safeConsoleError('Failed to load devices', error);
     }
   };
 
   const loadMetrics = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       const response = await fetch('/api/exports/metrics', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -87,13 +88,13 @@ export default function DataExportModal({ isOpen, onClose }: DataExportModalProp
         setAvailableMetrics(data.metrics);
       }
     } catch (error) {
-      console.error('Failed to load metrics:', error);
+      safeConsoleError('Failed to load metrics', error);
     }
   };
 
   const loadFormats = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       const response = await fetch('/api/exports/formats', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -102,7 +103,7 @@ export default function DataExportModal({ isOpen, onClose }: DataExportModalProp
         setAvailableFormats(data);
       }
     } catch (error) {
-      console.error('Failed to load formats:', error);
+      safeConsoleError('Failed to load formats', error);
     }
   };
 
@@ -148,7 +149,7 @@ export default function DataExportModal({ isOpen, onClose }: DataExportModalProp
     setError('');
     
     try {
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       const range = getDateRange();
       const params = new URLSearchParams({
         devices: selectedDevices.join(','),
@@ -180,7 +181,7 @@ export default function DataExportModal({ isOpen, onClose }: DataExportModalProp
     setError('');
     
     try {
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       const range = getDateRange();
       
       const exportRequest = {

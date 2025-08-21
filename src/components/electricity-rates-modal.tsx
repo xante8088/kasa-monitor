@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, DollarSign, Clock, Save, Plus, Trash2, Info } from 'lucide-react'
 import axios from 'axios'
+import { safeConsoleError } from '@/lib/security-utils'
 
 interface ElectricityRatesModalProps {
   onClose: () => void
@@ -84,7 +85,7 @@ export function ElectricityRatesModal({ onClose }: ElectricityRatesModalProps) {
         })
       }
     } catch (error) {
-      console.error('Failed to load rates:', error)
+      safeConsoleError('Failed to load rates', error)
     } finally {
       setLoading(false)
     }
@@ -96,7 +97,7 @@ export function ElectricityRatesModal({ onClose }: ElectricityRatesModalProps) {
       await axios.post('/api/rates', formData)
       setTimeout(onClose, 1000)
     } catch (error) {
-      console.error('Failed to save rates:', error)
+      safeConsoleError('Failed to save rates', error)
       alert('Failed to save rates. Please check your configuration.')
     } finally {
       setSaving(false)

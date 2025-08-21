@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Plus, Trash2, Edit, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { AppLayout } from '@/components/app-layout';
+import { safeConsoleError, safeStorage } from '@/lib/security-utils';
 
 interface Alert {
   id: number;
@@ -59,7 +60,7 @@ export default function AlertsPage() {
 
   const fetchDevices = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       const response = await fetch('/api/devices', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -69,13 +70,13 @@ export default function AlertsPage() {
         setDevices(data);
       }
     } catch (error) {
-      console.error('Failed to fetch devices:', error);
+      safeConsoleError('Failed to fetch devices', error);
     }
   };
 
   const fetchAlerts = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       const response = await fetch('/api/alerts', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -85,7 +86,7 @@ export default function AlertsPage() {
         setAlerts(data);
       }
     } catch (error) {
-      console.error('Failed to fetch alerts:', error);
+      safeConsoleError('Failed to fetch alerts', error);
     } finally {
       setLoading(false);
     }
@@ -93,7 +94,7 @@ export default function AlertsPage() {
 
   const fetchAlertHistory = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       const response = await fetch('/api/alerts/history', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -103,13 +104,13 @@ export default function AlertsPage() {
         setAlertHistory(data);
       }
     } catch (error) {
-      console.error('Failed to fetch alert history:', error);
+      safeConsoleError('Failed to fetch alert history', error);
     }
   };
 
   const toggleAlert = async (alertId: number, enabled: boolean) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       await fetch(`/api/alerts/${alertId}`, {
         method: 'PATCH',
         headers: {
@@ -120,7 +121,7 @@ export default function AlertsPage() {
       });
       fetchAlerts();
     } catch (error) {
-      console.error('Failed to toggle alert:', error);
+      safeConsoleError('Failed to toggle alert', error);
     }
   };
 
@@ -128,27 +129,27 @@ export default function AlertsPage() {
     if (!confirm('Are you sure you want to delete this alert?')) return;
     
     try {
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       await fetch(`/api/alerts/${alertId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
       fetchAlerts();
     } catch (error) {
-      console.error('Failed to delete alert:', error);
+      safeConsoleError('Failed to delete alert', error);
     }
   };
 
   const acknowledgeAlert = async (historyId: number) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       await fetch(`/api/alerts/history/${historyId}/acknowledge`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
       fetchAlertHistory();
     } catch (error) {
-      console.error('Failed to acknowledge alert:', error);
+      safeConsoleError('Failed to acknowledge alert', error);
     }
   };
 
@@ -394,7 +395,7 @@ export default function AlertsPage() {
               };
 
               try {
-                const token = localStorage.getItem('token');
+                const token = safeStorage.getItem('token');
                 const response = await fetch(
                   editingAlert ? `/api/alerts/${editingAlert.id}` : '/api/alerts',
                   {
@@ -415,7 +416,7 @@ export default function AlertsPage() {
                   fetchAlerts();
                 }
               } catch (error) {
-                console.error('Failed to save alert:', error);
+                safeConsoleError('Failed to save alert', error);
               }
             }}>
               <div className="space-y-4">

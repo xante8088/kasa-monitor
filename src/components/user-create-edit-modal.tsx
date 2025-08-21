@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { safeConsoleError, safeStorage } from '@/lib/security-utils';
 
 interface User {
   id?: number;
@@ -76,7 +77,7 @@ export default function UserCreateEditModal({ user, isOpen, onClose, onSave }: U
 
   const fetchPermissions = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       const response = await fetch('/api/permissions', {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -87,7 +88,7 @@ export default function UserCreateEditModal({ user, isOpen, onClose, onSave }: U
         setAvailablePermissions(data);
       }
     } catch (err) {
-      console.error('Failed to fetch permissions:', err);
+      safeConsoleError('Failed to fetch permissions', err);
     }
   };
 
@@ -110,7 +111,7 @@ export default function UserCreateEditModal({ user, isOpen, onClose, onSave }: U
     }
 
     try {
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       const url = user ? `/api/users/${user.id}` : '/api/users';
       const method = user ? 'PUT' : 'POST';
 

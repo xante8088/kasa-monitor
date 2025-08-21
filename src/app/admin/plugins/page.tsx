@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Search, Filter, Download, Upload, Settings as SettingsIcon, Power, Trash2, RefreshCw } from 'lucide-react';
 import PluginConfigModal from '../../../components/plugin-config-modal';
 import PluginUploadModal from '../../../components/plugin-upload-modal';
+import { safeConsoleError, safeStorage } from '@/lib/security-utils';
 
 interface Plugin {
   id: string;
@@ -61,7 +62,7 @@ export default function PluginsPage() {
   const fetchPlugins = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       
       const [pluginsResponse, metricsResponse] = await Promise.all([
         fetch('/api/plugins', {
@@ -88,7 +89,7 @@ export default function PluginsPage() {
         setMetrics(metricsData);
       }
     } catch (err) {
-      console.error('Error fetching plugins:', err);
+      safeConsoleError('Error fetching plugins', err);
       setError('Failed to fetch plugins');
     } finally {
       setLoading(false);
@@ -97,7 +98,7 @@ export default function PluginsPage() {
 
   const togglePlugin = async (pluginId: string, enabled: boolean) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       const response = await fetch(`/api/plugins/${pluginId}/${enabled ? 'enable' : 'disable'}`, {
         method: 'POST',
         headers: {
@@ -111,14 +112,14 @@ export default function PluginsPage() {
         setError(`Failed to ${enabled ? 'enable' : 'disable'} plugin`);
       }
     } catch (err) {
-      console.error('Error toggling plugin:', err);
+      safeConsoleError('Error toggling plugin', err);
       setError(`Failed to ${enabled ? 'enable' : 'disable'} plugin`);
     }
   };
 
   const reloadPlugin = async (pluginId: string) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       const response = await fetch(`/api/plugins/${pluginId}/reload`, {
         method: 'POST',
         headers: {
@@ -132,7 +133,7 @@ export default function PluginsPage() {
         setError('Failed to reload plugin');
       }
     } catch (err) {
-      console.error('Error reloading plugin:', err);
+      safeConsoleError('Error reloading plugin', err);
       setError('Failed to reload plugin');
     }
   };
@@ -143,7 +144,7 @@ export default function PluginsPage() {
     }
 
     try {
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       const response = await fetch(`/api/plugins/${pluginId}`, {
         method: 'DELETE',
         headers: {
@@ -157,7 +158,7 @@ export default function PluginsPage() {
         setError('Failed to delete plugin');
       }
     } catch (err) {
-      console.error('Error deleting plugin:', err);
+      safeConsoleError('Error deleting plugin', err);
       setError('Failed to delete plugin');
     }
   };

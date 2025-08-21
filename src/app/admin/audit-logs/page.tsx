@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FileText, Filter, Search, User, Shield, Settings, Activity, RefreshCw, Play, Pause, Download, ChevronDown } from 'lucide-react';
 import { AppLayout } from '@/components/app-layout';
+import { safeConsoleError, safeConsoleLog, safeFetch, safeStorage, createSafeApiUrl } from '@/lib/security-utils';
 
 interface AuditLog {
   id: number;
@@ -54,40 +55,34 @@ export default function AuditLogsPage() {
       if (showRefreshIndicator) {
         setIsRefreshing(true);
       }
-      const token = localStorage.getItem('token');
-      const params = new URLSearchParams({
+      const token = safeStorage.getItem('token');
+      
+      // Use safe API URL construction to prevent injection
+      const apiParams = {
         page: currentPage.toString(),
         category: selectedCategories.length > 0 ? selectedCategories.join(',') : 'all',
         severity: selectedSeverities.length > 0 ? selectedSeverities.join(',') : 'all',
         range: dateRange,
         search: searchTerm
-      });
+      };
 
-      console.log('Fetching logs with params:', {
-        categories: selectedCategories,
-        severities: selectedSeverities,
-        url: `/api/audit-logs?${params}`
-      });
+      safeConsoleLog('Fetching audit logs with categories count', selectedCategories.length);
 
-      const response = await fetch(`/api/audit-logs?${params}`, {
+      const response = await safeFetch('/api/audit-logs', {
+        params: apiParams,
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (response.ok) {
         const data = await response.json();
-        console.log('Received logs:', data.logs?.length || 0, 'logs');
-        console.log('First few logs:', data.logs?.slice(0, 3).map((l: any) => ({
-          event_type: l.event_type,
-          severity: l.severity,
-          action: l.action
-        })));
+        safeConsoleLog('Received logs count', data.logs?.length || 0);
         setLogs(data.logs || []);
         setTotalPages(data.total_pages || 1);
       } else {
-        console.error('Response not ok:', response.status, response.statusText);
+        safeConsoleError('Audit logs fetch failed', `Status: ${response.status}`);
       }
     } catch (error) {
-      console.error('Failed to fetch audit logs:', error);
+      safeConsoleError('Failed to fetch audit logs', error);
     } finally {
       setLoading(false);
       if (showRefreshIndicator) {
@@ -177,7 +172,7 @@ export default function AuditLogsPage() {
       setExportError(null);
       setExportSuccess(null);
       
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       const exportOptions = {
         format: 'csv',
         date_range: dateRange,
@@ -227,7 +222,7 @@ export default function AuditLogsPage() {
         setTimeout(() => setExportError(null), 10000);
       }
     } catch (error) {
-      console.error('Export error:', error);
+      safeConsoleError('Export error', error);
       const errorMessage = 'Network error occurred while exporting logs';
       setExportError(errorMessage);
       // Clear error message after 10 seconds

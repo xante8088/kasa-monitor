@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { X, Trash2, Edit2, ToggleLeft, ToggleRight, Save, AlertCircle, Plus, Wifi } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { safeConsoleError } from '@/lib/security-utils'
 
 interface DeviceInfo {
   device_ip: string
@@ -45,7 +46,7 @@ export function DeviceManagementModal({ isOpen, onClose }: DeviceManagementModal
       fetch('/api/settings/network')
         .then(res => res.json())
         .then(data => setNetworkSettings(data))
-        .catch(err => console.error('Failed to fetch network settings:', err))
+        .catch(err => safeConsoleError('Failed to fetch network settings', err))
     }
   }, [isOpen])
 

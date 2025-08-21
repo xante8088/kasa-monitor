@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, Save, RefreshCw, AlertTriangle, CheckCircle, Settings, Info } from 'lucide-react';
+import { safeConsoleError, safeStorage } from '@/lib/security-utils';
 
 interface Plugin {
   id: string;
@@ -45,7 +46,7 @@ export default function PluginConfigModal({ plugin, isOpen, onClose, onConfigUpd
       setLoading(true);
       setError('');
       
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       const response = await fetch(`/api/plugins/${plugin.id}/config`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -59,7 +60,7 @@ export default function PluginConfigModal({ plugin, isOpen, onClose, onConfigUpd
         setError('Failed to fetch plugin configuration');
       }
     } catch (err) {
-      console.error('Error fetching plugin config:', err);
+      safeConsoleError('Error fetching plugin config', err);
       setError('Failed to fetch plugin configuration');
     } finally {
       setLoading(false);
@@ -72,7 +73,7 @@ export default function PluginConfigModal({ plugin, isOpen, onClose, onConfigUpd
       setError('');
       setSuccess('');
 
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       const response = await fetch(`/api/plugins/${plugin.id}/config`, {
         method: 'PUT',
         headers: {
@@ -91,7 +92,7 @@ export default function PluginConfigModal({ plugin, isOpen, onClose, onConfigUpd
         setError(errorData.detail || 'Failed to save configuration');
       }
     } catch (err) {
-      console.error('Error saving plugin config:', err);
+      safeConsoleError('Error saving plugin config', err);
       setError('Failed to save configuration');
     } finally {
       setSaving(false);

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { safeConsoleError } from '@/lib/security-utils';
 
 export default function SetupPage() {
   const [formData, setFormData] = useState({
@@ -27,7 +28,7 @@ export default function SetupPage() {
         }
         setSetupRequired(data.setup_required);
       } catch (err) {
-        console.error('Error checking setup status:', err);
+        safeConsoleError('Error checking setup status', err);
       }
     };
 

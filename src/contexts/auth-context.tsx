@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { safeConsoleError, safeStorage } from '@/lib/security-utils';
 
 interface User {
   id: number;
@@ -53,8 +54,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const initializeAuth = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const userData = localStorage.getItem('user');
+      const token = safeStorage.getItem('token');
+      const userData = safeStorage.getItem('user');
 
       if (!token || !userData) {
         setLoading(false);
@@ -73,13 +74,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setUser(currentUser);
       } else {
         // Token is invalid, clear storage
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        safeStorage.removeItem('token');
+        safeStorage.removeItem('user');
       }
     } catch (error) {
-      console.error('Auth initialization error:', error);
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      safeConsoleError('Auth initialization error', error);
+      safeStorage.removeItem('token');
+      safeStorage.removeItem('user');
     } finally {
       setLoading(false);
     }
@@ -99,7 +100,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           return;
         }
       } catch (error) {
-        console.error('Setup check error:', error);
+        safeConsoleError('Setup check error', error);
       }
     }
 
@@ -126,15 +127,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const login = (token: string, userData: User) => {
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(userData));
+    safeStorage.setItem('token', token);
+    safeStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
     router.push('/');
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    safeStorage.removeItem('token');
+    safeStorage.removeItem('user');
     setUser(null);
     router.push('/login');
   };

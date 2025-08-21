@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/app-layout';
+import { safeConsoleError, safeConsoleLog, safeStorage } from '@/lib/security-utils';
 
 interface Permission {
   name: string;
@@ -36,22 +37,22 @@ export default function PermissionsPage() {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('token');
-      console.log('Token retrieved:', token ? `${token.substring(0, 20)}...` : 'No token');
+      const token = safeStorage.getItem('token');
+      safeConsoleLog('Token retrieved', token ? 'Token present' : 'No token');
       
       // Fetch permissions
       const permissionsResponse = await fetch('/api/permissions', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
-      console.log('Permissions response status:', permissionsResponse.status);
+      safeConsoleLog('Permissions response status', permissionsResponse.status);
       if (permissionsResponse.ok) {
         const permissionsData = await permissionsResponse.json();
-        console.log('Permissions data:', permissionsData);
+        safeConsoleLog('Permissions data count', permissionsData.length || 0);
         setPermissions(permissionsData);
       } else {
         const errorText = await permissionsResponse.text();
-        console.error('Permissions fetch error:', errorText);
+        safeConsoleError('Permissions fetch error', 'Request failed');
       }
 
       // Fetch role permissions
@@ -59,17 +60,17 @@ export default function PermissionsPage() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      console.log('Role permissions response status:', rolePermissionsResponse.status);
+      safeConsoleLog('Role permissions response status', rolePermissionsResponse.status);
       if (rolePermissionsResponse.ok) {
         const rolePermissionsData = await rolePermissionsResponse.json();
-        console.log('Role permissions data:', rolePermissionsData);
+        safeConsoleLog('Role permissions data count', rolePermissionsData.length || 0);
         setRolePermissions(rolePermissionsData);
       } else {
         const errorText = await rolePermissionsResponse.text();
-        console.error('Role permissions fetch error:', errorText);
+        safeConsoleError('Role permissions fetch error', 'Request failed');
       }
     } catch (err) {
-      console.error('Fetch error:', err);
+      safeConsoleError('Fetch error', err);
       setError('Failed to load permissions data');
     } finally {
       setLoading(false);
@@ -85,7 +86,7 @@ export default function PermissionsPage() {
     setSaving(true);
     
     try {
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       const hasCurrentPermission = hasPermission(role, permission);
       
       const response = await fetch(`/api/roles/${role}/permissions`, {

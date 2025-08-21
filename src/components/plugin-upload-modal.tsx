@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { X, Upload, File, AlertTriangle, CheckCircle, RefreshCw, Package } from 'lucide-react';
+import { safeConsoleError, safeStorage } from '@/lib/security-utils';
 
 interface PluginUploadModalProps {
   isOpen: boolean;
@@ -98,7 +99,7 @@ export default function PluginUploadModal({ isOpen, onClose, onUploadSuccess }: 
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      const token = localStorage.getItem('token');
+      const token = safeStorage.getItem('token');
       const response = await fetch('/api/plugins/install', {
         method: 'POST',
         headers: {
@@ -142,7 +143,7 @@ export default function PluginUploadModal({ isOpen, onClose, onUploadSuccess }: 
       }, 2000);
 
     } catch (err: any) {
-      console.error('Error uploading plugin:', err);
+      safeConsoleError('Error uploading plugin', err);
       setError(err.message || 'Failed to upload plugin');
       setUploadProgress(null);
     } finally {
