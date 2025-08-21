@@ -136,3 +136,9 @@ data/
 .auth/
 .kasa_token
 *.token
+
+# Internal documentation (development/planning/security docs not for public release)
+.internal-docs/
+internal-docs/
+docs-internal/
+private-docs/

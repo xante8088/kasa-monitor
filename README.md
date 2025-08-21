@@ -318,6 +318,19 @@ kasa-monitor/
 └── start.sh         # Quick start script
 ```
 
+## 📚 Documentation
+
+### 📖 User Guides
+- **[📋 Complete Documentation](docs/)** - All user guides and tutorials
+- **[🚀 Deployment Guides](docs/deployment/)** - Docker, SSL, and reverse proxy setup
+- **[🛠 Development Docs](docs/development/)** - Plugin API and testing guides
+- **[📚 Wiki](wiki/)** - Comprehensive tutorials and troubleshooting
+
+### 🔧 Quick References
+- **[Docker Deployment](docs/deployment/docker.md)** - Complete Docker setup guide
+- **[Plugin Development](docs/development/plugin-api.md)** - Create custom plugins
+- **[Testing Guide](docs/development/test-guide.md)** - Testing procedures
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please:
