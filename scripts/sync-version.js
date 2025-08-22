@@ -32,6 +32,11 @@ fs.writeFileSync(versionTsPath, updatedContent);
 
 console.log(`✅ Updated src/lib/version.ts to version ${version}`);
 
+// Write version file for semantic-release to capture
+const semanticReleaseVersionFile = path.join(__dirname, '..', '.semantic-release-version');
+fs.writeFileSync(semanticReleaseVersionFile, version);
+console.log(`✅ Created .semantic-release-version file for CI/CD pipeline`);
+
 // Check if Git tag matches
 const { execSync } = require('child_process');
 try {

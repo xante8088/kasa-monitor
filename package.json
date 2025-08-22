@@ -13,7 +13,9 @@
     "check-doc-versions": "node scripts/check-doc-versions.js",
     "update-doc-versions": "node scripts/update-doc-versions.js",
     "update-doc-dates": "node scripts/update-doc-versions.js --auto --update-dates",
-    "doc-version-report": "node scripts/check-doc-versions.js --report"
+    "doc-version-report": "node scripts/check-doc-versions.js --report",
+    "release": "semantic-release",
+    "release:dry": "semantic-release --dry-run"
   },
   "dependencies": {
     "@influxdata/influxdb-client": "^1.35.0",
@@ -38,14 +40,23 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/exec": "^7.1.0",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^11.0.4",
+    "@semantic-release/npm": "^12.0.2",
+    "@semantic-release/release-notes-generator": "^14.0.3",
     "@tailwindcss/postcss": "^4.1.12",
     "@types/node": "^20.14.2",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.19",
+    "conventional-changelog-conventionalcommits": "^9.1.0",
     "eslint": "^8.57.0",
     "eslint-config-next": "^15.5.0",
     "postcss": "^8.4.38",
+    "semantic-release": "^24.2.7",
     "tailwindcss": "^4.1.12",
     "typescript": "^5.4.5"
   }

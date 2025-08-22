@@ -1,0 +1,40 @@
+# <type>(<scope>): <subject>
+#
+# <body>
+#
+# <footer>
+
+# Type should be one of the following:
+# - feat: A new feature (MINOR version bump)
+# - fix: A bug fix (PATCH version bump)
+# - security: Security vulnerability fix (PATCH version bump)
+# - perf: Performance improvement (PATCH version bump)
+# - docs: Documentation only changes (no version bump)
+# - style: Code style changes (formatting, etc.) (no version bump)
+# - refactor: Code refactoring (no version bump)
+# - test: Adding or updating tests (no version bump)
+# - chore: Maintenance tasks (no version bump)
+# - build: Build system changes (no version bump)
+# - ci: CI/CD changes (no version bump)
+#
+# Scope is optional and can be anything specifying the place of the commit change.
+# Examples: api, ui, auth, device, docker, deps
+#
+# Subject should be a short, imperative description of the change.
+#
+# Body should include the motivation for the change and contrast with previous behavior.
+#
+# Footer should contain any information about Breaking Changes and is also the place
+# to reference GitHub issues that this commit closes.
+#
+# Breaking Changes should start with "BREAKING CHANGE:" (triggers MAJOR version bump)
+#
+# Example:
+# --------
+# feat(api): add device grouping endpoint
+#
+# Implement new REST API endpoint for managing device groups.
+# This allows users to organize devices into logical groups
+# for better management and bulk operations.
+#
+# Closes #123
