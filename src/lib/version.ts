@@ -7,7 +7,7 @@
  */
 
 // This should match the version in package.json
-export const APP_VERSION = '0.3.19';
+export const APP_VERSION = '1.0.0';
 export const APP_NAME = 'Kasa Monitor';
 
 /**
