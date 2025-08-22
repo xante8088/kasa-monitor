@@ -88,13 +88,51 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: TruffleHog Secret Scan
+    - name: Determine scan range
+      id: scan_range
+      run: |
+        # Determine the proper base commit for TruffleHog
+        if [ "${{ github.event_name }}" = "push" ] && [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+          # For push events with valid before commit
+          echo "base=${{ github.event.before }}" >> $GITHUB_OUTPUT
+          echo "head=HEAD" >> $GITHUB_OUTPUT
+          echo "scan_mode=diff" >> $GITHUB_OUTPUT
+        elif [ "${{ github.event_name }}" = "pull_request" ]; then
+          # For pull requests
+          echo "base=${{ github.event.pull_request.base.sha }}" >> $GITHUB_OUTPUT
+          echo "head=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
+          echo "scan_mode=diff" >> $GITHUB_OUTPUT
+        else
+          # Fallback: scan only the current commit
+          echo "base=HEAD~1" >> $GITHUB_OUTPUT
+          echo "head=HEAD" >> $GITHUB_OUTPUT
+          echo "scan_mode=diff" >> $GITHUB_OUTPUT
+        fi
+        
+        # Check if base and head are the same
+        BASE_COMMIT=$(git rev-parse "${{ github.event.before || 'HEAD~1' }}")
+        HEAD_COMMIT=$(git rev-parse HEAD)
+        
+        if [ "$BASE_COMMIT" = "$HEAD_COMMIT" ]; then
+          echo "scan_mode=filesystem" >> $GITHUB_OUTPUT
+          echo "⚠️ Base and HEAD commits are the same, switching to filesystem scan"
+        fi
+
+    - name: TruffleHog Secret Scan (Diff Mode)
+      if: steps.scan_range.outputs.scan_mode == 'diff'
       uses: trufflesecurity/trufflehog@main
       with:
         path: ./
-        base: ${{ github.event.before || 'HEAD~1' }}
-        head: HEAD
+        base: ${{ steps.scan_range.outputs.base }}
+        head: ${{ steps.scan_range.outputs.head }}
         extra_args: --only-verified
+
+    - name: TruffleHog Secret Scan (Filesystem Mode)
+      if: steps.scan_range.outputs.scan_mode == 'filesystem'
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        extra_args: --only-verified --max-depth=3
 
   dependency-scanning:
     name: Dependency Vulnerability Scan
