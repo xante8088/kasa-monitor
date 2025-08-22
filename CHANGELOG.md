@@ -1,3 +1,9 @@
+## [1.1.0](https://github.com/xante8088/kasa-monitor/compare/v1.0.1...v1.1.0) (2025-08-22)
+
+### 🚀 Features
+
+* implement granular Docker cleanup with semantic versioning support ([a520b1c](https://github.com/xante8088/kasa-monitor/commit/a520b1ce8cbb2e0da7d28e5661a79b02b0e84dbc))
+
 ## [1.0.1](https://github.com/xante8088/kasa-monitor/compare/v1.0.0...v1.0.1) (2025-08-22)
 
 ### 🐛 Bug Fixes
