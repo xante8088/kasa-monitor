@@ -2,14 +2,50 @@ name: Docker Hub Cleanup
 
 on:
   schedule:
-    # Run weekly on Sundays at 2 AM UTC
+    # Run weekly on Sundays at 2 AM UTC (replaces old cleanup-docker.yml)
     - cron: '0 2 * * 0'
   workflow_dispatch:
     inputs:
-      keep_count:
-        description: 'Number of recent images to keep'
+      cleanup_strategy:
+        description: 'Cleanup strategy to use'
+        required: true
+        default: 'semantic'
+        type: choice
+        options:
+          - 'semantic'    # Keep latest of each major.minor, cleanup patch versions
+          - 'major'       # Keep latest of each major version
+          - 'minor'       # Keep latest of each minor version (within majors)
+          - 'simple'      # Simple count-based cleanup (legacy behavior)
+      keep_major_versions:
+        description: 'Number of major versions to keep (for major/semantic strategies)'
+        required: false
+        default: '3'
+        type: string
+      keep_minor_versions:
+        description: 'Number of minor versions to keep per major (for minor/semantic strategies)'
+        required: false
+        default: '2'
+        type: string
+      keep_patch_versions:
+        description: 'Number of patch versions to keep per minor (for semantic strategy)'
+        required: false
+        default: '2'
+        type: string
+      keep_simple_count:
+        description: 'Number of recent images to keep (for simple strategy)'
         required: false
         default: '10'
+        type: string
+      keep_untagged:
+        description: 'Keep untagged versions (development builds)'
+        required: false
+        default: 'true'
+        type: boolean
+      dry_run:
+        description: 'Dry run (preview what would be deleted)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   cleanup:
@@ -21,15 +57,31 @@ jobs:
       packages: write
     
     steps:
-    - name: Find correct package name
-      id: find_package
+    - name: Advanced Docker Cleanup with Semantic Versioning
       uses: actions/github-script@v7
       with:
         script: |
+          const strategy = '${{ inputs.cleanup_strategy || "semantic" }}';
+          const keepMajorVersions = parseInt('${{ inputs.keep_major_versions || "3" }}');
+          const keepMinorVersions = parseInt('${{ inputs.keep_minor_versions || "2" }}');
+          const keepPatchVersions = parseInt('${{ inputs.keep_patch_versions || "2" }}');
+          const keepSimpleCount = parseInt('${{ inputs.keep_simple_count || "10" }}');
+          const keepUntagged = '${{ inputs.keep_untagged || "true" }}' === 'true';
+          const dryRun = '${{ inputs.dry_run || "false" }}' === 'true';
+          
+          console.log(`🔧 Cleanup Strategy: ${strategy}`);
+          console.log(`📊 Parameters: Major=${keepMajorVersions}, Minor=${keepMinorVersions}, Patch=${keepPatchVersions}, Simple=${keepSimpleCount}`);
+          console.log(`🏷️  Keep Untagged: ${keepUntagged}`);
+          console.log(`🧪 Dry Run: ${dryRun}`);
+          
+          // Find the correct package name
           const packageNames = ['kasa-monitor', context.repo.repo, `${context.repo.owner}/${context.repo.repo}`];
+          let foundPackageName = null;
+          let packages = [];
           
           for (const pkgName of packageNames) {
             try {
+              console.log(`\n🔍 Trying package name: ${pkgName}`);
               const { data: pkgVersions } = await github.rest.packages.getAllPackageVersionsForPackageOwnedByUser({
                 package_type: 'container',
                 package_name: pkgName,
@@ -37,31 +89,259 @@ jobs:
               });
               
               if (pkgVersions.length > 0) {
-                console.log(`Found package: ${pkgName} with ${pkgVersions.length} versions`);
-                core.setOutput('package_name', pkgName);
-                core.setOutput('package_found', 'true');
-                return;
+                packages = pkgVersions;
+                foundPackageName = pkgName;
+                console.log(`✅ Found package: ${pkgName} with ${packages.length} versions`);
+                break;
               }
             } catch (error) {
-              console.log(`Package ${pkgName} not found`);
+              console.log(`❌ Package ${pkgName} not found: ${error.message}`);
             }
           }
           
-          core.setOutput('package_found', 'false');
-          console.log('No package found for cleanup');
-
-    - name: Delete old images
-      if: steps.find_package.outputs.package_found == 'true'
-      uses: actions/delete-package-versions@v5
-      with:
-        package-name: ${{ steps.find_package.outputs.package_name }}
-        package-type: 'container'
-        min-versions-to-keep: ${{ github.event.inputs.keep_count || '10' }}
-        delete-only-untagged-versions: false
-        token: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: No cleanup needed
-      if: steps.find_package.outputs.package_found != 'true'
-      run: |
-        echo "ℹ️  No Docker packages found for scheduled cleanup."
-        echo "This is normal if no images have been pushed yet."
+          if (!foundPackageName || packages.length === 0) {
+            console.log('❌ No package versions found. Cleanup not needed.');
+            return;
+          }
+          
+          console.log(`\n📦 Package: ${foundPackageName}`);
+          console.log(`📊 Total versions: ${packages.length}`);
+          
+          // Helper function to parse semantic version
+          function parseSemanticVersion(tag) {
+            // Handle various tag formats: v1.2.3, 1.2.3, v1.0.0-rc1, latest, etc.
+            const match = tag.match(/^v?(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/);
+            if (match) {
+              return {
+                major: parseInt(match[1]),
+                minor: parseInt(match[2]),
+                patch: parseInt(match[3]),
+                prerelease: match[4] || null,
+                isSemanticVersion: true,
+                originalTag: tag
+              };
+            }
+            return {
+              major: null,
+              minor: null,  
+              patch: null,
+              prerelease: null,
+              isSemanticVersion: false,
+              originalTag: tag
+            };
+          }
+          
+          // Process each package version
+          const processedVersions = packages.map(pkg => {
+            const tags = pkg.metadata?.container?.tags || [];
+            const hasSemanticTags = tags.some(tag => parseSemanticVersion(tag).isSemanticVersion);
+            
+            let bestSemanticVersion = null;
+            if (hasSemanticTags) {
+              // Find the best semantic version tag
+              for (const tag of tags) {
+                const parsed = parseSemanticVersion(tag);
+                if (parsed.isSemanticVersion) {
+                  if (!bestSemanticVersion || 
+                      parsed.major > bestSemanticVersion.major ||
+                      (parsed.major === bestSemanticVersion.major && parsed.minor > bestSemanticVersion.minor) ||
+                      (parsed.major === bestSemanticVersion.major && parsed.minor === bestSemanticVersion.minor && parsed.patch > bestSemanticVersion.patch)) {
+                    bestSemanticVersion = parsed;
+                  }
+                }
+              }
+            }
+            
+            return {
+              ...pkg,
+              tags: tags,
+              hasSemanticTags: hasSemanticTags,
+              bestSemanticVersion: bestSemanticVersion,
+              isUntagged: tags.length === 0,
+              created: new Date(pkg.created_at)
+            };
+          });
+          
+          // Sort by creation date (newest first)
+          processedVersions.sort((a, b) => b.created - a.created);
+          
+          let versionsToKeep = [];
+          let versionsToDelete = [];
+          
+          if (strategy === 'simple') {
+            // Simple strategy: keep N most recent versions
+            versionsToKeep = processedVersions.slice(0, keepSimpleCount);
+            versionsToDelete = processedVersions.slice(keepSimpleCount);
+            
+          } else if (strategy === 'major') {
+            // Major strategy: keep latest version of each major version
+            const majorVersions = new Map();
+            
+            for (const version of processedVersions) {
+              if (!version.hasSemanticTags) {
+                if (keepUntagged || version.tags.some(tag => ['latest', 'main', 'dev'].includes(tag))) {
+                  versionsToKeep.push(version);
+                }
+                continue;
+              }
+              
+              const major = version.bestSemanticVersion.major;
+              if (!majorVersions.has(major) && majorVersions.size < keepMajorVersions) {
+                majorVersions.set(major, version);
+                versionsToKeep.push(version);
+              }
+            }
+            
+            versionsToDelete = processedVersions.filter(v => !versionsToKeep.includes(v));
+            
+          } else if (strategy === 'minor') {
+            // Minor strategy: keep latest versions of each minor within major versions
+            const majorVersions = new Map();
+            
+            for (const version of processedVersions) {
+              if (!version.hasSemanticTags) {
+                if (keepUntagged || version.tags.some(tag => ['latest', 'main', 'dev'].includes(tag))) {
+                  versionsToKeep.push(version);
+                }
+                continue;
+              }
+              
+              const major = version.bestSemanticVersion.major;
+              const minor = version.bestSemanticVersion.minor;
+              const key = `${major}.${minor}`;
+              
+              if (!majorVersions.has(major)) {
+                majorVersions.set(major, new Map());
+              }
+              
+              const minorVersions = majorVersions.get(major);
+              if (majorVersions.size <= keepMajorVersions && 
+                  !minorVersions.has(key) && 
+                  minorVersions.size < keepMinorVersions) {
+                minorVersions.set(key, version);
+                versionsToKeep.push(version);
+              }
+            }
+            
+            versionsToDelete = processedVersions.filter(v => !versionsToKeep.includes(v));
+            
+          } else if (strategy === 'semantic') {
+            // Semantic strategy: keep latest patch versions within minor versions
+            const majorVersions = new Map();
+            
+            for (const version of processedVersions) {
+              if (!version.hasSemanticTags) {
+                if (keepUntagged || version.tags.some(tag => ['latest', 'main', 'dev'].includes(tag))) {
+                  versionsToKeep.push(version);
+                }
+                continue;
+              }
+              
+              const major = version.bestSemanticVersion.major;
+              const minor = version.bestSemanticVersion.minor;
+              const patch = version.bestSemanticVersion.patch;
+              const majorKey = major.toString();
+              const minorKey = `${major}.${minor}`;
+              const patchKey = `${major}.${minor}.${patch}`;
+              
+              if (!majorVersions.has(majorKey)) {
+                majorVersions.set(majorKey, new Map());
+              }
+              
+              const minorVersions = majorVersions.get(majorKey);
+              
+              if (majorVersions.size <= keepMajorVersions) {
+                if (!minorVersions.has(minorKey)) {
+                  minorVersions.set(minorKey, new Map());
+                }
+                
+                const patchVersions = minorVersions.get(minorKey);
+                
+                if (minorVersions.size <= keepMinorVersions && 
+                    !patchVersions.has(patchKey) && 
+                    patchVersions.size < keepPatchVersions) {
+                  patchVersions.set(patchKey, version);
+                  versionsToKeep.push(version);
+                }
+              }
+            }
+            
+            versionsToDelete = processedVersions.filter(v => !versionsToKeep.includes(v));
+          }
+          
+          // Filter out untagged versions if we should keep them
+          if (keepUntagged) {
+            const untaggedToDelete = versionsToDelete.filter(v => v.isUntagged);
+            versionsToDelete = versionsToDelete.filter(v => !v.isUntagged);
+            console.log(`🏷️  Keeping ${untaggedToDelete.length} untagged versions`);
+          }
+          
+          console.log(`\n📊 Cleanup Summary:`);
+          console.log(`   Versions to keep: ${versionsToKeep.length}`);
+          console.log(`   Versions to delete: ${versionsToDelete.length}`);
+          
+          if (versionsToKeep.length > 0) {
+            console.log(`\n✅ Versions to keep:`);
+            versionsToKeep.forEach((v, i) => {
+              const tagStr = v.tags.length > 0 ? v.tags.join(', ') : 'untagged';
+              const semantic = v.bestSemanticVersion ? 
+                `v${v.bestSemanticVersion.major}.${v.bestSemanticVersion.minor}.${v.bestSemanticVersion.patch}` : 
+                'non-semantic';
+              console.log(`   ${i + 1}. ${tagStr} (${semantic}) - ${v.created.toISOString()}`);
+            });
+          }
+          
+          if (versionsToDelete.length > 0) {
+            console.log(`\n❌ Versions to delete:`);
+            versionsToDelete.forEach((v, i) => {
+              const tagStr = v.tags.length > 0 ? v.tags.join(', ') : 'untagged';
+              const semantic = v.bestSemanticVersion ? 
+                `v${v.bestSemanticVersion.major}.${v.bestSemanticVersion.minor}.${v.bestSemanticVersion.patch}` : 
+                'non-semantic';
+              console.log(`   ${i + 1}. ${tagStr} (${semantic}) - ${v.created.toISOString()}`);
+            });
+          }
+          
+          if (dryRun) {
+            console.log(`\n🧪 DRY RUN - No packages will be deleted`);
+            return;
+          }
+          
+          if (versionsToDelete.length === 0) {
+            console.log(`\n✅ No cleanup needed`);
+            return;
+          }
+          
+          // Delete the versions
+          console.log(`\n🗑️  Deleting ${versionsToDelete.length} package versions...`);
+          let deleteCount = 0;
+          let errorCount = 0;
+          
+          for (const version of versionsToDelete) {
+            try {
+              console.log(`   Deleting version ${version.id} (${version.tags.join(', ') || 'untagged'})...`);
+              
+              await github.rest.packages.deletePackageVersionForUser({
+                package_type: 'container',
+                package_name: foundPackageName,
+                username: context.repo.owner,
+                package_version_id: version.id
+              });
+              
+              deleteCount++;
+              console.log(`   ✅ Deleted successfully`);
+              
+            } catch (error) {
+              errorCount++;
+              console.log(`   ❌ Error deleting: ${error.message}`);
+            }
+          }
+          
+          console.log(`\n📊 Cleanup Results:`);
+          console.log(`   Successfully deleted: ${deleteCount}`);
+          console.log(`   Errors: ${errorCount}`);
+          console.log(`   Remaining versions: ${versionsToKeep.length}`);
+          
+          if (errorCount > 0) {
+            throw new Error(`Cleanup completed with ${errorCount} errors`);
+          }
