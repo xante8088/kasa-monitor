@@ -1,3 +1,9 @@
+## [1.0.1](https://github.com/xante8088/kasa-monitor/compare/v1.0.0...v1.0.1) (2025-08-22)
+
+### 🐛 Bug Fixes
+
+* improve TruffleHog secret scanning to handle same BASE/HEAD commits ([8f71418](https://github.com/xante8088/kasa-monitor/commit/8f71418b0ba6e97a055816e7f550d3f3c0a03d2a))
+
 ## [1.0.0](https://github.com/xante8088/kasa-monitor/compare/v0.3.19...v1.0.0) (2025-08-22)
 
 ### ⚠ BREAKING CHANGES
