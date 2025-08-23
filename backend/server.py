@@ -668,6 +668,13 @@ class KasaMonitorApp:
                     api_error_event = AuditEvent(
                         event_type=AuditEventType.SYSTEM_ERROR,
                         severity=AuditSeverity.ERROR,
+                        user_id=None,  # System error, no specific user
+                        username=None,  # System error, no specific user
+                        ip_address=client_ip,
+                        user_agent=user_agent,
+                        session_id=None,  # System error, no session
+                        resource_type="api",
+                        resource_id=url_path,
                         action="API request failed",
                         details={
                             "api_monitoring": True,
@@ -679,6 +686,9 @@ class KasaMonitorApp:
                             "client_ip": client_ip,
                             "user_agent": user_agent,
                         },
+                        timestamp=datetime.now(),
+                        success=False,
+                        error_message=str(e),
                     )
                     await self.audit_logger.log_event_async(api_error_event)
 
