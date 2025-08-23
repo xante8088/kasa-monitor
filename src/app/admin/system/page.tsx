@@ -82,7 +82,7 @@ export default function SystemConfigPage() {
     },
     network: {
       host: '0.0.0.0',
-      port: 8000,
+      port: 5272,
       allowed_hosts: [],
       local_only: false,
       cors_origins: []
@@ -165,7 +165,7 @@ export default function SystemConfigPage() {
           },
           network: {
             host: data.network?.host ?? '0.0.0.0',
-            port: data.network?.port ?? 8000,
+            port: data.network?.port ?? 5272,
             allowed_hosts: data.network?.allowed_hosts ?? [],
             local_only: data.network?.local_only ?? false,
             cors_origins: data.network?.cors_origins ?? []
@@ -1189,7 +1189,7 @@ export default function SystemConfigPage() {
                 <input
                   type="number"
                   id="port"
-                  value={config.network?.port ?? 8000}
+                  value={config.network?.port ?? 5272}
                   onChange={(e) => handleInputChange('network', 'port', parseInt(e.target.value))}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />

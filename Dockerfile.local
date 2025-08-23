@@ -18,7 +18,7 @@ COPY backend/ ./backend/
 RUN mkdir -p data backups logs
 
 # Expose port
-EXPOSE 8000
+EXPOSE 5272
 
 # Default command
 CMD ["python", "backend/main.py"]
