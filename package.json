@@ -1,6 +1,6 @@
 {
   "name": "kasa-monitor",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Web application for monitoring Kasa smart devices with power consumption tracking and cost analysis",
   "private": true,
   "scripts": {
