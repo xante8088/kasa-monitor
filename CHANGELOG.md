@@ -1,3 +1,9 @@
+## [1.1.2](https://github.com/xante8088/kasa-monitor/compare/v1.1.1...v1.1.2) (2025-08-25)
+
+### 🐛 Bug Fixes
+
+* resolve all AuditEvent constructor errors throughout server.py ([ce9d8b3](https://github.com/xante8088/kasa-monitor/commit/ce9d8b3cdd80ae5c193795040c735df59f9156e0))
+
 ## [1.1.1](https://github.com/xante8088/kasa-monitor/compare/v1.1.0...v1.1.1) (2025-08-23)
 
 ### 🐛 Bug Fixes
