@@ -672,7 +672,11 @@ class KasaMonitorApp:
                         },
                         timestamp=datetime.now(),
                         success=response.status_code < 400,
-                        error_message=None if response.status_code < 400 else f"HTTP {response.status_code}",
+                        error_message=(
+                            None
+                            if response.status_code < 400
+                            else f"HTTP {response.status_code}"
+                        ),
                     )
                     # Only log significant API calls to avoid spam
                     if duration_ms > 500 or response.status_code >= 400:
@@ -3198,7 +3202,11 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         user_agent=None,
                         session_id=None,
                         resource_type="data",
-                        resource_id=f"energy_export_{device_ip}" if device_ip else "energy_export_all",
+                        resource_id=(
+                            f"energy_export_{device_ip}"
+                            if device_ip
+                            else "energy_export_all"
+                        ),
                         action="Energy data export failed",
                         details={
                             "export_type": "energy_data",
