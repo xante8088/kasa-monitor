@@ -620,6 +620,13 @@ class KasaMonitorApp:
                     slow_api_event = AuditEvent(
                         event_type=AuditEventType.SYSTEM_ERROR,
                         severity=AuditSeverity.WARNING,
+                        user_id=None,
+                        username=None,
+                        ip_address=client_ip,
+                        user_agent=user_agent,
+                        session_id=None,
+                        resource_type="api",
+                        resource_id=url_path,
                         action="Slow API response detected",
                         details={
                             "api_monitoring": True,
@@ -631,6 +638,9 @@ class KasaMonitorApp:
                             "user_agent": user_agent,
                             "threshold_exceeded": "2000ms",
                         },
+                        timestamp=datetime.now(),
+                        success=False,
+                        error_message=f"API response time exceeded threshold: {duration_ms}ms > 2000ms",
                     )
                     await self.audit_logger.log_event_async(slow_api_event)
 
@@ -639,8 +649,15 @@ class KasaMonitorApp:
                 if url_path.startswith("/api/") and self.audit_logger:
                     # Log successful API usage for analysis
                     api_usage_event = AuditEvent(
-                        event_type=AuditEventType.API_ACCESS,
+                        event_type=AuditEventType.API_REQUEST,
                         severity=AuditSeverity.INFO,
+                        user_id=None,  # API monitoring, no specific user context
+                        username=None,  # API monitoring, no specific user context
+                        ip_address=client_ip,
+                        user_agent=user_agent,
+                        session_id=None,  # API monitoring, no session context
+                        resource_type="api",
+                        resource_id=url_path,
                         action="API endpoint accessed",
                         details={
                             "api_monitoring": True,
@@ -653,6 +670,9 @@ class KasaMonitorApp:
                                 "content-length", "unknown"
                             ),
                         },
+                        timestamp=datetime.now(),
+                        success=response.status_code < 400,
+                        error_message=None if response.status_code < 400 else f"HTTP {response.status_code}",
                     )
                     # Only log significant API calls to avoid spam
                     if duration_ms > 500 or response.status_code >= 400:
@@ -1129,6 +1149,13 @@ class KasaMonitorApp:
                     error_event = AuditEvent(
                         event_type=AuditEventType.SYSTEM_ERROR,
                         severity=AuditSeverity.ERROR,
+                        user_id=None,
+                        username=None,
+                        ip_address=None,
+                        user_agent=None,
+                        session_id=None,
+                        resource_type="device",
+                        resource_id=ip,
                         action="Manual device addition failed",
                         details={
                             "operation": "manual_device_addition",
@@ -1138,6 +1165,9 @@ class KasaMonitorApp:
                             "error_type": type(e).__name__,
                             "connection_attempted": True,
                         },
+                        timestamp=datetime.now(),
+                        success=False,
+                        error_message=str(e),
                     )
                     await self.audit_logger.log_event_async(error_event)
 
@@ -1187,6 +1217,13 @@ class KasaMonitorApp:
                     error_event = AuditEvent(
                         event_type=AuditEventType.SYSTEM_ERROR,
                         severity=AuditSeverity.ERROR,
+                        user_id=None,
+                        username=None,
+                        ip_address=None,
+                        user_agent=None,
+                        session_id=None,
+                        resource_type="device",
+                        resource_id=device_ip,
                         action="Device removal failed",
                         details={
                             "operation": "device_removal",
@@ -1195,6 +1232,9 @@ class KasaMonitorApp:
                             "error_type": type(e).__name__,
                             "removal_attempted": True,
                         },
+                        timestamp=datetime.now(),
+                        success=False,
+                        error_message=str(e),
                     )
                     await self.audit_logger.log_event_async(error_event)
 
@@ -2146,12 +2186,20 @@ class KasaMonitorApp:
                         severity=AuditSeverity.ERROR,
                         user_id=current_user.id,
                         username=current_user.username,
+                        ip_address=None,
+                        user_agent=None,
+                        session_id=None,
+                        resource_type="user",
+                        resource_id=str(user_id),
                         action="User deletion failed",
                         details={
                             "target_user_id": user_id,
                             "error_message": "Database deletion failed",
                             "attempted_by_admin": True,
                         },
+                        timestamp=datetime.now(),
+                        success=False,
+                        error_message="Database deletion failed",
                     )
                     await self.audit_logger.log_event_async(error_event)
 
@@ -2569,6 +2617,11 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         severity=AuditSeverity.ERROR,
                         user_id=user.id,
                         username=user.username,
+                        ip_address=None,
+                        user_agent=None,
+                        session_id=None,
+                        resource_type="config",
+                        resource_id=f"ssl_file_{filename}",
                         action="SSL file deletion failed",
                         details={
                             "config_type": "ssl_file",
@@ -2577,6 +2630,9 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                             "error_type": type(e).__name__,
                             "operation": "ssl_file_deletion_failed",
                         },
+                        timestamp=datetime.now(),
+                        success=False,
+                        error_message=str(e),
                     )
                     await self.audit_logger.log_event_async(error_event)
 
@@ -2689,6 +2745,11 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         severity=AuditSeverity.ERROR,
                         user_id=user.id,
                         username=user.username,
+                        ip_address=None,
+                        user_agent=None,
+                        session_id=None,
+                        resource_type="config",
+                        resource_id=f"ssl_certificate_{getattr(file, 'filename', 'unknown')}",
                         action="SSL certificate upload failed",
                         details={
                             "config_type": "ssl_certificate",
@@ -2699,6 +2760,9 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                             "error_type": type(e).__name__,
                             "operation": "certificate_upload_failed",
                         },
+                        timestamp=datetime.now(),
+                        success=False,
+                        error_message=str(e),
                     )
                     await self.audit_logger.log_event_async(error_event)
 
@@ -2820,6 +2884,11 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         severity=AuditSeverity.ERROR,
                         user_id=user.id,
                         username=user.username,
+                        ip_address=None,
+                        user_agent=None,
+                        session_id=None,
+                        resource_type="config",
+                        resource_id=f"ssl_private_key_{getattr(file, 'filename', 'unknown')}",
                         action="SSL private key upload failed",
                         details={
                             "config_type": "ssl_private_key",
@@ -2828,6 +2897,9 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                             "error_type": type(e).__name__,
                             "operation": "private_key_upload_failed",
                         },
+                        timestamp=datetime.now(),
+                        success=False,
+                        error_message=str(e),
                     )
                     await self.audit_logger.log_event_async(error_event)
 
@@ -3030,6 +3102,11 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         severity=AuditSeverity.ERROR,
                         user_id=user.id,
                         username=user.username,
+                        ip_address=None,
+                        user_agent=None,
+                        session_id=None,
+                        resource_type="data",
+                        resource_id="device_export",
                         action="Device data export failed",
                         details={
                             "export_type": "devices",
@@ -3042,6 +3119,9 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                             ).total_seconds()
                             * 1000,
                         },
+                        timestamp=datetime.now(),
+                        success=False,
+                        error_message=str(e),
                     )
                     await self.audit_logger.log_event_async(error_event)
 
@@ -3114,6 +3194,11 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         severity=AuditSeverity.ERROR,
                         user_id=user.id,
                         username=user.username,
+                        ip_address=None,
+                        user_agent=None,
+                        session_id=None,
+                        resource_type="data",
+                        resource_id=f"energy_export_{device_ip}" if device_ip else "energy_export_all",
                         action="Energy data export failed",
                         details={
                             "export_type": "energy_data",
@@ -3130,6 +3215,9 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                             ).total_seconds()
                             * 1000,
                         },
+                        timestamp=datetime.now(),
+                        success=False,
+                        error_message=str(e),
                     )
                     await self.audit_logger.log_event_async(error_event)
 
@@ -3883,6 +3971,13 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 performance_event = AuditEvent(
                     event_type=AuditEventType.SYSTEM_ERROR,
                     severity=AuditSeverity.WARNING,
+                    user_id=None,
+                    username=None,
+                    ip_address=None,
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="system",
+                    resource_id="device_polling",
                     action="Slow device polling cycle detected",
                     details={
                         "performance_monitoring": True,
@@ -3893,6 +3988,9 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         "threshold_exceeded": "10000ms",
                         "monitored_device_count": len(monitored_ips),
                     },
+                    timestamp=datetime.now(),
+                    success=False,
+                    error_message=f"Device polling cycle exceeded threshold: {polling_duration_ms:.1f}ms > 10000ms",
                 )
                 await self.audit_logger.log_event_async(performance_event)
 
@@ -3903,6 +4001,13 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                     reliability_event = AuditEvent(
                         event_type=AuditEventType.SYSTEM_ERROR,
                         severity=AuditSeverity.ERROR,
+                        user_id=None,
+                        username=None,
+                        ip_address=None,
+                        user_agent=None,
+                        session_id=None,
+                        resource_type="system",
+                        resource_id="device_polling_reliability",
                         action="High device polling failure rate detected",
                         details={
                             "performance_monitoring": True,
@@ -3912,6 +4017,9 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                             "failed_device_ips": failed_devices,
                             "threshold_exceeded": "20% failure rate",
                         },
+                        timestamp=datetime.now(),
+                        success=False,
+                        error_message=f"Device polling failure rate exceeded threshold: {failure_rate:.2%} > 20%",
                     )
                     await self.audit_logger.log_event_async(reliability_event)
 
@@ -3927,6 +4035,13 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 system_error_event = AuditEvent(
                     event_type=AuditEventType.SYSTEM_ERROR,
                     severity=AuditSeverity.CRITICAL,
+                    user_id=None,
+                    username=None,
+                    ip_address=None,
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="system",
+                    resource_id="device_polling_system",
                     action="Device polling system failure",
                     details={
                         "performance_monitoring": True,
@@ -3936,6 +4051,9 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         * 1000,
                         "system_component": "device_polling",
                     },
+                    timestamp=datetime.now(),
+                    success=False,
+                    error_message=str(e),
                 )
                 await self.audit_logger.log_event_async(system_error_event)
 
