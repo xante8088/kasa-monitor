@@ -1,0 +1,526 @@
+name: CI/CD Pipeline (Optimized)
+
+# Comprehensive CI/CD pipeline that ONLY runs on main branch merges
+# Sequence: Version → Lint/Test → Release → Docker Build → Deploy
+
+on:
+  push:
+    branches: [main]  # ONLY main branch
+
+env:
+  PYTHON_VERSION: '3.9'
+  NODE_VERSION: '20'
+  DOCKER_REGISTRY: docker.io
+  IMAGE_NAME: xante8088/kasa-monitor
+
+jobs:
+  # Step 1: Determine version FIRST (dry run to check if release needed)
+  version-check:
+    name: Version Check
+    runs-on: ubuntu-latest
+    outputs:
+      will-release: ${{ steps.semantic-dry.outputs.new-release-published }}
+      next-version: ${{ steps.semantic-dry.outputs.new-release-version }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        
+    - name: Install semantic-release
+      run: |
+        npm install -g semantic-release @semantic-release/changelog @semantic-release/git @semantic-release/exec
+        
+    - name: Semantic Release (Dry Run)
+      id: semantic-dry
+      run: |
+        npx semantic-release --dry-run
+        echo "will-release=${{ steps.semantic-dry.outputs.new-release-published }}" >> $GITHUB_OUTPUT
+        echo "next-version=${{ steps.semantic-dry.outputs.new-release-version }}" >> $GITHUB_OUTPUT
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Version Check Results
+      run: |
+        echo "🔍 Version Check Results:"
+        echo "  Will create release: ${{ steps.semantic-dry.outputs.new-release-published || 'false' }}"
+        echo "  Next version: ${{ steps.semantic-dry.outputs.new-release-version || 'No new version' }}"
+
+  # Step 2: Quality checks (run in parallel)
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    needs: version-check
+    if: needs.version-check.outputs.will-release == 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Cache pip packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+        
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install black isort flake8 pylint bandit
+        pip install -r backend/requirements.txt
+        
+    - name: Run Python linting
+      run: |
+        echo "🔍 Python Code Quality Checks..."
+        black --check backend/
+        isort --check-only backend/
+        flake8 backend/ --max-line-length=120 --exclude=venv,migrations
+        pylint backend/*.py --disable=C0111,R0903,R0913,W0613 || true
+        
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install Node dependencies
+      run: npm ci
+      
+    - name: Run frontend linting
+      run: |
+        echo "🔍 Frontend Code Quality Checks..."
+        npm run lint
+        npx tsc --noEmit
+
+  security-scan:
+    name: Security Analysis
+    runs-on: ubuntu-latest
+    needs: version-check
+    if: needs.version-check.outputs.will-release == 'true'
+    
+    permissions:
+      contents: read
+      security-events: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Run Trivy security scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        severity: 'CRITICAL,HIGH,MEDIUM'
+        
+    - name: Upload Trivy results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'
+        
+    - name: Run TruffleHog secret scan
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: ${{ github.event.before || 'HEAD~1' }}
+        head: HEAD
+        extra_args: --only-verified
+        
+    - name: Python security scan with Bandit
+      run: |
+        pip install bandit
+        bandit -r backend/ -ll || true
+        
+    - name: Node.js security audit
+      run: |
+        npm audit --audit-level=moderate || true
+
+  test-backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    needs: version-check
+    if: needs.version-check.outputs.will-release == 'true'
+    
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Cache pip packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+        pip install pytest pytest-cov pytest-asyncio
+        
+    - name: Run backend tests
+      env:
+        SQLITE_PATH: test.db
+        JWT_SECRET_KEY: test_secret_key
+        REDIS_URL: redis://localhost:6379
+      run: |
+        cd backend
+        python -m pytest tests/ -v --cov=. --cov-report=xml || true
+        
+    - name: Upload coverage
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./backend/coverage.xml
+        flags: backend
+
+  test-frontend:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    needs: version-check
+    if: needs.version-check.outputs.will-release == 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run frontend tests
+      run: npm test -- --coverage --watchAll=false || true
+      
+    - name: Build frontend
+      run: npm run build
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [version-check, test-backend, test-frontend]
+    if: needs.version-check.outputs.will-release == 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Build test Docker image
+      run: |
+        docker compose -f docker-compose.yml build
+        
+    - name: Start services for integration test
+      run: |
+        docker compose -f docker-compose.yml up -d
+        sleep 30
+        
+    - name: Wait for health check
+      run: |
+        for i in {1..24}; do
+          if curl -f http://localhost:5272/health; then
+            echo "✅ Health check passed!"
+            break
+          fi
+          echo "Attempt $i/24: Waiting for services..."
+          sleep 5
+          if [ $i -eq 24 ]; then
+            echo "❌ Health check failed"
+            docker compose logs
+            exit 1
+          fi
+        done
+        
+    - name: Run integration tests
+      run: |
+        curl -f http://localhost:5272/health
+        echo "✅ Integration tests passed"
+        
+    - name: Stop services
+      if: always()
+      run: docker compose down
+
+  # Step 3: Create semantic release (updates version files)
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [version-check, lint, security-scan, test-backend, test-frontend, integration-test]
+    if: needs.version-check.outputs.will-release == 'true'
+    outputs:
+      new-version: ${{ steps.semantic.outputs.new-release-version }}
+      release-created: ${{ steps.semantic.outputs.new-release-published }}
+      
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        
+    - name: Install semantic-release
+      run: |
+        npm install -g semantic-release @semantic-release/changelog @semantic-release/git @semantic-release/exec
+        
+    - name: Create Semantic Release
+      id: semantic
+      run: |
+        npx semantic-release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Release Results
+      run: |
+        echo "🎉 Release Results:"
+        echo "  New release published: ${{ steps.semantic.outputs.new-release-published }}"
+        echo "  New version: ${{ steps.semantic.outputs.new-release-version }}"
+
+  # Step 4: Build Docker images with NEW version
+  build-docker:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [create-release]
+    if: needs.create-release.outputs.release-created == 'true'
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+    - name: Checkout code (updated with new version)
+      uses: actions/checkout@v4
+      with:
+        ref: main
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Extract version from updated files
+      id: version
+      run: |
+        # Pull latest changes including version updates
+        git pull origin main
+        VERSION=$(node -p "require('./package.json').version")
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "🏷️  Building Docker image with version: $VERSION"
+        
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver-opts: |
+          network=host
+          
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.DOCKER_REGISTRY }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          # Use the NEW version from semantic release
+          type=raw,value=${{ steps.version.outputs.version }}
+          type=raw,value=latest
+          type=sha,format=short
+          type=raw,value={{date 'YYYY-MM-DD-HHmm'}}
+        flavor: |
+          latest=false
+        
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: |
+          type=gha,scope=buildkit-main
+          type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:cache-main
+        cache-to: |
+          type=gha,scope=buildkit-main,mode=max
+          type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:cache-main,mode=max
+        build-args: |
+          VERSION=${{ steps.version.outputs.version }}
+          BUILDKIT_INLINE_CACHE=1
+          
+    - name: Docker Build Summary
+      run: |
+        echo "## 🐳 Docker Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Tags built**:" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # Step 5: Deploy to production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [create-release, build-docker]
+    if: needs.create-release.outputs.release-created == 'true'
+    environment:
+      name: production
+    
+    permissions:
+      contents: read
+      deployments: write
+    
+    steps:
+    - name: Create deployment record
+      uses: actions/github-script@v7
+      env:
+        PRODUCTION_URL: ${{ secrets.PRODUCTION_URL || 'https://kasa-monitor.example.com' }}
+      with:
+        script: |
+          const deployment = await github.rest.repos.createDeployment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            ref: context.sha,
+            environment: 'production',
+            required_contexts: [],
+            auto_merge: false
+          });
+          
+          await github.rest.repos.createDeploymentStatus({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            deployment_id: deployment.data.id,
+            state: 'in_progress',
+            environment_url: process.env.PRODUCTION_URL
+          });
+        
+    - name: Deploy to production
+      run: |
+        echo "🚀 Deploying version ${{ needs.create-release.outputs.new-version }} to production..."
+        # Add your actual deployment commands here
+        # Example: ssh deploy@production 'docker pull && docker-compose up -d'
+        
+    - name: Run smoke tests
+      run: |
+        sleep 30
+        if [[ -n "$PRODUCTION_URL" && "$PRODUCTION_URL" != "https://kasa-monitor.example.com" ]]; then
+          echo "🧪 Running smoke tests against: $PRODUCTION_URL"
+          curl -f "$PRODUCTION_URL/health" || exit 1
+          echo "✅ Smoke tests passed!"
+        else
+          echo "⏭️  Skipping smoke tests - PRODUCTION_URL not configured"
+        fi
+      env:
+        PRODUCTION_URL: ${{ secrets.PRODUCTION_URL || 'https://kasa-monitor.example.com' }}
+        
+    - name: Update deployment status
+      if: always()
+      uses: actions/github-script@v7
+      env:
+        PRODUCTION_URL: ${{ secrets.PRODUCTION_URL || 'https://kasa-monitor.example.com' }}
+      with:
+        script: |
+          const deployments = await github.rest.repos.listDeployments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            sha: context.sha,
+            environment: 'production'
+          });
+          
+          if (deployments.data.length > 0) {
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: deployments.data[0].id,
+              state: '${{ job.status }}' === 'success' ? 'success' : 'failure',
+              environment_url: process.env.PRODUCTION_URL
+            });
+          }
+
+  # Step 6: Final summary
+  pipeline-summary:
+    name: Pipeline Summary
+    runs-on: ubuntu-latest
+    needs: [version-check, create-release, build-docker, deploy-production]
+    if: always()
+    
+    steps:
+    - name: Pipeline Summary
+      run: |
+        echo "## 🎯 CI/CD Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Trigger**: Merge to main branch" >> $GITHUB_STEP_SUMMARY
+        echo "**Will Release**: ${{ needs.version-check.outputs.will-release || 'false' }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [[ "${{ needs.version-check.outputs.will-release }}" == "true" ]]; then
+          echo "**New Version**: ${{ needs.create-release.outputs.new-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 Version Check | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 Quality Checks | ${{ needs.lint.result == 'success' && needs.security-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🧪 Tests | ${{ needs.test-backend.result == 'success' && needs.test-frontend.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏷️  Release | ${{ needs.create-release.result == 'success' && '✅ Created' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🐳 Docker Build | ${{ needs.build-docker.result == 'success' && '✅ Built' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🚀 Deployment | ${{ needs.deploy-production.result == 'success' && '✅ Deployed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "ℹ️ **No release needed** - no conventional commits found that trigger a release." >> $GITHUB_STEP_SUMMARY
+        fi

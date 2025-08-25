@@ -1,0 +1,352 @@
+name: Scheduled Security Scan
+
+# Deep security analysis that runs weekly
+# Separate from CI/CD to avoid redundancy
+
+on:
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+    inputs:
+      scan-type:
+        description: 'Type of security scan to run'
+        required: true
+        default: 'comprehensive'
+        type: choice
+        options:
+          - 'comprehensive'  # Full security suite
+          - 'vulnerabilities'  # Only vulnerability scanning
+          - 'dependencies'    # Only dependency checking
+          - 'secrets'        # Only secret scanning
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  codeql-analysis:
+    name: CodeQL Security Analysis
+    runs-on: ubuntu-latest
+    if: github.event.inputs.scan-type == 'comprehensive' || github.event.inputs.scan-type == '' || github.event_name == 'schedule'
+    
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['python', 'javascript']
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v3
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
+
+  vulnerability-scan:
+    name: Vulnerability Scanning
+    runs-on: ubuntu-latest
+    if: |
+      github.event.inputs.scan-type == 'comprehensive' || 
+      github.event.inputs.scan-type == 'vulnerabilities' || 
+      github.event.inputs.scan-type == '' || 
+      github.event_name == 'schedule'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Run Trivy filesystem scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-fs-results.sarif'
+        severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+
+    - name: Upload Trivy filesystem results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-fs-results.sarif'
+
+    - name: Run Trivy config scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'config'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-config-results.sarif'
+
+    - name: Upload Trivy config results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-config-results.sarif'
+
+    - name: Build Docker image for scanning
+      run: |
+        docker build -t kasa-monitor:security-scan .
+
+    - name: Run Trivy Docker image scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'kasa-monitor:security-scan'
+        format: 'sarif'
+        output: 'trivy-docker-results.sarif'
+
+    - name: Upload Trivy Docker results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-docker-results.sarif'
+
+  secret-scanning:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    if: |
+      github.event.inputs.scan-type == 'comprehensive' || 
+      github.event.inputs.scan-type == 'secrets' || 
+      github.event.inputs.scan-type == '' || 
+      github.event_name == 'schedule'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Run TruffleHog comprehensive scan
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        extra_args: --only-verified --max-depth=5 --debug
+
+    - name: Run GitLeaks scan
+      uses: gitleaks/gitleaks-action@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dependency-scanning:
+    name: Dependency Security Scan
+    runs-on: ubuntu-latest
+    if: |
+      github.event.inputs.scan-type == 'comprehensive' || 
+      github.event.inputs.scan-type == 'dependencies' || 
+      github.event.inputs.scan-type == '' || 
+      github.event_name == 'schedule'
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+
+    - name: Install Python security tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety bandit pip-audit
+
+    - name: Python Security Scan with Safety
+      run: |
+        cd backend
+        safety check --json --output safety-report.json || true
+        safety check || true
+
+    - name: Python Security Scan with Bandit
+      run: |
+        cd backend
+        bandit -r . -f json -o bandit-report.json || true
+        bandit -r . -ll || true
+
+    - name: Python Audit with pip-audit
+      run: |
+        cd backend
+        pip-audit --format=json --output=pip-audit-report.json || true
+        pip-audit || true
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install Node dependencies
+      run: npm ci
+
+    - name: Node.js Security Audit
+      run: |
+        npm audit --audit-level=low --json > npm-audit-report.json || true
+        npm audit --audit-level=moderate || true
+
+    - name: Run npm audit fix (dry run)
+      run: |
+        echo "🔍 Checking if npm audit fix would resolve issues..."
+        npm audit fix --dry-run || true
+
+    - name: Upload dependency scan reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: dependency-security-reports
+        path: |
+          backend/safety-report.json
+          backend/bandit-report.json
+          backend/pip-audit-report.json
+          npm-audit-report.json
+
+  license-compliance:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    if: |
+      github.event.inputs.scan-type == 'comprehensive' || 
+      github.event.inputs.scan-type == 'dependencies' || 
+      github.event.inputs.scan-type == '' || 
+      github.event_name == 'schedule'
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+
+    - name: Install license checker
+      run: |
+        pip install pip-licenses
+
+    - name: Check Python licenses
+      run: |
+        cd backend
+        pip install -r requirements.txt
+        pip-licenses --format=json --output-file=python-licenses.json
+        pip-licenses --format=markdown --output-file=python-licenses.md
+        pip-licenses --fail-on="GPL v3;AGPL v3" || echo "⚠️ GPL/AGPL licenses found"
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install Node dependencies
+      run: npm ci
+
+    - name: Check Node.js licenses
+      run: |
+        npx license-checker --json --out node-licenses.json
+        npx license-checker --markdown --out node-licenses.md
+        npx license-checker --failOn "GPL-3.0;AGPL-3.0" || echo "⚠️ GPL/AGPL licenses found"
+
+    - name: Upload license reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: license-compliance-reports
+        path: |
+          backend/python-licenses.json
+          backend/python-licenses.md
+          node-licenses.json
+          node-licenses.md
+
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [codeql-analysis, vulnerability-scan, secret-scanning, dependency-scanning, license-compliance]
+    if: always()
+
+    steps:
+    - name: Security Scan Summary
+      run: |
+        echo "## 🔒 Weekly Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Scan Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+        echo "**Scan Type**: ${{ github.event.inputs.scan-type || 'comprehensive' }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Scan Component | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|----------------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| CodeQL Analysis | ${{ (needs.codeql-analysis.result == 'success' || needs.codeql-analysis.result == 'skipped') && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Vulnerability Scan | ${{ (needs.vulnerability-scan.result == 'success' || needs.vulnerability-scan.result == 'skipped') && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Secret Scanning | ${{ (needs.secret-scanning.result == 'success' || needs.secret-scanning.result == 'skipped') && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Dependency Scanning | ${{ (needs.dependency-scanning.result == 'success' || needs.dependency-scanning.result == 'skipped') && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| License Compliance | ${{ (needs.license-compliance.result == 'success' || needs.license-compliance.result == 'skipped') && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📊 **View detailed results in the Security tab of this repository.**" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "🔄 **Next scheduled scan**: $(date -d 'next Sunday 2:00' '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
+
+  create-security-issue:
+    name: Create Security Issue
+    runs-on: ubuntu-latest
+    needs: [codeql-analysis, vulnerability-scan, secret-scanning, dependency-scanning]
+    if: |
+      always() && 
+      (needs.codeql-analysis.result == 'failure' || 
+       needs.vulnerability-scan.result == 'failure' || 
+       needs.secret-scanning.result == 'failure' || 
+       needs.dependency-scanning.result == 'failure')
+    
+    permissions:
+      issues: write
+    
+    steps:
+    - name: Create security issue
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const title = `🚨 Weekly Security Scan Failed - ${new Date().toISOString().split('T')[0]}`;
+          const body = `
+          ## Security Scan Failure Report
+          
+          **Date**: ${new Date().toUTCString()}
+          **Workflow Run**: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          
+          ### Failed Components:
+          
+          ${needs.codeql-analysis.result === 'failure' ? '- ❌ CodeQL Analysis' : ''}
+          ${needs.vulnerability-scan.result === 'failure' ? '- ❌ Vulnerability Scan' : ''}
+          ${needs.secret-scanning.result === 'failure' ? '- ❌ Secret Scanning' : ''}
+          ${needs.dependency-scanning.result === 'failure' ? '- ❌ Dependency Scanning' : ''}
+          
+          ### Next Steps:
+          
+          1. Review the failed workflow logs
+          2. Address any security vulnerabilities found
+          3. Re-run the security scan to verify fixes
+          4. Consider updating security policies if needed
+          
+          ### Resources:
+          
+          - [Security Tab](https://github.com/${{ github.repository }}/security)
+          - [Workflow Logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - [Security Best Practices](https://github.com/${{ github.repository }}/blob/main/SECURITY.md)
+          `;
+          
+          await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title,
+            body,
+            labels: ['security', 'bug', 'high-priority']
+          });
