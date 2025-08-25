@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/xante8088/kasa-monitor/compare/v1.1.0...v1.1.1) (2025-08-23)
+
+### 🐛 Bug Fixes
+
+* eliminate all remaining port 8000 references causing Docker health check issues ([f4f1602](https://github.com/xante8088/kasa-monitor/commit/f4f1602266c1d4a15cc374c5efea0549ff152830))
+* resolve AuditEvent constructor error in API monitoring middleware ([a93549e](https://github.com/xante8088/kasa-monitor/commit/a93549ebd61e13fb50b9b5a559b7d7d4737320c0))
+
 ## [1.1.0](https://github.com/xante8088/kasa-monitor/compare/v1.0.1...v1.1.0) (2025-08-22)
 
 ### 🚀 Features
