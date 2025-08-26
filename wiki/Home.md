@@ -65,6 +65,21 @@ Welcome to the Kasa Monitor wiki! This comprehensive guide will help you install
 - [Issue Tracker](https://github.com/xante8088/kasa-monitor/issues)
 - [Releases](https://github.com/xante8088/kasa-monitor/releases)
 
+## 🆕 Recent Enhancements (v1.2.0)
+
+### Security & Compliance
+- ✅ **Enhanced Authentication System** - Token refresh, structured 401 responses, session management
+- ✅ **Secure Data Export System** - Permission-based exports with audit logging and rate limiting
+- ✅ **SSL Certificate Persistence** - Docker volume support for persistent SSL certificates
+- ✅ **Export Retention Policies** - Automated cleanup and lifecycle management
+- ✅ **Comprehensive Audit Logging** - GDPR/SOX compliant activity tracking
+
+### Improved User Experience
+- ✅ **Session Warning System** - Proactive session expiration notifications
+- ✅ **Integrated Export UI** - Device-specific exports from main interface
+- ✅ **Fixed Audit Log Modal** - Resolved display issues with grey overlay
+- ✅ **Device Persistence Fix** - Reliable device discovery across Docker updates
+
 ## 💡 Features
 
 ### Core Functionality
@@ -75,6 +90,9 @@ Welcome to the Kasa Monitor wiki! This comprehensive guide will help you install
 - ✅ Multi-user support with roles
 - ✅ Docker support with multiple network modes
 - ✅ Raspberry Pi optimized
+- ✅ Secure data export with retention policies
+- ✅ Session management with token refresh
+- ✅ SSL/TLS with persistent certificate storage
 
 ### Supported Devices
 - Kasa Smart Plugs (HS103, HS105, HS110, KP115, KP125)
@@ -99,7 +117,7 @@ Kasa Monitor is licensed under the [GNU General Public License v3.0](https://git
 
 ---
 
-**Document Version:** 0.5.0  
-**Last Updated:** 2025-08-20  
+**Document Version:** 1.2.0  
+**Last Updated:** 2025-08-26  
 **Review Status:** Current  
-**Change Summary:** Initial version tracking added
+**Change Summary:** Added recent v1.2.0 enhancements including authentication, data export security, SSL persistence, and session management

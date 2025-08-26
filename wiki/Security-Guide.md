@@ -13,8 +13,19 @@ Comprehensive security best practices and hardening guide for Kasa Monitor.
 │  3. Application Security (Auth)     │
 │  4. Data Security (Encryption)      │
 │  5. Access Control (RBAC)          │
+│  6. Export Security (v1.2.0)       │
+│  7. Session Management (v1.2.0)    │
 └─────────────────────────────────────┘
 ```
+
+## Recent Security Enhancements (v1.2.0)
+
+### Critical Security Fixes Implemented
+- **Data Export Security** - Permission enforcement, ownership validation, rate limiting
+- **Authentication Improvements** - Token refresh, structured errors, session management
+- **SSL Certificate Persistence** - Secure volume storage with auto-detection
+- **Audit Logging Compliance** - GDPR/SOX compliant comprehensive logging
+- **Session Security** - Concurrent session limits, fingerprinting, warnings
 
 ## Quick Security Checklist
 
@@ -253,7 +264,28 @@ The application uses `security_fixes/critical/file_upload_security.py`:
 - Only validated files are moved to final destination
 - Failed validations are logged and files deleted
 
-### Authentication
+### Authentication (Enhanced v1.2.0)
+
+**Token Refresh System:**
+```python
+# Dual-token authentication
+ACCESS_TOKEN_EXPIRE_MINUTES = 30  # Short-lived access token
+REFRESH_TOKEN_EXPIRE_DAYS = 7     # Long-lived refresh token
+
+# Automatic token refresh before expiry
+# Frontend handles refresh 5 minutes before expiration
+```
+
+**Session Management:**
+```python
+# Session limits and tracking
+MAX_CONCURRENT_SESSIONS = 3       # Per user limit
+SESSION_TIMEOUT_MINUTES = 30      # Inactivity timeout
+SESSION_WARNING_MINUTES = 5       # Warning before expiry
+
+# Session fingerprinting
+SESSION_FINGERPRINT = hash(IP + User_Agent + Device_ID)
+```
 
 **Strong Password Policy:**
 ```python
@@ -264,6 +296,18 @@ REQUIRE_LOWERCASE = True
 REQUIRE_NUMBERS = True
 REQUIRE_SPECIAL = True
 MAX_AGE_DAYS = 90
+```
+
+**Structured Error Responses:**
+```json
+// New standardized 401 response format
+{
+  "error": "authentication_expired",
+  "message": "Your session has expired. Please log in again.",
+  "error_code": "TOKEN_EXPIRED",
+  "timestamp": "2024-01-01T10:00:00Z",
+  "redirect_to": "/login"
+}
 ```
 
 **Password Hashing:**
@@ -438,7 +482,28 @@ ROLES = {
 }
 ```
 
-### API Security
+### API Security (Enhanced v1.2.0)
+
+**Data Export Security:**
+```python
+# Permission-based access control
+@require_permission(Permission.DATA_EXPORT)
+async def export_data(user: User = Depends(get_current_user)):
+    # User ownership validation
+    if user.role != "admin" and export.user_id != user.id:
+        raise HTTPException(403, "Access denied")
+    
+    # Rate limiting: 10 exports per hour
+    if get_export_count(user.id, last_hour=True) >= 10:
+        raise HTTPException(429, "Export rate limit exceeded")
+    
+    # Comprehensive audit logging
+    log_audit_event(
+        event_type=AuditEventType.DATA_EXPORT,
+        user_id=user.id,
+        details={"devices": devices, "format": format}
+    )
+```
 
 **Rate Limiting:**
 ```python
@@ -450,9 +515,16 @@ limiter = Limiter(
     default_limits=["100 per minute", "1000 per hour"]
 )
 
+# Endpoint-specific limits
 @app.get("/api/devices")
 @limiter.limit("10 per minute")
 async def get_devices():
+    pass
+
+# Export-specific limits
+@app.post("/api/exports/create")
+@limiter.limit("10 per hour")  # Export rate limit
+async def create_export():
     pass
 ```
 
@@ -536,26 +608,72 @@ services:
       - jwt_secret
 ```
 
-## Monitoring & Auditing
+## Monitoring & Auditing (Enhanced v1.2.0)
 
-### Audit Logging
+### Comprehensive Audit Logging
 
-**Application Logs:**
+**GDPR/SOX Compliant Logging:**
 ```python
-import logging
+from enum import Enum
 from datetime import datetime
 
+class AuditEventType(Enum):
+    # Authentication events
+    LOGIN_SUCCESS = "login_success"
+    LOGIN_FAILURE = "login_failure"
+    LOGOUT = "logout"
+    TOKEN_REFRESH = "token_refresh"
+    SESSION_EXPIRED = "session_expired"
+    
+    # Data export events
+    DATA_EXPORT = "data_export"
+    DATA_EXPORTED = "data_exported"
+    DATA_DELETED = "data_deleted"
+    EXPORT_DOWNLOADED = "export_downloaded"
+    
+    # Security events
+    PERMISSION_DENIED = "permission_denied"
+    RATE_LIMIT_EXCEEDED = "rate_limit_exceeded"
+    SUSPICIOUS_ACTIVITY = "suspicious_activity"
+
 class AuditLogger:
-    def log_action(self, user, action, resource, details=None):
+    def log_event(self, event_type: AuditEventType, user_id: int, 
+                  severity: str, details: dict):
         log_entry = {
-            'timestamp': datetime.utcnow(),
-            'user': user,
-            'action': action,
-            'resource': resource,
+            'timestamp': datetime.utcnow().isoformat(),
+            'event_type': event_type.value,
+            'user_id': user_id,
+            'severity': severity,  # INFO, WARNING, ERROR, CRITICAL
             'details': details,
-            'ip_address': request.remote_addr
+            'ip_address': request.remote_addr,
+            'user_agent': request.headers.get('User-Agent'),
+            'session_id': session.get('session_id'),
+            'checksum': self.calculate_checksum()  # Tamper-evident
         }
+        
+        # Store in database for compliance
+        db.audit_logs.insert(log_entry)
+        
+        # Also write to file for backup
         logging.info(f"AUDIT: {json.dumps(log_entry)}")
+```
+
+**Export Activity Tracking:**
+```python
+# All export operations are logged
+await log_audit_event(
+    event_type=AuditEventType.DATA_EXPORT,
+    user_id=user.id,
+    severity="INFO",
+    details={
+        "export_id": export_id,
+        "devices": devices,
+        "date_range": date_range,
+        "format": format,
+        "records_count": count,
+        "file_size": size
+    }
+)
 ```
 
 ### Intrusion Detection
@@ -660,7 +778,7 @@ If you discover a security vulnerability:
 - **Fix timeline**: Based on severity
 - **Disclosure**: After patch released
 
-## Compliance
+## Compliance (Enhanced v1.2.0)
 
 ### Standards
 
@@ -668,13 +786,53 @@ If you discover a security vulnerability:
 - CIS Docker Benchmark
 - NIST Cybersecurity Framework
 - ISO 27001 principles
+- **GDPR Article 30** - Records of processing activities
+- **SOX Section 404** - Internal control assessment
 
-### Privacy
+### Privacy & Data Protection
 
-- GDPR compliance (EU)
-- CCPA compliance (California)
-- Data minimization
-- Right to deletion
+**GDPR Compliance:**
+- Right to data portability (export personal data)
+- Comprehensive audit trail of all data access
+- User consent tracking and management
+- Data anonymization options in exports
+- Retention policies with automatic deletion
+- User ownership validation on all exports
+
+**SOX Compliance:**
+- Tamper-evident audit logging with checksums
+- Complete user identity tracking
+- Data access authorization controls
+- Change management documentation
+- Segregation of duties (role-based access)
+- Regular compliance reporting
+
+### Data Export Compliance
+
+```python
+# GDPR-compliant export with audit trail
+@require_permission(Permission.DATA_EXPORT)
+async def export_user_data(user_id: int):
+    # Log data access for GDPR Article 30
+    await log_audit_event(
+        event_type=AuditEventType.DATA_EXPORT,
+        user_id=user_id,
+        severity="INFO",
+        details={
+            "purpose": "User data portability request",
+            "lawful_basis": "User consent",
+            "data_categories": ["device_data", "energy_usage"],
+            "retention_days": 7
+        }
+    )
+    
+    # Export with privacy options
+    return export_with_privacy_options(
+        user_id=user_id,
+        anonymize_ip=True,
+        exclude_sensitive=True
+    )
+```
 
 ## Related Pages
 
@@ -692,7 +850,7 @@ If you discover a security vulnerability:
 
 ---
 
-**Document Version:** 1.1.0  
-**Last Updated:** 2025-08-20  
+**Document Version:** 2.0.0  
+**Last Updated:** 2025-08-26  
 **Review Status:** Current  
-**Change Summary:** Added JWT secret management, CORS security, file upload security, and database credential security sections
+**Change Summary:** Major update with v1.2.0 security enhancements including data export security, authentication improvements, session management, comprehensive audit logging, and GDPR/SOX compliance features

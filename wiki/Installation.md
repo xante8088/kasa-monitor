@@ -38,6 +38,31 @@ docker run -d \
 
 Access at: `http://localhost:3000`
 
+### Docker Compose with SSL Persistence (v1.2.0)
+
+```yaml
+version: '3.8'
+
+services:
+  kasa-monitor:
+    image: xante8088/kasa-monitor:latest
+    ports:
+      - "443:443"      # HTTPS
+      - "80:3000"      # HTTP (redirects to HTTPS)
+      - "5272:5272"    # API
+    volumes:
+      - kasa_data:/app/data
+      - kasa_ssl:/app/ssl      # SSL certificate persistence
+    environment:
+      - SSL_ENABLED=true
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}  # Required for production
+      - ENVIRONMENT=production
+
+volumes:
+  kasa_data:
+  kasa_ssl:  # Persistent SSL storage
+```
+
 ### Docker Compose Options
 
 #### Option 1: Bridge Network (Most Secure)
@@ -83,6 +108,27 @@ See [Network Configuration](Network-Configuration) for detailed setup.
 environment:
   # Security (REQUIRED FOR PRODUCTION)
   - JWT_SECRET_KEY=CHANGE_ME_TO_SECURE_256_BIT_KEY  # Generate with: openssl rand -base64 32
+  - ENVIRONMENT=production  # Enable strict security
+  
+  # Authentication & Sessions (v1.2.0)
+  - ACCESS_TOKEN_EXPIRE_MINUTES=30
+  - REFRESH_TOKEN_EXPIRE_DAYS=7
+  - MAX_CONCURRENT_SESSIONS=3
+  - SESSION_TIMEOUT_MINUTES=30
+  - SESSION_WARNING_MINUTES=5
+  
+  # SSL Configuration (v1.2.0)
+  - SSL_ENABLED=true
+  - SSL_CERT_PATH=/app/ssl/certificate.crt
+  - SSL_KEY_PATH=/app/ssl/private.key
+  - SSL_REDIRECT_HTTP=true
+  - SSL_HSTS_ENABLED=true
+  
+  # Data Export Security (v1.2.0)
+  - EXPORT_RATE_LIMIT=10  # Per hour per user
+  - EXPORT_RETENTION_DAYS=7
+  - EXPORT_REQUIRE_PERMISSION=true
+  - EXPORT_AUDIT_LOGGING=true
   
   # Database
   - SQLITE_PATH=/app/data/kasa_monitor.db
@@ -277,6 +323,45 @@ services:
 ```
 
 ## Post-Installation
+
+### Initial Security Setup (v1.2.0)
+
+1. **Generate Secure JWT Secret:**
+   ```bash
+   # Generate and save to .env file
+   echo "JWT_SECRET_KEY=$(openssl rand -base64 32)" >> .env
+   ```
+
+2. **Configure SSL Certificate:**
+   - Access admin panel: `https://localhost/admin/system`
+   - Navigate to SSL/TLS Settings
+   - Upload certificate and private key
+   - Or use Let's Encrypt for automatic certificates
+
+3. **Set Up User Permissions:**
+   ```bash
+   # Grant data export permission to users
+   docker exec kasa-monitor sqlite3 /app/data/kasa_monitor.db \
+     "INSERT INTO user_permissions (user_id, permission_id) \
+      SELECT u.id, p.id FROM users u, permissions p \
+      WHERE u.username='operator' AND p.name='DATA_EXPORT';"
+   ```
+
+4. **Configure Export Retention:**
+   ```bash
+   # Set retention policies
+   docker exec kasa-monitor python3 -c "
+   from export_retention_config import configure_retention
+   configure_retention(device_data_days=7, audit_logs_days=30)
+   "
+   ```
+
+5. **Verify Security Status:**
+   ```bash
+   # Check authentication security
+   curl -H "Authorization: Bearer $TOKEN" \
+     https://localhost:5272/api/auth/security-status
+   ```
 
 ### 1. Initial Setup
 

@@ -4,7 +4,14 @@ Comprehensive data export and analysis system for Kasa Monitor device and energy
 
 ## Overview
 
-The Data Export System provides powerful tools for exporting, analyzing, and sharing your energy monitoring data. Export device readings, cost analysis, and system reports in multiple formats for external analysis, compliance reporting, or data backup.
+The Data Export System provides powerful, secure tools for exporting, analyzing, and sharing your energy monitoring data. Export device readings, cost analysis, and system reports in multiple formats for external analysis, compliance reporting, or data backup.
+
+**Security Enhancements (v1.2.0):**
+- Permission-based access control (DATA_EXPORT permission required)
+- User ownership validation (users can only access their own exports)
+- Comprehensive audit logging for GDPR/SOX compliance
+- Rate limiting (10 exports per hour per user)
+- Automated retention policies and cleanup
 
 ```
 ┌─────────────────────────────────────┐
@@ -60,6 +67,40 @@ Content-Type: application/json
 GET /api/exports/download/{export_id}
 Authorization: Bearer {token}
 ```
+
+## Security & Permissions
+
+### Required Permissions
+
+All export endpoints require the `DATA_EXPORT` permission:
+
+```http
+Authorization: Bearer {token_with_data_export_permission}
+```
+
+### User Ownership
+
+- **Regular Users:** Can only view and download their own exports
+- **Admin Users:** Can access all exports across the system
+- **Ownership Validation:** Automatic 403 Forbidden for unauthorized access attempts
+
+### Rate Limiting
+
+- **Limit:** 10 exports per hour per user
+- **Response:** HTTP 429 when limit exceeded
+- **Reset:** Rolling hour window
+
+### Audit Logging
+
+All export operations are logged for compliance:
+
+| Operation | Event Type | Severity | Details Logged |
+|-----------|-----------|----------|----------------|
+| Export Created | DATA_EXPORT | INFO | Devices, date range, format, user |
+| Export Downloaded | DATA_EXPORTED | INFO | Filename, size, format, user |
+| Export Deleted | DATA_DELETED | INFO | Export ID, filename, user |
+| Permission Denied | PERMISSION_DENIED | WARNING | User ID, attempted export |
+| Rate Limit Exceeded | RATE_LIMIT_EXCEEDED | WARNING | User ID, export count |
 
 ## API Endpoints
 
@@ -236,7 +277,11 @@ Authorization: Bearer {token}
       "status": "completed",
       "created_at": "2024-01-15T10:30:00Z",
       "file_size": 1024000,
-      "record_count": 744
+      "record_count": 744,
+      "user_id": 1,
+      "username": "admin",
+      "retention_days": 7,
+      "expires_at": "2024-01-22T10:30:00Z"
     }
   ],
   "total": 25,
@@ -244,6 +289,26 @@ Authorization: Bearer {token}
   "per_page": 10
 }
 ```
+
+**Note:** Regular users only see their own exports. Admins see all exports.
+
+### Delete Export
+
+```http
+DELETE /api/exports/{export_id}
+Authorization: Bearer {token}
+```
+
+**Response:**
+```json
+{
+  "message": "Export deleted successfully",
+  "export_id": "export_12345",
+  "deleted_at": "2024-01-15T11:00:00Z"
+}
+```
+
+**Note:** Users can only delete their own exports unless they have admin role.
 
 ## Export Types
 
@@ -476,6 +541,37 @@ Authorization: Bearer {token}
 
 ### Common Error Responses
 
+**Permission Denied:**
+```json
+{
+  "detail": "Permission denied",
+  "error_code": "PERMISSION_DENIED",
+  "message": "You don't have permission to perform data exports",
+  "required_permission": "DATA_EXPORT"
+}
+```
+
+**Access Denied (Ownership):**
+```json
+{
+  "detail": "Access denied",
+  "error_code": "ACCESS_DENIED",
+  "message": "You don't have access to this export",
+  "export_owner": "other_user"
+}
+```
+
+**Rate Limit Exceeded:**
+```json
+{
+  "detail": "Rate limit exceeded",
+  "error_code": "RATE_LIMIT_EXCEEDED",
+  "message": "Export rate limit exceeded. Please try again later.",
+  "limit": "10 per hour",
+  "retry_after": "2024-01-15T11:30:00Z"
+}
+```
+
 **Invalid date range:**
 ```json
 {
@@ -490,7 +586,7 @@ Authorization: Bearer {token}
 {
   "detail": "Export not found",
   "error_code": "EXPORT_NOT_FOUND",
-  "message": "Export with ID 'export_12345' does not exist"
+  "message": "Export with ID 'export_12345' does not exist or you don't have access"
 }
 ```
 
@@ -499,7 +595,8 @@ Authorization: Bearer {token}
 {
   "detail": "Export expired",
   "error_code": "EXPORT_EXPIRED",
-  "message": "Export file has expired and is no longer available"
+  "message": "Export file has expired and is no longer available",
+  "expired_at": "2024-01-22T10:30:00Z"
 }
 ```
 
@@ -507,10 +604,53 @@ Authorization: Bearer {token}
 
 ### Data Access Control
 
-- **User-based filtering** - Users only see their own devices
-- **Role-based access** - Different export capabilities by role
-- **Audit logging** - All export activities are logged
-- **Temporary files** - Export files auto-delete after 7 days
+- **Permission-based access** - Requires DATA_EXPORT permission
+- **User ownership validation** - Users can only access their own exports
+- **Admin override** - Admins can access all exports
+- **Comprehensive audit logging** - GDPR/SOX compliant activity tracking
+- **Rate limiting** - Prevents abuse with 10 exports/hour limit
+
+### Export Retention Policies
+
+**Automated Cleanup System:**
+```json
+{
+  "retention_policies": [
+    {
+      "export_type": "device_data",
+      "retention_days": 7,
+      "auto_delete": true
+    },
+    {
+      "export_type": "audit_logs",
+      "retention_days": 30,
+      "auto_delete": true,
+      "compliance_hold": true
+    },
+    {
+      "export_type": "system_report",
+      "retention_days": 90,
+      "auto_delete": false
+    }
+  ],
+  "cleanup_schedule": "0 2 * * *",  // Daily at 2 AM
+  "notification_before_deletion": 24  // Hours
+}
+```
+
+### Compliance Features
+
+**GDPR Compliance:**
+- Right to data portability (export personal data)
+- Audit trail of all data access
+- User consent tracking
+- Data anonymization options
+
+**SOX Compliance:**
+- Tamper-evident audit logs
+- User authentication tracking
+- Data integrity validation
+- Change management records
 
 ### Data Privacy
 
@@ -722,22 +862,100 @@ async function exportData() {
 - [Cost Analysis](Cost-Analysis) - Cost calculation details
 - [Device Management](Device-Management) - Device data structure
 
+## Frontend Integration
+
+### Data Export Modal
+
+The Data Export Modal is now integrated into the main UI with permission checks:
+
+```typescript
+// DataExportModal component usage
+import { DataExportModal } from '@/components/data-export-modal';
+
+function DeviceCard({ device }) {
+  const [showExportModal, setShowExportModal] = useState(false);
+  const { user } = useAuth();
+  
+  // Check if user has export permission
+  const canExport = user?.permissions?.includes('DATA_EXPORT');
+  
+  return (
+    <>
+      {canExport && (
+        <Button 
+          onClick={() => setShowExportModal(true)}
+          icon={<DownloadIcon />}
+        >
+          Export Data
+        </Button>
+      )}
+      
+      {showExportModal && (
+        <DataExportModal
+          device={device}
+          onClose={() => setShowExportModal(false)}
+          onExport={handleExport}
+        />
+      )}
+    </>
+  );
+}
+```
+
+### Device-Specific Exports
+
+Export data for individual devices directly from the device card:
+
+```javascript
+async function exportDeviceData(deviceId, dateRange, format) {
+  const response = await apiClient.post('/api/exports/create', {
+    export_type: 'device_data',
+    devices: [deviceId],
+    date_range: dateRange,
+    format: format
+  });
+  
+  // Handle rate limiting
+  if (response.status === 429) {
+    const retryAfter = response.headers['retry-after'];
+    showNotification(`Export limit reached. Try again in ${retryAfter} seconds.`);
+    return;
+  }
+  
+  // Monitor export progress
+  const exportId = response.data.export_id;
+  await monitorExportProgress(exportId);
+}
+```
+
 ## Implementation Notes
 
-The Data Export System is a fully implemented feature that provides:
+The Data Export System has been significantly enhanced in v1.2.0 with:
 
-- **Real-time export processing** with background job support
-- **Multiple format support** including CSV, JSON, Excel, and PDF
-- **Flexible filtering and aggregation** options
-- **Security and privacy controls** with user-based access
-- **Integration-friendly APIs** for external systems
-- **Performance optimization** for large datasets
+### Security Enhancements
+- **Permission-based access control** - All endpoints require DATA_EXPORT permission
+- **User ownership validation** - Prevents unauthorized access to exports
+- **Comprehensive audit logging** - GDPR/SOX compliance with detailed activity tracking
+- **Rate limiting** - Prevents abuse with configurable limits
+- **Secure file handling** - Atomic operations with proper error handling
 
-All exports are tracked through audit logging and include automatic cleanup of temporary files.
+### UI Integration
+- **DataExportModal component** - Integrated into main UI with permission checks
+- **Device-specific exports** - Export individual device data from device cards
+- **Export history view** - Track and manage previous exports
+- **Progress indicators** - Real-time export status updates
+
+### Backend Improvements
+- **Database schema updates** - Added user_id column for ownership tracking
+- **Export retention system** - Automated cleanup with configurable policies
+- **Enhanced error handling** - Structured error responses for better UX
+- **Performance optimization** - Efficient processing of large datasets
+
+All exports are now tracked with user ownership, validated for permissions, logged for compliance, and automatically cleaned up based on retention policies.
 
 ---
 
-**Document Version:** 1.0.0  
-**Last Updated:** 2025-08-20  
+**Document Version:** 2.0.0  
+**Last Updated:** 2025-08-26  
 **Review Status:** Current  
-**Change Summary:** Initial version tracking added
+**Change Summary:** Updated with v1.2.0 security enhancements including permission enforcement, user ownership validation, audit logging, rate limiting, and retention policies

@@ -7,11 +7,11 @@ Complete REST API reference for Kasa Monitor.
 http://localhost:5272/api
 ```
 
-## Authentication
+## Authentication (Enhanced v1.2.0)
 
-Most endpoints require JWT authentication. The application uses secure JWT secret management with rotation support.
+Most endpoints require JWT authentication with dual-token system (access + refresh tokens). The application uses secure JWT secret management with rotation support.
 
-### Get Token
+### Login
 ```http
 POST /api/auth/login
 Content-Type: application/json
@@ -25,13 +25,45 @@ Content-Type: application/json
 **Response:**
 ```json
 {
-  "access_token": "jwt_token_example_not_real_do_not_use_in_production",
+  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+  "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+  "token_type": "bearer",
+  "expires_in": 1800,
   "user": {
     "id": 1,
     "username": "admin",
     "email": "admin@example.com",
     "role": "admin",
     "permissions": ["all"]
+  },
+  "session": {
+    "session_id": "sess_abc123",
+    "created_at": "2024-01-01T10:00:00Z",
+    "expires_at": "2024-01-01T10:30:00Z"
+  }
+}
+```
+
+### Refresh Token (New v1.2.0)
+```http
+POST /api/auth/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGc..."
+}
+```
+
+**Response:**
+```json
+{
+  "access_token": "new_access_token",
+  "refresh_token": "new_refresh_token",
+  "token_type": "bearer",
+  "expires_in": 1800,
+  "user": {
+    "username": "admin",
+    "role": "admin"
   }
 }
 ```
@@ -75,6 +107,103 @@ Authorization: Bearer {token}
 ```http
 POST /api/auth/logout
 Authorization: Bearer {token}
+```
+
+**Response:**
+```json
+{
+  "message": "Logged out successfully",
+  "sessions_terminated": 1
+}
+```
+
+#### Get Active Sessions (New v1.2.0)
+```http
+GET /api/auth/sessions
+Authorization: Bearer {token}
+```
+
+**Response:**
+```json
+{
+  "sessions": [
+    {
+      "session_id": "sess_abc123",
+      "ip_address": "192.168.1.100",
+      "user_agent": "Mozilla/5.0...",
+      "created_at": "2024-01-01T10:00:00Z",
+      "last_activity": "2024-01-01T10:25:00Z",
+      "expires_at": "2024-01-01T10:30:00Z",
+      "is_current": true
+    }
+  ],
+  "total": 2,
+  "max_allowed": 3
+}
+```
+
+#### Terminate Session (New v1.2.0)
+```http
+DELETE /api/auth/sessions/{session_id}
+Authorization: Bearer {token}
+```
+
+#### Security Status (New v1.2.0)
+```http
+GET /api/auth/security-status
+Authorization: Bearer {admin_token}
+```
+
+**Response:**
+```json
+{
+  "jwt_configuration": {
+    "algorithm": "HS256",
+    "access_token_expire_minutes": 30,
+    "refresh_token_expire_days": 7
+  },
+  "security_features": {
+    "token_refresh_enabled": true,
+    "session_management_available": true,
+    "audit_logging_enabled": true,
+    "structured_error_responses": true
+  }
+}
+```
+
+### Error Responses (New v1.2.0)
+
+All authentication errors now return structured JSON:
+
+**401 Unauthorized:**
+```json
+{
+  "error": "authentication_expired",
+  "message": "Your session has expired. Please log in again.",
+  "error_code": "TOKEN_EXPIRED",
+  "timestamp": "2024-01-01T10:00:00Z",
+  "redirect_to": "/login"
+}
+```
+
+**403 Forbidden:**
+```json
+{
+  "error": "authorization_failed",
+  "message": "You don't have permission to access this resource",
+  "error_code": "INSUFFICIENT_PERMISSIONS",
+  "required_permission": "ADMIN_ACCESS"
+}
+```
+
+**429 Rate Limited:**
+```json
+{
+  "error": "rate_limit_exceeded",
+  "message": "Too many requests. Please try again later.",
+  "retry_after": 60,
+  "limit": "10 per hour"
+}
 ```
 
 ### Device Management
@@ -424,77 +553,301 @@ GET /api/settings/network
 }
 ```
 
-### Data Export
+### Data Export (Enhanced Security v1.2.0)
+
+**Required Permission:** `DATA_EXPORT`  
+**Rate Limit:** 10 exports per hour per user  
+**Audit Logging:** All operations logged for compliance  
+**User Ownership:** Users can only access their own exports (admin override available)
 
 #### Get Export Formats
 ```http
 GET /api/exports/formats
+Authorization: Bearer {token_with_data_export_permission}
 ```
 
 **Response:**
 ```json
-[
-  {
-    "format": "csv",
-    "description": "Comma-separated values",
-    "extensions": [".csv"]
-  },
-  {
-    "format": "json",
-    "description": "JSON format",
-    "extensions": [".json"]
-  },
-  {
-    "format": "excel",
-    "description": "Excel spreadsheet",
-    "extensions": [".xlsx"]
-  }
-]
+{
+  "formats": [
+    {
+      "id": "csv",
+      "name": "CSV",
+      "description": "Comma-separated values",
+      "mime_type": "text/csv",
+      "extension": ".csv"
+    },
+    {
+      "id": "json",
+      "name": "JSON",
+      "description": "JavaScript Object Notation",
+      "mime_type": "application/json",
+      "extension": ".json"
+    },
+    {
+      "id": "excel",
+      "name": "Excel",
+      "description": "Microsoft Excel workbook",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "extension": ".xlsx"
+    }
+  ]
+}
 ```
 
 #### Get Available Devices for Export
 ```http
 GET /api/exports/devices
+Authorization: Bearer {token_with_data_export_permission}
+```
+
+**Response:**
+```json
+{
+  "devices": [
+    {
+      "device_ip": "192.168.1.100",
+      "device_name": "Living Room Lamp",
+      "device_type": "plug",
+      "last_seen": "2024-01-15T10:30:00Z",
+      "data_points": 8760
+    }
+  ]
+}
 ```
 
 #### Get Available Metrics
 ```http
 GET /api/exports/metrics
+Authorization: Bearer {token_with_data_export_permission}
+```
+
+**Response:**
+```json
+{
+  "metrics": [
+    {
+      "field": "power_w",
+      "name": "Power (Watts)",
+      "description": "Instantaneous power consumption",
+      "data_type": "float",
+      "unit": "W"
+    },
+    {
+      "field": "energy_kwh",
+      "name": "Energy (kWh)",
+      "description": "Cumulative energy consumption",
+      "data_type": "float",
+      "unit": "kWh"
+    },
+    {
+      "field": "cost",
+      "name": "Cost",
+      "description": "Calculated energy cost",
+      "data_type": "float",
+      "unit": "currency"
+    }
+  ]
+}
 ```
 
 #### Create Export
 ```http
 POST /api/exports/create
+Authorization: Bearer {token_with_data_export_permission}
 Content-Type: application/json
 
 {
+  "export_type": "device_data",
   "devices": ["192.168.1.100", "192.168.1.101"],
   "date_range": {
-    "start": "2024-01-01",
-    "end": "2024-01-31"
+    "start": "2024-01-01T00:00:00Z",
+    "end": "2024-01-31T23:59:59Z"
   },
   "format": "csv",
+  "fields": ["timestamp", "power_w", "energy_kwh", "cost"],
   "aggregation": "hourly",
-  "metrics": ["power", "energy", "cost"]
+  "options": {
+    "include_headers": true,
+    "timezone": "America/New_York"
+  }
 }
 ```
 
+**Response:**
+```json
+{
+  "export_id": "export_12345",
+  "status": "queued",
+  "created_at": "2024-01-15T10:30:00Z",
+  "user_id": 1,
+  "estimated_completion": "2024-01-15T10:32:00Z",
+  "download_url": "/api/exports/download/export_12345"
+}
+```
+
+#### Get Export Status
+```http
+GET /api/exports/{export_id}
+Authorization: Bearer {token}
+```
+
+**Response:**
+```json
+{
+  "export_id": "export_12345",
+  "status": "completed",
+  "progress": 100,
+  "created_at": "2024-01-15T10:30:00Z",
+  "completed_at": "2024-01-15T10:31:45Z",
+  "user_id": 1,
+  "file_size": 1024000,
+  "record_count": 744,
+  "download_url": "/api/exports/download/export_12345",
+  "expires_at": "2024-01-22T10:31:45Z"
+}
+```
+
+**Security Note:** Users can only access their own exports unless they have admin role.
+
 #### Get Export History
 ```http
-GET /api/exports/history?limit=50
+GET /api/exports/history?limit=50&offset=0
+Authorization: Bearer {token}
 ```
+
+**Response:**
+```json
+{
+  "exports": [
+    {
+      "export_id": "export_12345",
+      "export_type": "device_data",
+      "format": "csv",
+      "status": "completed",
+      "created_at": "2024-01-15T10:30:00Z",
+      "user_id": 1,
+      "username": "admin",
+      "file_size": 1024000,
+      "record_count": 744,
+      "retention_days": 7,
+      "expires_at": "2024-01-22T10:30:00Z"
+    }
+  ],
+  "total": 25,
+  "page": 1,
+  "per_page": 50
+}
+```
+
+**Security Note:** Regular users only see their own exports.
 
 #### Download Export
 ```http
 GET /api/exports/download/{export_id}
+Authorization: Bearer {token}
 ```
+
+**Security:** Validates user ownership before download.
 
 #### Delete Export
 ```http
 DELETE /api/exports/{export_id}
+Authorization: Bearer {token}
 ```
 
-### SSL Certificate Management
+**Response:**
+```json
+{
+  "message": "Export deleted successfully",
+  "export_id": "export_12345",
+  "deleted_at": "2024-01-15T11:00:00Z"
+}
+```
+
+**Security:** Users can only delete their own exports.
+
+#### Preview Export Data
+```http
+GET /api/exports/preview?export_type=device_data&devices=192.168.1.100&limit=5
+Authorization: Bearer {token_with_data_export_permission}
+```
+
+**Response:**
+```json
+{
+  "preview": [
+    {
+      "timestamp": "2024-01-15T10:00:00Z",
+      "device_ip": "192.168.1.100",
+      "device_name": "Living Room Lamp",
+      "power_w": 45.2,
+      "energy_kwh": 0.045,
+      "cost": 0.005
+    }
+  ],
+  "total_records": 8760,
+  "estimated_file_size": "2.1 MB"
+}
+```
+
+#### Get Export Statistics
+```http
+GET /api/exports/stats
+Authorization: Bearer {token}
+```
+
+**Response:**
+```json
+{
+  "total_exports": 156,
+  "exports_this_month": 23,
+  "total_data_exported": "450.2 MB",
+  "most_popular_format": "csv",
+  "user_exports_remaining": 7
+}
+```
+
+### Export Error Responses
+
+**Permission Denied (403):**
+```json
+{
+  "detail": "Permission denied",
+  "error_code": "PERMISSION_DENIED",
+  "message": "You don't have permission to perform data exports",
+  "required_permission": "DATA_EXPORT"
+}
+```
+
+**Access Denied - Ownership (403):**
+```json
+{
+  "detail": "Access denied to export",
+  "error_code": "ACCESS_DENIED",
+  "message": "You don't have access to this export",
+  "export_owner": "other_user"
+}
+```
+
+**Rate Limit Exceeded (429):**
+```json
+{
+  "detail": "Export rate limit exceeded",
+  "error_code": "RATE_LIMIT_EXCEEDED",
+  "message": "Export rate limit exceeded. Please try again later.",
+  "limit": "10 per hour",
+  "retry_after": "2024-01-15T11:30:00Z"
+}
+```
+
+### SSL Certificate Management (Enhanced v1.2.0)
+
+**New Features:**
+- Persistent storage across Docker restarts
+- Automatic certificate detection and loading
+- Database path storage for persistence
+- Cross-device link error fixed
 
 #### Get SSL Files
 ```http
@@ -895,7 +1248,9 @@ Future versions will use `/api/v2/` format.
 
 ---
 
-**Document Version:** 1.1.0  
-**Last Updated:** 2025-08-20  
+**Document Version:** 2.0.0  
+**Last Updated:** 2025-08-26  
+**Review Status:** Current  
+**Change Summary:** Major update with v1.2.0 security enhancements including authentication improvements, data export security, SSL persistence, and structured error responses  
 **Review Status:** Current  
 **Change Summary:** Added security notes for file uploads, CORS policy, and JWT authentication updates
