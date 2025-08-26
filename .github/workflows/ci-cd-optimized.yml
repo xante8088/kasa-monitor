@@ -7,6 +7,12 @@ on:
   push:
     branches: [main]  # ONLY main branch
 
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  actions: read
+
 env:
   PYTHON_VERSION: '3.9'
   NODE_VERSION: '20'
@@ -52,10 +58,33 @@ jobs:
         
     - name: Semantic Release (Dry Run)
       id: semantic-dry
+      continue-on-error: true
       run: |
-        npx semantic-release --dry-run
-        echo "will-release=${{ steps.semantic-dry.outputs.new-release-published }}" >> $GITHUB_OUTPUT
-        echo "next-version=${{ steps.semantic-dry.outputs.new-release-version }}" >> $GITHUB_OUTPUT
+        # Configure git for semantic-release
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        
+        # Check for conventional commits to determine if release is needed
+        LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        if [ -z "$LAST_TAG" ]; then
+          COMMIT_RANGE="HEAD"
+        else
+          COMMIT_RANGE="$LAST_TAG..HEAD"
+        fi
+        
+        # Check commit messages for conventional commit patterns
+        FEAT_COMMITS=$(git log --oneline $COMMIT_RANGE | grep -E "^[a-f0-9]+ (feat|fix|perf)(\(.+\))?!?:" | wc -l || true)
+        BREAKING_COMMITS=$(git log --oneline $COMMIT_RANGE | grep -E "^[a-f0-9]+ .+!:" | wc -l || true)
+        
+        if [ "$FEAT_COMMITS" -gt 0 ] || [ "$BREAKING_COMMITS" -gt 0 ]; then
+          echo "will-release=true" >> $GITHUB_OUTPUT
+          echo "next-version=pending" >> $GITHUB_OUTPUT
+          echo "🎉 Release needed based on conventional commits"
+        else
+          echo "will-release=false" >> $GITHUB_OUTPUT
+          echo "next-version=" >> $GITHUB_OUTPUT
+          echo "ℹ️ No release needed"
+        fi
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
@@ -347,9 +376,18 @@ jobs:
     - name: Create Semantic Release
       id: semantic
       run: |
+        # Configure git for semantic-release
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        
+        # Run semantic-release
         npx semantic-release
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GIT_AUTHOR_NAME: "github-actions[bot]"
+        GIT_AUTHOR_EMAIL: "github-actions[bot]@users.noreply.github.com"
+        GIT_COMMITTER_NAME: "github-actions[bot]"
+        GIT_COMMITTER_EMAIL: "github-actions[bot]@users.noreply.github.com"
         
     - name: Release Results
       run: |
