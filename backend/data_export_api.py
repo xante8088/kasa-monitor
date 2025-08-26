@@ -28,6 +28,9 @@ from data_export_service import DataExportService, ExportRequest
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from auth import require_permission
+from models import Permission, User
+from audit_logging import AuditLogger, AuditEvent, AuditEventType, AuditSeverity
 
 
 class ExportRequestAPI(BaseModel):
@@ -48,18 +51,23 @@ class DataExportAPIRouter:
         self.app = app
         self.db_path = db_path
         self.export_service = DataExportService(db_path)
+        self.audit_logger = AuditLogger(db_path)
         self._setup_routes()
 
     def _setup_routes(self):
         """Setup API routes."""
 
         @self.app.get("/api/exports/formats")
-        async def get_export_formats():
+        async def get_export_formats(
+            user: User = Depends(require_permission(Permission.DATA_EXPORT))
+        ):
             """Get available export formats."""
             return self.export_service.get_available_formats()
 
         @self.app.get("/api/exports/devices")
-        async def get_available_devices():
+        async def get_available_devices(
+            user: User = Depends(require_permission(Permission.DATA_EXPORT))
+        ):
             """Get list of devices that have data for export."""
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
@@ -106,7 +114,9 @@ class DataExportAPIRouter:
                 conn.close()
 
         @self.app.get("/api/exports/metrics")
-        async def get_available_metrics():
+        async def get_available_metrics(
+            user: User = Depends(require_permission(Permission.DATA_EXPORT))
+        ):
             """Get available metrics for export."""
             return {
                 "metrics": [
@@ -145,11 +155,43 @@ class DataExportAPIRouter:
 
         @self.app.post("/api/exports/create")
         async def create_export(
-            request: ExportRequestAPI, background_tasks: BackgroundTasks
+            request: ExportRequestAPI, 
+            background_tasks: BackgroundTasks,
+            user: User = Depends(require_permission(Permission.DATA_EXPORT))
         ):
             """Create a new data export."""
+            
+            # Check rate limit for this user
+            await self._check_export_rate_limit(user.id)
+            
+            # Estimate record count for audit logging
+            estimated_count = await self._estimate_record_count(request.devices, request.date_range)
             try:
-                # Convert API request to service request
+                # Log export initiation
+                await self.audit_logger.log_event_async(AuditEvent(
+                    event_type=AuditEventType.DATA_EXPORT,
+                    severity=AuditSeverity.INFO,
+                    user_id=user.id,
+                    username=user.username,
+                    ip_address=None,  # TODO: Get from request context
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="data_export",
+                    resource_id=None,
+                    action="Data export initiated",
+                    details={
+                        "devices": request.devices,
+                        "date_range": request.date_range,
+                        "format": request.format,
+                        "aggregation": request.aggregation,
+                        "metrics": request.metrics,
+                        "estimated_records": estimated_count
+                    },
+                    timestamp=datetime.now(),
+                    success=True
+                ))
+
+                # Convert API request to service request with user context
                 export_request = ExportRequest(
                     devices=request.devices,
                     date_range=request.date_range,
@@ -164,7 +206,7 @@ class DataExportAPIRouter:
                 if self._is_large_export(export_request):
                     # Add to background tasks for large exports
                     background_tasks.add_task(
-                        self._process_large_export, export_request
+                        self._process_large_export, export_request, user.id
                     )
                     return {
                         "message": "Large export started in background",
@@ -172,7 +214,31 @@ class DataExportAPIRouter:
                     }
                 else:
                     # Process immediately for small exports
-                    result = await self.export_service.export_data(export_request)
+                    result = await self.export_service.export_data_with_user(export_request, user.id)
+                    
+                    # Log successful export completion
+                    await self.audit_logger.log_event_async(AuditEvent(
+                        event_type=AuditEventType.DATA_EXPORTED,
+                        severity=AuditSeverity.INFO,
+                        user_id=user.id,
+                        username=user.username,
+                        ip_address=None,
+                        user_agent=None,
+                        session_id=None,
+                        resource_type="data_export",
+                        resource_id=result.export_id,
+                        action="Export completed successfully",
+                        details={
+                            "export_id": result.export_id,
+                            "filename": result.filename,
+                            "file_size": result.file_size,
+                            "records_count": result.records_count,
+                            "format": result.format
+                        },
+                        timestamp=datetime.now(),
+                        success=True
+                    ))
+                    
                     return {
                         "export_id": result.export_id,
                         "filename": result.filename,
@@ -183,15 +249,56 @@ class DataExportAPIRouter:
                     }
 
             except ValueError as e:
+                # Log validation error
+                await self.audit_logger.log_event_async(AuditEvent(
+                    event_type=AuditEventType.SYSTEM_ERROR,
+                    severity=AuditSeverity.WARNING,
+                    user_id=user.id,
+                    username=user.username,
+                    ip_address=None,
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="data_export",
+                    resource_id=None,
+                    action="Export validation failed",
+                    details={"error": str(e)},
+                    timestamp=datetime.now(),
+                    success=False,
+                    error_message=str(e)
+                ))
                 raise HTTPException(status_code=400, detail=str(e))
             except Exception as e:
+                # Log system error
+                await self.audit_logger.log_event_async(AuditEvent(
+                    event_type=AuditEventType.SYSTEM_ERROR,
+                    severity=AuditSeverity.ERROR,
+                    user_id=user.id,
+                    username=user.username,
+                    ip_address=None,
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="data_export",
+                    resource_id=None,
+                    action="Export failed",
+                    details={"error": str(e)},
+                    timestamp=datetime.now(),
+                    success=False,
+                    error_message=str(e)
+                ))
                 raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
 
         @self.app.get("/api/exports/history")
-        async def get_export_history(limit: int = 50):
-            """Get export history."""
+        async def get_export_history(
+            limit: int = 50,
+            user: User = Depends(require_permission(Permission.DATA_EXPORT))
+        ):
+            """Get export history for the current user."""
             try:
-                history = await self.export_service.get_export_history(limit)
+                # Get history filtered by user ownership (unless admin)
+                history = await self.export_service.get_export_history_for_user(
+                    user_id=user.id if user.role.value != "admin" else None,
+                    limit=limit
+                )
                 return {"exports": history}
             except Exception as e:
                 raise HTTPException(
@@ -199,12 +306,20 @@ class DataExportAPIRouter:
                 )
 
         @self.app.get("/api/exports/{export_id}")
-        async def get_export_details(export_id: str):
+        async def get_export_details(
+            export_id: str,
+            user: User = Depends(require_permission(Permission.DATA_EXPORT))
+        ):
             """Get export details by ID."""
             try:
                 export = await self.export_service.get_export_by_id(export_id)
                 if not export:
                     raise HTTPException(status_code=404, detail="Export not found")
+                
+                # Validate ownership (unless admin)
+                if user.role.value != "admin" and export.get("user_id") != user.id:
+                    raise HTTPException(status_code=403, detail="Access denied to export")
+                
                 return export
             except HTTPException:
                 raise
@@ -214,16 +329,66 @@ class DataExportAPIRouter:
                 )
 
         @self.app.get("/api/exports/download/{export_id}")
-        async def download_export(export_id: str):
+        async def download_export(
+            export_id: str,
+            user: User = Depends(require_permission(Permission.DATA_EXPORT))
+        ):
             """Download export file by ID."""
             try:
                 export = await self.export_service.get_export_by_id(export_id)
                 if not export:
                     raise HTTPException(status_code=404, detail="Export not found")
 
+                # CRITICAL: Validate ownership (unless admin)
+                if user.role.value != "admin" and export.get("user_id") != user.id:
+                    # Log unauthorized access attempt
+                    await self.audit_logger.log_event_async(AuditEvent(
+                        event_type=AuditEventType.PERMISSION_DENIED,
+                        severity=AuditSeverity.WARNING,
+                        user_id=user.id,
+                        username=user.username,
+                        ip_address=None,
+                        user_agent=None,
+                        session_id=None,
+                        resource_type="data_export",
+                        resource_id=export_id,
+                        action="Unauthorized download attempt",
+                        details={
+                            "export_id": export_id,
+                            "export_owner_id": export.get("user_id"),
+                            "requesting_user_id": user.id
+                        },
+                        timestamp=datetime.now(),
+                        success=False,
+                        error_message="Access denied to export"
+                    ))
+                    raise HTTPException(status_code=403, detail="Access denied to export")
+
                 file_path = Path(export["file_path"])
                 if not file_path.exists():
                     raise HTTPException(status_code=404, detail="Export file not found")
+
+                # Log successful download
+                await self.audit_logger.log_event_async(AuditEvent(
+                    event_type=AuditEventType.DATA_EXPORTED,
+                    severity=AuditSeverity.INFO,
+                    user_id=user.id,
+                    username=user.username,
+                    ip_address=None,
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="data_export",
+                    resource_id=export_id,
+                    action="Export file downloaded",
+                    details={
+                        "export_id": export_id,
+                        "filename": export["filename"],
+                        "file_size": export["file_size"],
+                        "format": export["format"]
+                    },
+                    timestamp=datetime.now(),
+                    success=True
+                ))
 
                 # Determine media type based on format
                 formatter = self.export_service.formatters.get(export["format"])
@@ -245,12 +410,40 @@ class DataExportAPIRouter:
                 )
 
         @self.app.delete("/api/exports/{export_id}")
-        async def delete_export(export_id: str):
+        async def delete_export(
+            export_id: str,
+            user: User = Depends(require_permission(Permission.DATA_EXPORT))
+        ):
             """Delete an export and its file."""
             try:
                 export = await self.export_service.get_export_by_id(export_id)
                 if not export:
                     raise HTTPException(status_code=404, detail="Export not found")
+
+                # CRITICAL: Validate ownership (unless admin)
+                if user.role.value != "admin" and export.get("user_id") != user.id:
+                    # Log unauthorized delete attempt
+                    await self.audit_logger.log_event_async(AuditEvent(
+                        event_type=AuditEventType.PERMISSION_DENIED,
+                        severity=AuditSeverity.WARNING,
+                        user_id=user.id,
+                        username=user.username,
+                        ip_address=None,
+                        user_agent=None,
+                        session_id=None,
+                        resource_type="data_export",
+                        resource_id=export_id,
+                        action="Unauthorized delete attempt",
+                        details={
+                            "export_id": export_id,
+                            "export_owner_id": export.get("user_id"),
+                            "requesting_user_id": user.id
+                        },
+                        timestamp=datetime.now(),
+                        success=False,
+                        error_message="Access denied to export"
+                    ))
+                    raise HTTPException(status_code=403, detail="Access denied to export")
 
                 # Delete file if it exists
                 file_path = Path(export["file_path"])
@@ -267,6 +460,27 @@ class DataExportAPIRouter:
                 finally:
                     conn.close()
 
+                # Log successful deletion
+                await self.audit_logger.log_event_async(AuditEvent(
+                    event_type=AuditEventType.DATA_DELETED,
+                    severity=AuditSeverity.INFO,
+                    user_id=user.id,
+                    username=user.username,
+                    ip_address=None,
+                    user_agent=None,
+                    session_id=None,
+                    resource_type="data_export",
+                    resource_id=export_id,
+                    action="Export deleted",
+                    details={
+                        "export_id": export_id,
+                        "filename": export["filename"],
+                        "format": export["format"]
+                    },
+                    timestamp=datetime.now(),
+                    success=True
+                ))
+
                 return {"message": "Export deleted successfully"}
 
             except HTTPException:
@@ -281,6 +495,7 @@ class DataExportAPIRouter:
             end_date: str,
             aggregation: str = "raw",
             limit: int = 100,
+            user: User = Depends(require_permission(Permission.DATA_EXPORT))
         ):
             """Preview export data before creating full export."""
             try:
@@ -314,7 +529,9 @@ class DataExportAPIRouter:
                 raise HTTPException(status_code=500, detail=f"Preview failed: {str(e)}")
 
         @self.app.get("/api/exports/stats")
-        async def get_export_stats():
+        async def get_export_stats(
+            user: User = Depends(require_permission(Permission.DATA_EXPORT))
+        ):
             """Get export statistics."""
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
@@ -390,11 +607,50 @@ class DataExportAPIRouter:
         except:
             return False
 
-    async def _process_large_export(self, request: ExportRequest):
+    async def _process_large_export(self, request: ExportRequest, user_id: int):
         """Process large export in background."""
         try:
-            result = await self.export_service.export_data(request)
+            result = await self.export_service.export_data_with_user(request, user_id)
             # Could add notification or webhook here when complete
         except Exception as e:
             # Log error and update export status
             print(f"Background export failed: {e}")
+
+    async def _check_export_rate_limit(self, user_id: int):
+        """Check export rate limit for user."""
+        conn = sqlite3.connect(self.db_path)
+        try:
+            # Count exports in last hour
+            one_hour_ago = (datetime.now() - timedelta(hours=1)).isoformat()
+            cursor = conn.execute(
+                "SELECT COUNT(*) FROM data_exports WHERE user_id = ? AND created_at > ?",
+                (user_id, one_hour_ago)
+            )
+            recent_exports = cursor.fetchone()[0]
+            
+            # Configurable limit - 10 exports per hour
+            if recent_exports >= 10:
+                raise HTTPException(
+                    status_code=429, 
+                    detail="Export rate limit exceeded. Maximum 10 exports per hour."
+                )
+        finally:
+            conn.close()
+    
+    async def _estimate_record_count(self, devices: List[str], date_range: Dict[str, str]) -> int:
+        """Estimate number of records for audit logging."""
+        conn = sqlite3.connect(self.db_path)
+        try:
+            query = """
+                SELECT COUNT(*) FROM device_readings 
+                WHERE device_ip IN ({}) 
+                AND timestamp BETWEEN ? AND ?
+            """.format(",".join("?" * len(devices)))
+            
+            params = devices + [date_range["start"], date_range["end"]]
+            cursor = conn.execute(query, params)
+            return cursor.fetchone()[0]
+        except Exception:
+            return 0  # If estimation fails, return 0
+        finally:
+            conn.close()

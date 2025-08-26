@@ -312,7 +312,8 @@ class DataExportService:
                 devices_count INTEGER NOT NULL,
                 records_count INTEGER NOT NULL,
                 status TEXT NOT NULL DEFAULT 'completed',
-                request_data TEXT NOT NULL
+                request_data TEXT NOT NULL,
+                user_id INTEGER
             )
         """
         )
@@ -385,6 +386,76 @@ class DataExportService:
 
         # Save export record
         await self._save_export_record(result, request)
+
+        return result
+
+    async def export_data_with_user(self, request: ExportRequest, user_id: int) -> ExportResult:
+        """Export device data with user context for ownership tracking."""
+        export_id = str(uuid4())
+        created_at = datetime.now()
+
+        # Validate request
+        if not request.devices:
+            raise ValueError("At least one device must be selected")
+
+        if request.format not in self.formatters:
+            raise ValueError(f"Unsupported format: {request.format}")
+
+        # Query data
+        data = await self._query_device_data(request)
+
+        # Prepare metadata
+        metadata = {
+            "export_id": export_id,
+            "created_at": created_at.isoformat(),
+            "format": request.format,
+            "devices": request.devices,
+            "date_range": request.date_range,
+            "aggregation": request.aggregation,
+            "metrics": request.metrics,
+            "options": request.options,
+            "user_id": user_id,
+        }
+
+        # Format data
+        formatter = self.formatters[request.format]
+        formatted_data = await formatter.format_data(data, metadata, request.options)
+
+        # Generate filename and save file
+        base_name = f"device_export_{len(request.devices)}devices"
+        filename = formatter.get_filename(base_name, created_at)
+        file_path = self.exports_dir / filename
+
+        # Handle compression if requested
+        if request.options.get("compression") == "zip":
+            zip_path = file_path.with_suffix(f".{file_path.suffix}.zip")
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr(filename, formatted_data)
+            file_path = zip_path
+            filename = zip_path.name
+
+            with open(zip_path, "rb") as f:
+                file_size = len(f.read())
+        else:
+            with open(file_path, "wb") as f:
+                f.write(formatted_data)
+            file_size = len(formatted_data)
+
+        # Create export result
+        result = ExportResult(
+            export_id=export_id,
+            filename=filename,
+            file_path=str(file_path),
+            file_size=file_size,
+            format=request.format,
+            created_at=created_at,
+            devices_count=len(request.devices),
+            records_count=len(data),
+            status="completed",
+        )
+
+        # Save export record with user_id
+        await self._save_export_record_with_user(result, request, user_id)
 
         return result
 
@@ -506,6 +577,52 @@ class DataExportService:
         finally:
             conn.close()
 
+    async def _save_export_record_with_user(self, result: ExportResult, request: ExportRequest, user_id: int):
+        """Save export record to database with user ownership."""
+        conn = sqlite3.connect(self.db_path)
+
+        try:
+            # Get user role for retention calculation
+            cursor = conn.execute("SELECT is_admin FROM users WHERE id = ?", (user_id,))
+            user_row = cursor.fetchone()
+            user_role = "admin" if (user_row and user_row[0]) else "user"
+            
+            conn.execute(
+                """
+                INSERT INTO data_exports (
+                    export_id, filename, file_path, file_size, format,
+                    created_at, devices_count, records_count, status, request_data, user_id, user_role
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                (
+                    result.export_id,
+                    result.filename,
+                    result.file_path,
+                    result.file_size,
+                    result.format,
+                    result.created_at,
+                    result.devices_count,
+                    result.records_count,
+                    result.status,
+                    request.json(),
+                    user_id,
+                    user_role,
+                ),
+            )
+            conn.commit()
+            
+            # Initialize retention service and set retention info
+            try:
+                from export_retention_service import ExportRetentionService
+                retention_service = ExportRetentionService(db_path=self.db_path, exports_dir=str(self.exports_dir))
+                await retention_service.update_export_retention(result.export_id)
+            except ImportError:
+                # Retention service not available, continue without it
+                pass
+
+        finally:
+            conn.close()
+
     async def get_export_history(self, limit: int = 50) -> List[Dict]:
         """Get export history."""
         conn = sqlite3.connect(self.db_path)
@@ -522,6 +639,45 @@ class DataExportService:
             """,
                 (limit,),
             )
+
+            return [dict(row) for row in cursor.fetchall()]
+
+        finally:
+            conn.close()
+
+    async def get_export_history_for_user(self, user_id: Optional[int] = None, limit: int = 50) -> List[Dict]:
+        """Get export history filtered by user (or all if user_id is None for admin)."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+
+        try:
+            if user_id is not None:
+                # Filter by user ownership - include retention info
+                cursor = conn.execute(
+                    """
+                    SELECT export_id, filename, file_size, format, created_at,
+                           devices_count, records_count, status, user_id,
+                           expires_at, retention_period, download_count
+                    FROM data_exports
+                    WHERE user_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """,
+                    (user_id, limit),
+                )
+            else:
+                # Admin view - all exports with retention info
+                cursor = conn.execute(
+                    """
+                    SELECT export_id, filename, file_size, format, created_at,
+                           devices_count, records_count, status, user_id,
+                           expires_at, retention_period, download_count
+                    FROM data_exports
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """,
+                    (limit,),
+                )
 
             return [dict(row) for row in cursor.fetchall()]
 
@@ -557,3 +713,211 @@ class DataExportService:
             }
             for name, formatter in self.formatters.items()
         }
+
+    async def record_export_download(self, export_id: str) -> bool:
+        """Record that an export has been downloaded.
+        
+        Args:
+            export_id: Export identifier
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        conn = sqlite3.connect(self.db_path)
+        
+        try:
+            cursor = conn.execute("""
+                UPDATE data_exports 
+                SET download_count = COALESCE(download_count, 0) + 1,
+                    accessed_at = CURRENT_TIMESTAMP
+                WHERE export_id = ?
+            """, (export_id,))
+            
+            success = cursor.rowcount > 0
+            conn.commit()
+            
+            if success:
+                # Update retention period based on new download count
+                try:
+                    from export_retention_service import ExportRetentionService
+                    retention_service = ExportRetentionService(db_path=self.db_path, exports_dir=str(self.exports_dir))
+                    await retention_service.update_export_retention(export_id)
+                except ImportError:
+                    pass
+                    
+            return success
+            
+        except Exception as e:
+            logger.error(f"Error recording download for export {export_id}: {e}")
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
+
+    async def get_export_retention_info(self, export_id: str) -> Optional[Dict]:
+        """Get retention information for an export.
+        
+        Args:
+            export_id: Export identifier
+            
+        Returns:
+            Retention information or None if not found
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        
+        try:
+            cursor = conn.execute("""
+                SELECT export_id, status, created_at, expires_at, 
+                       retention_period, download_count, accessed_at
+                FROM data_exports 
+                WHERE export_id = ?
+            """, (export_id,))
+            
+            row = cursor.fetchone()
+            if not row:
+                return None
+                
+            export_info = dict(row)
+            
+            # Calculate time until expiration
+            if export_info["expires_at"]:
+                expires_at = datetime.fromisoformat(export_info["expires_at"])
+                now = datetime.now()
+                
+                export_info["expires_in_hours"] = max(0, (expires_at - now).total_seconds() / 3600)
+                export_info["is_expired"] = expires_at <= now
+                export_info["expires_soon"] = (expires_at - now).total_seconds() <= 24 * 3600
+            else:
+                export_info["expires_in_hours"] = None
+                export_info["is_expired"] = False
+                export_info["expires_soon"] = False
+            
+            return export_info
+            
+        except Exception as e:
+            logger.error(f"Error getting retention info for export {export_id}: {e}")
+            return None
+        finally:
+            conn.close()
+
+    async def get_expiring_exports_for_user(self, user_id: int, hours_ahead: int = 24) -> List[Dict]:
+        """Get user's exports that are expiring soon.
+        
+        Args:
+            user_id: User ID
+            hours_ahead: Hours to look ahead for expiring exports
+            
+        Returns:
+            List of expiring exports
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        
+        try:
+            expiry_threshold = datetime.now() + timedelta(hours=hours_ahead)
+            
+            cursor = conn.execute("""
+                SELECT export_id, filename, format, created_at, expires_at,
+                       retention_period, file_size, download_count
+                FROM data_exports 
+                WHERE user_id = ? 
+                AND status = 'active'
+                AND expires_at IS NOT NULL 
+                AND expires_at BETWEEN CURRENT_TIMESTAMP AND ?
+                ORDER BY expires_at
+            """, (user_id, expiry_threshold))
+            
+            return [dict(row) for row in cursor.fetchall()]
+            
+        finally:
+            conn.close()
+
+    async def extend_export_retention(self, export_id: str, additional_days: int) -> bool:
+        """Extend retention period for an export.
+        
+        Args:
+            export_id: Export identifier
+            additional_days: Additional days to extend retention
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if additional_days <= 0:
+            return False
+            
+        conn = sqlite3.connect(self.db_path)
+        
+        try:
+            # Get current export info
+            cursor = conn.execute("""
+                SELECT expires_at, retention_period 
+                FROM data_exports 
+                WHERE export_id = ?
+            """, (export_id,))
+            
+            row = cursor.fetchone()
+            if not row:
+                return False
+            
+            current_expires_at = datetime.fromisoformat(row[0]) if row[0] else None
+            current_retention = row[1] or 0
+            
+            if not current_expires_at:
+                return False
+            
+            # Calculate new expiration date
+            new_expires_at = current_expires_at + timedelta(days=additional_days)
+            new_retention_period = current_retention + additional_days
+            
+            # Update export
+            cursor = conn.execute("""
+                UPDATE data_exports 
+                SET expires_at = ?, 
+                    retention_period = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE export_id = ?
+            """, (new_expires_at, new_retention_period, export_id))
+            
+            success = cursor.rowcount > 0
+            conn.commit()
+            
+            if success:
+                logger.info(f"Extended retention for export {export_id} by {additional_days} days")
+                
+                # Log audit event
+                try:
+                    from audit_logging import AuditEvent, AuditEventType, AuditSeverity
+                    from export_retention_service import ExportRetentionService
+                    
+                    retention_service = ExportRetentionService(db_path=self.db_path, exports_dir=str(self.exports_dir))
+                    await retention_service.audit_logger.log_event_async(AuditEvent(
+                        event_type=AuditEventType.DATA_EXPORT,
+                        severity=AuditSeverity.INFO,
+                        user_id=None,
+                        username=None,
+                        ip_address=None,
+                        user_agent=None,
+                        session_id=None,
+                        resource_type="export_retention",
+                        resource_id=export_id,
+                        action="retention_extended",
+                        details={
+                            "additional_days": additional_days,
+                            "new_expires_at": new_expires_at.isoformat(),
+                            "new_retention_period": new_retention_period,
+                        },
+                        timestamp=datetime.now(),
+                        success=True,
+                    ))
+                except ImportError:
+                    pass
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Error extending retention for export {export_id}: {e}")
+            conn.rollback()
+            return False
+        finally:
+            conn.close()

@@ -21,7 +21,7 @@ along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import bcrypt
 from dotenv import load_dotenv
@@ -54,6 +54,7 @@ ROLE_PERMISSIONS = {
         Permission.RATES_DELETE,
         Permission.COSTS_VIEW,
         Permission.COSTS_EXPORT,
+        Permission.DATA_EXPORT,
         Permission.USERS_VIEW,
         Permission.USERS_INVITE,
         Permission.USERS_EDIT,
@@ -74,6 +75,7 @@ ROLE_PERMISSIONS = {
         Permission.RATES_EDIT,
         Permission.COSTS_VIEW,
         Permission.COSTS_EXPORT,
+        Permission.DATA_EXPORT,
     ],
     UserRole.VIEWER: [
         # Read-only access to most features
@@ -149,6 +151,9 @@ class AuthManager:
         for secret in valid_secrets:
             try:
                 payload = jwt.decode(token, secret, algorithms=[ALGORITHM])
+                # Additional validation - check token structure
+                if not payload.get("user") or not payload.get("exp"):
+                    raise jwt.InvalidTokenError("Invalid token structure")
                 return payload
             except jwt.ExpiredSignatureError as e:
                 # Token is expired - don't try other secrets
@@ -159,11 +164,17 @@ class AuthManager:
                 last_exception = e
                 continue
 
-        # No secret worked, raise appropriate exception
+        # No secret worked, raise appropriate exception with structured error
         if isinstance(last_exception, jwt.ExpiredSignatureError):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token expired",
+                detail={
+                    "error": "authentication_expired",
+                    "message": "Your session has expired. Please log in again.",
+                    "error_code": "TOKEN_EXPIRED",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "redirect_to": "/login"
+                },
                 headers={"WWW-Authenticate": "Bearer"},
             )
         else:
@@ -175,7 +186,71 @@ class AuthManager:
             )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials",
+                detail={
+                    "error": "authentication_invalid",
+                    "message": "Invalid authentication credentials. Please log in again.",
+                    "error_code": "TOKEN_INVALID",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "redirect_to": "/login"
+                },
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+    @staticmethod
+    def create_refresh_token(user_data: Dict[str, Any]) -> str:
+        """Create a refresh token with extended expiration."""
+        to_encode = user_data.copy()
+        # Refresh tokens last 7 days
+        expire = datetime.now(timezone.utc) + timedelta(days=7)
+        to_encode.update({"exp": expire, "type": "refresh"})
+        
+        current_secret = get_current_jwt_secret()
+        encoded_jwt = jwt.encode(to_encode, current_secret, algorithm=ALGORITHM)
+        return encoded_jwt
+
+    @staticmethod
+    def verify_refresh_token(token: str) -> Dict[str, Any]:
+        """Verify and decode a refresh token."""
+        valid_secrets = get_all_valid_jwt_secrets()
+
+        last_exception = None
+        for secret in valid_secrets:
+            try:
+                payload = jwt.decode(token, secret, algorithms=[ALGORITHM])
+                # Verify it's a refresh token
+                if payload.get("type") != "refresh":
+                    raise jwt.InvalidTokenError("Not a refresh token")
+                return payload
+            except jwt.ExpiredSignatureError as e:
+                last_exception = e
+                break
+            except (jwt.InvalidTokenError, jwt.JWTError) as e:
+                last_exception = e
+                continue
+
+        # Handle refresh token errors
+        if isinstance(last_exception, jwt.ExpiredSignatureError):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "error": "refresh_token_expired",
+                    "message": "Refresh token has expired. Please log in again.",
+                    "error_code": "REFRESH_TOKEN_EXPIRED",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "redirect_to": "/login"
+                },
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "error": "refresh_token_invalid",
+                    "message": "Invalid refresh token. Please log in again.",
+                    "error_code": "REFRESH_TOKEN_INVALID",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "redirect_to": "/login"
+                },
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
@@ -219,7 +294,13 @@ def require_auth(
     if not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required. Please log in to continue.",
+                "error_code": "AUTH_REQUIRED",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "redirect_to": "/login"
+            },
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -228,7 +309,13 @@ def require_auth(
     if not user_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token",
+            detail={
+                "error": "authentication_invalid",
+                "message": "Invalid authentication token. Please log in again.",
+                "error_code": "TOKEN_INVALID",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "redirect_to": "/login"
+            },
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -295,3 +382,69 @@ def is_local_network_ip(client_ip: str) -> bool:
         return False
     except ValueError:
         return False
+
+
+def get_auth_security_status() -> Dict[str, Any]:
+    """Get comprehensive authentication security status."""
+    from jwt_secret_manager import get_jwt_secret_manager
+    
+    manager = get_jwt_secret_manager()
+    secret_info = manager.get_secret_info()
+    
+    return {
+        "jwt_configuration": {
+            "algorithm": ALGORITHM,
+            "access_token_expire_minutes": ACCESS_TOKEN_EXPIRE_MINUTES,
+            "secret_management": {
+                "has_current_secret": secret_info.get("has_current"),
+                "has_previous_secrets": secret_info.get("has_previous"),
+                "secret_file_exists": secret_info.get("file_exists"),
+                "file_permissions": secret_info.get("file_permissions"),
+                "current_secret_age_days": secret_info.get("current_age_days"),
+            }
+        },
+        "security_features": {
+            "bcrypt_password_hashing": True,
+            "jwt_key_rotation": True,
+            "role_based_permissions": True,
+            "structured_error_responses": True,
+            "token_refresh_enabled": True,
+            "session_management_available": True,
+            "audit_logging_enabled": True,
+        },
+        "token_settings": {
+            "access_token_lifetime": f"{ACCESS_TOKEN_EXPIRE_MINUTES} minutes",
+            "refresh_token_lifetime": "7 days",
+            "token_validation_strict": True,
+        },
+        "recommendations": _get_security_recommendations(secret_info)
+    }
+
+
+def _get_security_recommendations(secret_info: Dict[str, Any]) -> List[str]:
+    """Get security recommendations based on current configuration."""
+    recommendations = []
+    
+    # Check secret age
+    age_days = secret_info.get("current_age_days", 0)
+    if age_days > 30:
+        recommendations.append(f"JWT secret is {age_days} days old. Consider rotating for enhanced security.")
+    
+    # Check file permissions
+    permissions = secret_info.get("file_permissions")
+    if permissions and permissions != "600":
+        recommendations.append(f"JWT secret file has permissions {permissions}. Should be 600 for security.")
+    
+    # Check if environment variable is used
+    if not os.getenv("JWT_SECRET_KEY"):
+        recommendations.append("Consider setting JWT_SECRET_KEY environment variable for production.")
+    
+    # General recommendations
+    recommendations.extend([
+        "Ensure HTTPS is enabled in production environments",
+        "Regularly monitor authentication logs for suspicious activity",
+        "Consider implementing rate limiting on authentication endpoints",
+        "Review and rotate JWT secrets periodically",
+    ])
+    
+    return recommendations

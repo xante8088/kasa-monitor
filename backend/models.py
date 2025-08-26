@@ -110,6 +110,13 @@ class Token(BaseModel):
     token_type: str = "bearer"
     expires_in: int
     user: User
+    refresh_token: Optional[str] = None
+
+
+class RefreshTokenRequest(BaseModel):
+    """Model for token refresh request."""
+    
+    refresh_token: str
 
 
 class DeviceData(BaseModel):
