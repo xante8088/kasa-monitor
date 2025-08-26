@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FileText, Filter, Search, User, Shield, Settings, Activity, RefreshCw, Play, Pause, Download, ChevronDown } from 'lucide-react';
+import { FileText, Filter, Search, User, Shield, Settings, Activity, RefreshCw, Play, Pause, Download, ChevronDown, X } from 'lucide-react';
 import { AppLayout } from '@/components/app-layout';
 import { safeConsoleError, safeConsoleLog, safeFetch, safeStorage, createSafeApiUrl } from '@/lib/security-utils';
 
@@ -116,7 +116,7 @@ export default function AuditLogsPage() {
     };
   }, [autoRefresh, refreshRate, fetchLogs]);
 
-  // Click outside to close dropdowns
+  // Click outside to close dropdowns and ESC to close modal
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target as Node)) {
@@ -127,9 +127,20 @@ export default function AuditLogsPage() {
       }
     };
 
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && showDetailsModal) {
+        setShowDetailsModal(false);
+      }
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showDetailsModal]);
 
   const getActionIcon = (action: string) => {
     if (action.includes('login') || action.includes('auth')) return <User className="h-4 w-4" />;
@@ -640,105 +651,135 @@ export default function AuditLogsPage() {
 
       {/* Details Modal */}
       {showDetailsModal && selectedLog && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity">
-              <div className="absolute inset-0 bg-gray-500 opacity-75" onClick={() => setShowDetailsModal(false)}></div>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowDetailsModal(false)}>
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h3 className="text-lg leading-6 font-medium text-gray-900">
+                Audit Log Details
+              </h3>
+              <button
+                onClick={() => setShowDetailsModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                      Audit Log Details
-                    </h3>
-                    
-                    <div className="space-y-3">
-                      <div>
-                        <span className="font-medium text-gray-700">Timestamp:</span>
-                        <p className="text-gray-600">{new Date(selectedLog.timestamp).toLocaleString()}</p>
-                      </div>
-                      
-                      <div>
-                        <span className="font-medium text-gray-700">Event Type:</span>
-                        <p className="text-gray-600">{selectedLog.event_type}</p>
-                      </div>
-                      
-                      <div>
-                        <span className="font-medium text-gray-700">Severity:</span>
-                        <p className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${
-                          selectedLog.severity === 'info' ? 'bg-blue-100 text-blue-800' :
-                          selectedLog.severity === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-                          selectedLog.severity === 'error' ? 'bg-red-100 text-red-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {selectedLog.severity}
-                        </p>
-                      </div>
-                      
-                      <div>
-                        <span className="font-medium text-gray-700">User:</span>
-                        <p className="text-gray-600">{selectedLog.username} (ID: {selectedLog.user_id})</p>
-                      </div>
-                      
-                      <div>
-                        <span className="font-medium text-gray-700">Action:</span>
-                        <p className="text-gray-600">{selectedLog.action}</p>
-                      </div>
-                      
-                      <div>
-                        <span className="font-medium text-gray-700">IP Address:</span>
-                        <p className="text-gray-600">{selectedLog.ip_address}</p>
-                      </div>
-                      
-                      {selectedLog.user_agent && (
-                        <div>
-                          <span className="font-medium text-gray-700">User Agent:</span>
-                          <p className="text-gray-600 text-sm break-words">{selectedLog.user_agent}</p>
-                        </div>
-                      )}
-                      
-                      <div>
-                        <span className="font-medium text-gray-700">Status:</span>
-                        <p className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${
-                          selectedLog.success 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {selectedLog.success ? 'success' : 'failure'}
-                        </p>
-                      </div>
-                      
-                      {selectedLog.error_message && (
-                        <div>
-                          <span className="font-medium text-gray-700">Error:</span>
-                          <p className="text-red-600">{selectedLog.error_message}</p>
-                        </div>
-                      )}
-                      
-                      {selectedLog.details && (
-                        <div>
-                          <span className="font-medium text-gray-700">Details:</span>
-                          <pre className="bg-gray-100 p-3 rounded text-sm overflow-x-auto mt-1">
-                            {JSON.stringify(selectedLog.details, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+            
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              <div>
+                <span className="font-medium text-gray-700">Timestamp:</span>
+                <p className="text-gray-600 mt-1">{new Date(selectedLog.timestamp).toLocaleString()}</p>
               </div>
               
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button
-                  type="button"
-                  onClick={() => setShowDetailsModal(false)}
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-xs px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
-                >
-                  Close
-                </button>
+              <div>
+                <span className="font-medium text-gray-700">Event Type:</span>
+                <p className="text-gray-600 mt-1">{selectedLog.event_type}</p>
               </div>
+              
+              <div>
+                <span className="font-medium text-gray-700">Severity:</span>
+                <p className={`inline-block px-2 py-1 text-xs font-medium rounded-full mt-1 ${
+                  selectedLog.severity === 'info' ? 'bg-blue-100 text-blue-800' :
+                  selectedLog.severity === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                  selectedLog.severity === 'error' ? 'bg-red-100 text-red-800' :
+                  selectedLog.severity === 'critical' ? 'bg-red-200 text-red-900' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {selectedLog.severity}
+                </p>
+              </div>
+              
+              <div>
+                <span className="font-medium text-gray-700">User:</span>
+                <p className="text-gray-600 mt-1">{selectedLog.username} (ID: {selectedLog.user_id})</p>
+              </div>
+              
+              <div>
+                <span className="font-medium text-gray-700">Action:</span>
+                <p className="text-gray-600 mt-1">{selectedLog.action}</p>
+              </div>
+              
+              <div>
+                <span className="font-medium text-gray-700">IP Address:</span>
+                <p className="text-gray-600 mt-1">{selectedLog.ip_address}</p>
+              </div>
+              
+              {selectedLog.user_agent && (
+                <div>
+                  <span className="font-medium text-gray-700">User Agent:</span>
+                  <p className="text-gray-600 text-sm break-words mt-1">{selectedLog.user_agent}</p>
+                </div>
+              )}
+              
+              {selectedLog.session_id && (
+                <div>
+                  <span className="font-medium text-gray-700">Session ID:</span>
+                  <p className="text-gray-600 text-sm font-mono mt-1">{selectedLog.session_id}</p>
+                </div>
+              )}
+              
+              {selectedLog.resource_type && (
+                <div>
+                  <span className="font-medium text-gray-700">Resource:</span>
+                  <p className="text-gray-600 mt-1">
+                    {selectedLog.resource_type}
+                    {selectedLog.resource_id && (
+                      <span className="text-gray-500"> #{selectedLog.resource_id}</span>
+                    )}
+                  </p>
+                </div>
+              )}
+              
+              <div>
+                <span className="font-medium text-gray-700">Status:</span>
+                <p className={`inline-block px-2 py-1 text-xs font-medium rounded-full mt-1 ${
+                  selectedLog.success 
+                    ? 'bg-green-100 text-green-800' 
+                    : 'bg-red-100 text-red-800'
+                }`}>
+                  {selectedLog.success ? 'Success' : 'Failure'}
+                </p>
+              </div>
+              
+              {selectedLog.error_message && (
+                <div>
+                  <span className="font-medium text-gray-700">Error Message:</span>
+                  <div className="bg-red-50 border border-red-200 rounded-md p-3 mt-1">
+                    <p className="text-red-700 text-sm">{selectedLog.error_message}</p>
+                  </div>
+                </div>
+              )}
+              
+              {selectedLog.details && (
+                <div>
+                  <span className="font-medium text-gray-700">Additional Details:</span>
+                  <div className="bg-gray-50 border border-gray-200 rounded-md p-3 mt-1">
+                    <pre className="text-sm text-gray-800 whitespace-pre-wrap overflow-x-auto">
+                      {JSON.stringify(selectedLog.details, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
+              
+              {selectedLog.checksum && (
+                <div>
+                  <span className="font-medium text-gray-700">Checksum:</span>
+                  <p className="text-gray-600 text-xs font-mono mt-1 break-all">{selectedLog.checksum}</p>
+                </div>
+              )}
+            </div>
+            
+            {/* Footer */}
+            <div className="bg-gray-50 px-6 py-4 flex justify-end border-t border-gray-200">
+              <button
+                type="button"
+                onClick={() => setShowDetailsModal(false)}
+                className="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:text-sm"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
