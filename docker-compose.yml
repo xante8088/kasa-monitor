@@ -41,8 +41,8 @@ services:
       # Persist database and logs
       - kasa_data:/app/data
       - kasa_logs:/app/logs
-      # Optional: Custom SSL certificates (uncomment if needed)
-      # - kasa_ssl:/app/ssl:ro
+      # SSL certificates (persisted across container updates)
+      - kasa_ssl:/app/ssl
     environment:
       # Database configuration
       - SQLITE_PATH=/app/data/kasa_monitor.db

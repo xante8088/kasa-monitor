@@ -9,6 +9,7 @@ Licensed under GPL v3
 import hashlib
 import os
 import tempfile
+import shutil
 
 try:
     import magic
@@ -510,8 +511,9 @@ class SecureFileUploadManager:
             # Ensure destination directory exists
             dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Move file
-            src_path.rename(dest_path)
+            # Copy file then delete original (handles cross-device links)
+            shutil.copy2(src_path, dest_path)
+            src_path.unlink()
 
             logger.info(f"File approved and moved: {quarantine_path} -> {destination}")
             return True

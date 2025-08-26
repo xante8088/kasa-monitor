@@ -412,7 +412,7 @@ class DatabaseManager:
     async def mark_device_inactive(self, device_ip: str):
         """Mark a device as inactive in the database."""
         async with self.sqlite_conn.execute(
-            """UPDATE devices SET is_active = 0, last_seen = CURRENT_TIMESTAMP
+            """UPDATE device_info SET is_monitored = 0, last_seen = CURRENT_TIMESTAMP
                WHERE device_ip = ?""",
             (device_ip,),
         ) as cursor:
@@ -421,8 +421,8 @@ class DatabaseManager:
     async def get_saved_devices(self) -> List[Dict[str, Any]]:
         """Get list of all saved devices from database."""
         async with self.sqlite_conn.execute(
-            """SELECT device_ip, device_name, device_type, is_active, last_seen
-               FROM devices ORDER BY last_seen DESC"""
+            """SELECT device_ip, alias, device_type, is_monitored, last_seen
+               FROM device_info ORDER BY last_seen DESC"""
         ) as cursor:
             rows = await cursor.fetchall()
 
@@ -431,9 +431,9 @@ class DatabaseManager:
             devices.append(
                 {
                     "ip": row[0],
-                    "name": row[1],
+                    "name": row[1],  # This is alias in device_info table
                     "type": row[2],
-                    "is_active": bool(row[3]),
+                    "is_active": bool(row[3]),  # This is is_monitored in device_info table
                     "last_seen": row[4],
                 }
             )

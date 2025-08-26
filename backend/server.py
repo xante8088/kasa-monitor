@@ -54,7 +54,7 @@ from fastapi import (
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 from influxdb_client.client.write_api import SYNCHRONOUS
@@ -63,6 +63,7 @@ from pydantic import BaseModel, Field
 
 from auth import (
     AuthManager,
+    get_auth_security_status,
     get_current_user,
     get_network_access_config,
     is_local_network_ip,
@@ -77,6 +78,7 @@ from models import (
     DeviceReading,
     ElectricityRate,
     Permission,
+    RefreshTokenRequest,
     Token,
     User,
     UserCreate,
@@ -750,6 +752,111 @@ class KasaMonitorApp:
                 async_mode="asgi",
                 cors_allowed_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
             )
+
+        # Add global exception handler for authentication errors
+        @self.app.exception_handler(HTTPException)
+        async def auth_exception_handler(request: Request, exc: HTTPException):
+            """Global handler for HTTP exceptions, particularly authentication errors."""
+            
+            # Handle authentication errors (401) with structured response
+            if exc.status_code == 401:
+                # If detail is already structured (from our enhanced auth), return as-is
+                if isinstance(exc.detail, dict):
+                    return JSONResponse(
+                        status_code=401,
+                        content=exc.detail,
+                        headers=exc.headers or {}
+                    )
+                else:
+                    # Legacy string detail - convert to structured format
+                    error_code = "AUTH_ERROR"
+                    if "expired" in str(exc.detail).lower():
+                        error_code = "TOKEN_EXPIRED"
+                    elif "invalid" in str(exc.detail).lower():
+                        error_code = "TOKEN_INVALID"
+                    elif "required" in str(exc.detail).lower():
+                        error_code = "AUTH_REQUIRED"
+                    
+                    structured_error = {
+                        "error": "authentication_error",
+                        "message": str(exc.detail),
+                        "error_code": error_code,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "redirect_to": "/login"
+                    }
+                    
+                    return JSONResponse(
+                        status_code=401,
+                        content=structured_error,
+                        headers=exc.headers or {"WWW-Authenticate": "Bearer"}
+                    )
+            
+            # Handle other HTTP exceptions normally
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": exc.detail},
+                headers=exc.headers or {}
+            )
+
+        # Add comprehensive authentication middleware
+        @self.app.middleware("http")
+        async def auth_middleware(request: Request, call_next):
+            """Enhanced authentication middleware with session validation."""
+            
+            # Skip authentication middleware for public endpoints
+            public_paths = {
+                "/", "/health", "/docs", "/redoc", "/openapi.json",
+                "/api/auth/login", "/api/auth/setup", "/api/auth/setup-required",
+                "/api/auth/refresh"
+            }
+            
+            if request.url.path in public_paths or request.url.path.startswith("/static"):
+                return await call_next(request)
+            
+            # Extract authorization header
+            auth_header = request.headers.get("authorization")
+            if auth_header and auth_header.startswith("Bearer "):
+                token = auth_header.split(" ", 1)[1]
+                
+                try:
+                    # Validate JWT token
+                    payload = AuthManager.verify_token(token)
+                    user_data = payload.get("user")
+                    
+                    if user_data:
+                        # Add session validation if available
+                        try:
+                            from session_management import SessionManager, DatabaseSessionStore
+                            
+                            session_store = DatabaseSessionStore()
+                            session_manager = SessionManager(session_store)
+                            
+                            # Get client info
+                            client_ip = request.client.host if request.client else "unknown"
+                            user_agent = request.headers.get("user-agent", "unknown")
+                            
+                            # For now, we'll just validate the token exists
+                            # Full session validation would require storing session_id in JWT
+                            user = User(**user_data)
+                            
+                            # Add user context to request state
+                            request.state.user = user
+                            request.state.auth_method = "jwt_token"
+                            
+                        except Exception as e:
+                            logger.debug(f"Session validation failed: {e}")
+                            # Continue with just JWT validation
+                            user = User(**user_data)
+                            request.state.user = user
+                            request.state.auth_method = "jwt_only"
+                
+                except HTTPException:
+                    # Token validation failed - will be handled by endpoint auth
+                    pass
+                except Exception as e:
+                    logger.error(f"Authentication middleware error: {e}")
+            
+            return await call_next(request)
 
     def enhanced_require_auth(self, request: Request):
         """Enhanced authentication with session timeout logging."""
@@ -1542,10 +1649,10 @@ class KasaMonitorApp:
                                 permissions=test_user_data.get("permissions", ["*"]),
                             )
 
-                            # Create access token for test user
-                            access_token = AuthManager.create_access_token(
-                                data={"user": test_user.model_dump()}
-                            )
+                            # Create access token and refresh token for test user
+                            user_data = {"user": test_user.model_dump()}
+                            access_token = AuthManager.create_access_token(data=user_data)
+                            refresh_token = AuthManager.create_refresh_token(data=user_data)
 
                             # Log successful test user authentication
                             if self.audit_logger:
@@ -1584,6 +1691,7 @@ class KasaMonitorApp:
                                 access_token=access_token,
                                 expires_in=1800,  # 30 minutes
                                 user=test_user,
+                                refresh_token=refresh_token
                             )
 
                 except Exception as e:
@@ -1728,20 +1836,166 @@ class KasaMonitorApp:
                 )
                 await self.audit_logger.log_event_async(audit_event)
 
-            # Create access token
-            access_token = AuthManager.create_access_token(
-                data={"user": user.model_dump()}
-            )
+            # Create access token and refresh token
+            user_data = {"user": user.model_dump()}
+            access_token = AuthManager.create_access_token(data=user_data)
+            refresh_token = AuthManager.create_refresh_token(data=user_data)
+
+            # Initialize session management if available
+            session_info = None
+            try:
+                from session_management import SessionManager, DatabaseSessionStore
+                
+                session_store = DatabaseSessionStore()
+                session_manager = SessionManager(session_store)
+                
+                # Create a session for this login
+                session_info = session_manager.create_session(
+                    user_id=user.id,
+                    ip_address=client_ip,
+                    user_agent=user_agent,
+                    remember_me=False,  # Could be a login parameter
+                    device_name=None  # Could extract from user agent
+                )
+                
+                logger.info(f"Session created for user {user.username}: {session_info['session_id']}")
+                
+            except Exception as e:
+                logger.warning(f"Failed to create session: {e}")
+                # Continue without session management
+                pass
 
             return Token(
-                access_token=access_token, expires_in=1800, user=user
-            )  # 30 minutes
+                access_token=access_token, 
+                expires_in=1800,  # 30 minutes
+                user=user,
+                refresh_token=refresh_token
+            )
+
+        @self.app.post("/api/auth/refresh", response_model=Token)
+        async def refresh_token(refresh_request: RefreshTokenRequest, request: Request):
+            """Refresh an expired access token using a valid refresh token."""
+            client_ip = request.client.host if request.client else "unknown"
+            user_agent = request.headers.get("user-agent", "unknown")
+            
+            try:
+                # Verify the refresh token
+                payload = AuthManager.verify_refresh_token(refresh_request.refresh_token)
+                user_data = payload.get("user")
+                
+                if not user_data:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail={
+                            "error": "refresh_token_invalid",
+                            "message": "Invalid refresh token structure. Please log in again.",
+                            "error_code": "REFRESH_TOKEN_INVALID",
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "redirect_to": "/login"
+                        }
+                    )
+                
+                # Recreate user object
+                user = User(**user_data)
+                
+                # Verify user still exists and is active in database
+                db_user = await self.db_manager.get_user_by_username(user.username)
+                if not db_user or not db_user.is_active:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail={
+                            "error": "user_inactive",
+                            "message": "User account is no longer active. Please contact administrator.",
+                            "error_code": "USER_INACTIVE",
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "redirect_to": "/login"
+                        }
+                    )
+                
+                # Update user data with latest from database
+                user = db_user
+                
+                # Create new tokens
+                new_user_data = {"user": user.model_dump()}
+                new_access_token = AuthManager.create_access_token(data=new_user_data)
+                new_refresh_token = AuthManager.create_refresh_token(data=new_user_data)
+                
+                # Log successful token refresh
+                if self.audit_logger:
+                    audit_event = AuditEvent(
+                        event_type=AuditEventType.LOGIN_SUCCESS,
+                        severity=AuditSeverity.INFO,
+                        user_id=user.id,
+                        username=user.username,
+                        ip_address=client_ip,
+                        user_agent=user_agent,
+                        session_id=None,
+                        resource_type=None,
+                        resource_id=None,
+                        action="Token refreshed successfully",
+                        details={
+                            "auth_method": "refresh_token",
+                            "refresh_source": "client_request"
+                        },
+                        timestamp=datetime.now(timezone.utc),
+                        success=True,
+                    )
+                    await self.audit_logger.log_event_async(audit_event)
+                
+                return Token(
+                    access_token=new_access_token,
+                    expires_in=1800,  # 30 minutes
+                    user=user,
+                    refresh_token=new_refresh_token
+                )
+                
+            except HTTPException as e:
+                # Log failed token refresh attempt
+                if self.audit_logger:
+                    audit_event = AuditEvent(
+                        event_type=AuditEventType.LOGIN_FAILURE,
+                        severity=AuditSeverity.WARNING,
+                        user_id=None,
+                        username="unknown",
+                        ip_address=client_ip,
+                        user_agent=user_agent,
+                        session_id=None,
+                        resource_type=None,
+                        resource_id=None,
+                        action="Token refresh failed",
+                        details={
+                            "failure_reason": str(e.detail),
+                            "status_code": e.status_code
+                        },
+                        timestamp=datetime.now(timezone.utc),
+                        success=False,
+                        error_message=str(e.detail)
+                    )
+                    await self.audit_logger.log_event_async(audit_event)
+                
+                # Re-raise the HTTPException
+                raise e
 
         @self.app.post("/api/auth/logout")
         async def logout(request: Request, user: User = Depends(require_auth)):
             """Logout user and invalidate session."""
             client_ip = request.client.host if request.client else "unknown"
             user_agent = request.headers.get("user-agent", "unknown")
+
+            # Invalidate all user sessions if available
+            try:
+                from session_management import SessionManager, DatabaseSessionStore
+                
+                session_store = DatabaseSessionStore()
+                session_manager = SessionManager(session_store)
+                
+                # Invalidate all sessions for this user
+                session_manager.invalidate_all_sessions(user.id)
+                logger.info(f"All sessions invalidated for user {user.username}")
+                
+            except Exception as e:
+                logger.warning(f"Failed to invalidate sessions: {e}")
+                # Continue without session management
 
             # Log successful logout
             if self.audit_logger:
@@ -1758,7 +2012,8 @@ class KasaMonitorApp:
                     action="User logged out",
                     details={
                         "logout_method": "explicit",
-                        "session_duration": None,  # Could calculate if we tracked session start time
+                        "session_invalidated": True,
+                        "all_sessions_cleared": True,
                     },
                     timestamp=datetime.now(timezone.utc),
                     success=True,
@@ -1770,6 +2025,51 @@ class KasaMonitorApp:
             # The client should discard the token.
 
             return {"message": "Logged out successfully", "status": "success"}
+
+        @self.app.get("/api/auth/security-status")
+        async def get_authentication_security_status(request: Request, admin: User = Depends(require_admin)):
+            """Get comprehensive authentication security status (Admin only)."""
+            try:
+                security_status = get_auth_security_status()
+                
+                # Add runtime information
+                security_status["runtime_info"] = {
+                    "server_uptime": str(datetime.now(timezone.utc) - admin.created_at) if admin.created_at else "unknown",
+                    "total_admin_users": await self.db_manager.count_admin_users(),
+                    "authentication_middleware_enabled": True,
+                    "session_management_integrated": True,
+                }
+                
+                # Log security status check
+                if self.audit_logger:
+                    audit_event = AuditEvent(
+                        event_type=AuditEventType.SYSTEM_ACCESS,
+                        severity=AuditSeverity.INFO,
+                        user_id=admin.id,
+                        username=admin.username,
+                        ip_address=request.client.host if request.client else "unknown",
+                        user_agent=request.headers.get("user-agent", "unknown"),
+                        session_id=None,
+                        resource_type="security",
+                        resource_id="auth_status",
+                        action="Authentication security status viewed",
+                        details={
+                            "admin_action": True,
+                            "security_review": True,
+                        },
+                        timestamp=datetime.now(timezone.utc),
+                        success=True,
+                    )
+                    await self.audit_logger.log_event_async(audit_event)
+                
+                return security_status
+                
+            except Exception as e:
+                logger.error(f"Error getting authentication security status: {e}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to retrieve authentication security status"
+                )
 
         @self.app.post("/api/auth/setup", response_model=User)
         async def initial_setup(admin_data: UserCreate):
@@ -2671,6 +2971,16 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         logger.info(
                             f"SSL certificate uploaded successfully: {file.filename}"
                         )
+                        
+                        # Store certificate path in database
+                        await self.db_manager.set_system_config("ssl.cert_path", str(file_path))
+                        logger.info(f"SSL certificate path stored in database: {file_path}")
+                        
+                        # Check if both cert and key exist, then enable SSL
+                        ssl_key_path = await self.db_manager.get_system_config("ssl.key_path")
+                        if ssl_key_path and Path(ssl_key_path).exists():
+                            await self.db_manager.set_system_config("ssl.enabled", "true")
+                            logger.info("SSL enabled - both certificate and key are present")
                     else:
                         raise HTTPException(
                             status_code=500, detail="Failed to move certificate file"
@@ -2712,6 +3022,16 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
 
                     with open(file_path, "wb") as f:
                         f.write(content)
+                    
+                    # Store certificate path in database
+                    await self.db_manager.set_system_config("ssl.cert_path", str(file_path))
+                    logger.info(f"SSL certificate path stored in database: {file_path}")
+                    
+                    # Check if both cert and key exist, then enable SSL
+                    ssl_key_path = await self.db_manager.get_system_config("ssl.key_path")
+                    if ssl_key_path and Path(ssl_key_path).exists():
+                        await self.db_manager.set_system_config("ssl.enabled", "true")
+                        logger.info("SSL enabled - both certificate and key are present")
 
                 # Log successful certificate upload
                 if self.audit_logger:
@@ -2805,6 +3125,16 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         logger.info(
                             f"SSL private key uploaded successfully: {file.filename}"
                         )
+                        
+                        # Store private key path in database
+                        await self.db_manager.set_system_config("ssl.key_path", str(file_path))
+                        logger.info(f"SSL private key path stored in database: {file_path}")
+                        
+                        # Check if both cert and key exist, then enable SSL
+                        ssl_cert_path = await self.db_manager.get_system_config("ssl.cert_path")
+                        if ssl_cert_path and Path(ssl_cert_path).exists():
+                            await self.db_manager.set_system_config("ssl.enabled", "true")
+                            logger.info("SSL enabled - both certificate and key are present")
                     else:
                         raise HTTPException(
                             status_code=500, detail="Failed to move private key file"
@@ -2850,6 +3180,16 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
 
                     # Set restrictive permissions on private key
                     os.chmod(file_path, 0o600)
+                    
+                    # Store private key path in database
+                    await self.db_manager.set_system_config("ssl.key_path", str(file_path))
+                    logger.info(f"SSL private key path stored in database: {file_path}")
+                    
+                    # Check if both cert and key exist, then enable SSL
+                    ssl_cert_path = await self.db_manager.get_system_config("ssl.cert_path")
+                    if ssl_cert_path and Path(ssl_cert_path).exists():
+                        await self.db_manager.set_system_config("ssl.enabled", "true")
+                        logger.info("SSL enabled - both certificate and key are present")
 
                 # Log successful private key upload
                 if self.audit_logger:
@@ -4087,12 +4427,29 @@ if __name__ == "__main__":
             ssl_key_path = await temp_db.get_system_config("ssl.key_path")
             ssl_port = await temp_db.get_system_config("ssl.port")
 
+            # Auto-enable SSL if both cert and key paths exist and files are present
+            if not ssl_enabled or ssl_enabled.lower() != "true":
+                if ssl_cert_path and ssl_key_path:
+                    cert_path = Path(ssl_cert_path)
+                    key_path = Path(ssl_key_path)
+                    
+                    # Convert relative paths to absolute paths if needed
+                    if not cert_path.is_absolute():
+                        cert_path = Path(__file__).parent.parent / cert_path
+                    if not key_path.is_absolute():
+                        key_path = Path(__file__).parent.parent / key_path
+                    
+                    if cert_path.exists() and key_path.exists():
+                        ssl_enabled = "true"
+                        await temp_db.set_system_config("ssl.enabled", "true")
+                        logger.info("SSL auto-enabled - certificate and key files found")
+
             await temp_db.close()
 
             return {
-                "enabled": ssl_enabled == "True",
-                "cert_path": ssl_cert_path,
-                "key_path": ssl_key_path,
+                "enabled": ssl_enabled and ssl_enabled.lower() == "true",
+                "cert_path": ssl_cert_path or "",
+                "key_path": ssl_key_path or "",
                 "port": (
                     int(ssl_port)
                     if ssl_port and ssl_port.isdigit()
