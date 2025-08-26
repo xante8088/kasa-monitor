@@ -5,6 +5,7 @@ import { Header } from './header';
 import { DiscoveryModal } from './discovery-modal';
 import { ElectricityRatesModal } from './electricity-rates-modal';
 import { DeviceManagementModal } from './device-management-modal';
+import { DataExportModal } from './data-export-modal';
 import { useAuth } from '@/contexts/auth-context';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
@@ -19,6 +20,7 @@ export function AppLayout({ children, showCostSummary = false }: AppLayoutProps)
   const [showDiscoveryModal, setShowDiscoveryModal] = useState(false);
   const [showRatesModal, setShowRatesModal] = useState(false);
   const [showDeviceManagementModal, setShowDeviceManagementModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const { user } = useAuth();
   const router = useRouter();
 
@@ -39,6 +41,7 @@ export function AppLayout({ children, showCostSummary = false }: AppLayoutProps)
         onDiscoverClick={() => setShowDiscoveryModal(true)}
         onRatesClick={() => setShowRatesModal(true)}
         onDeviceManagementClick={() => setShowDeviceManagementModal(true)}
+        onExportClick={() => setShowExportModal(true)}
       />
       
       <main className="pb-8">
@@ -68,6 +71,13 @@ export function AppLayout({ children, showCostSummary = false }: AppLayoutProps)
         <DeviceManagementModal
           isOpen={showDeviceManagementModal}
           onClose={() => setShowDeviceManagementModal(false)}
+        />
+      )}
+
+      {showExportModal && (
+        <DataExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
         />
       )}
     </div>

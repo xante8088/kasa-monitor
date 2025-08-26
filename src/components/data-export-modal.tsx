@@ -27,9 +27,21 @@ interface ExportFormat {
 interface DataExportModalProps {
   isOpen: boolean;
   onClose: () => void;
+  preselectedDevices?: string[];
+  modalTitle?: string;
+  deviceContext?: {
+    deviceId: string;
+    deviceName: string;
+  };
 }
 
-export default function DataExportModal({ isOpen, onClose }: DataExportModalProps) {
+export function DataExportModal({ 
+  isOpen, 
+  onClose, 
+  preselectedDevices = [],
+  modalTitle,
+  deviceContext
+}: DataExportModalProps) {
   const [step, setStep] = useState(1); // 1: devices, 2: settings, 3: preview, 4: export
   const [selectedDevices, setSelectedDevices] = useState<string[]>([]);
   const [availableDevices, setAvailableDevices] = useState<Device[]>([]);
@@ -52,15 +64,21 @@ export default function DataExportModal({ isOpen, onClose }: DataExportModalProp
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [error, setError] = useState<string>('');
+  const [quickExportInProgress, setQuickExportInProgress] = useState<string | null>(null);
 
-  // Load data on modal open
+  // Load data on modal open and handle pre-selection
   useEffect(() => {
     if (isOpen) {
       loadDevices();
       loadMetrics();
       loadFormats();
+      
+      // Pre-select devices if provided
+      if (preselectedDevices.length > 0) {
+        setSelectedDevices(preselectedDevices);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, preselectedDevices]);
 
   const loadDevices = async () => {
     try {
@@ -224,20 +242,125 @@ export default function DataExportModal({ isOpen, onClose }: DataExportModalProp
             a.click();
             a.remove();
             window.URL.revokeObjectURL(url);
+            
+            // Show success message and close modal
+            setError(''); // Clear any previous errors
             onClose();
+          } else {
+            setError('Failed to download export file. Please try again.');
           }
+        } else if (result.status === 'processing') {
+          setError('Export started successfully. Large exports may take a few minutes to complete.');
         } else {
           setError('Export started in background. Check export history for progress.');
         }
       } else {
         const errorData = await response.json();
-        setError(errorData.detail || 'Export failed');
+        if (response.status === 403) {
+          setError('You do not have permission to export data. Please contact your administrator.');
+        } else if (response.status === 429) {
+          setError('Export rate limit exceeded. Please wait before trying again.');
+        } else if (response.status === 401) {
+          setError('Authentication expired. Please log in again.');
+        } else {
+          setError(errorData.detail || `Export failed with error ${response.status}`);
+        }
       }
     } catch (error) {
       setError('Export failed');
     } finally {
       setIsExporting(false);
     }
+  };
+  
+  // Quick export functions for device context
+  const handleQuickExport = async (preset: '24h' | '7d' | '30d') => {
+    if (!deviceContext || selectedDevices.length === 0) return;
+    
+    setQuickExportInProgress(preset);
+    setError('');
+    
+    try {
+      const token = safeStorage.getItem('token');
+      const now = new Date();
+      let startDate = new Date();
+      
+      switch (preset) {
+        case '24h':
+          startDate.setDate(now.getDate() - 1);
+          break;
+        case '7d':
+          startDate.setDate(now.getDate() - 7);
+          break;
+        case '30d':
+          startDate.setDate(now.getDate() - 30);
+          break;
+      }
+      
+      const exportRequest = {
+        devices: selectedDevices,
+        date_range: {
+          start: startDate.toISOString(),
+          end: now.toISOString()
+        },
+        format: 'csv',
+        aggregation: 'raw',
+        metrics: ['power', 'energy'],
+        options: {
+          include_metadata: true
+        }
+      };
+      
+      const response = await fetch('/api/exports/create', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(exportRequest)
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        
+        if (result.status === 'completed') {
+          const downloadResponse = await fetch(result.download_url, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          
+          if (downloadResponse.ok) {
+            const blob = await downloadResponse.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = result.filename || `${deviceContext.deviceName}_${preset}_export.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+            
+            onClose();
+          } else {
+            setError('Failed to download export file. Please try again.');
+          }
+        } else {
+          setError('Export started. Check export history for progress.');
+        }
+      } else {
+        const errorData = await response.json();
+        setError(errorData.detail || 'Quick export failed');
+      }
+    } catch (error) {
+      setError('Quick export failed');
+    } finally {
+      setQuickExportInProgress(null);
+    }
+  };
+  
+  const generateDeviceFilename = (deviceName: string, dateRange: string) => {
+    const cleanName = deviceName.replace(/[^a-zA-Z0-9]/g, '_');
+    const timestamp = new Date().toISOString().split('T')[0];
+    return `${cleanName}_${dateRange}_${timestamp}`;
   };
 
   const handleDeviceToggle = (deviceId: string) => {
@@ -258,7 +381,7 @@ export default function DataExportModal({ isOpen, onClose }: DataExportModalProp
 
   const resetModal = () => {
     setStep(1);
-    setSelectedDevices([]);
+    setSelectedDevices(preselectedDevices.length > 0 ? preselectedDevices : []);
     setFormat('csv');
     setDateRange('7days');
     setAggregation('raw');
@@ -276,7 +399,54 @@ export default function DataExportModal({ isOpen, onClose }: DataExportModalProp
           <div className="space-y-4">
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-3">Select Devices</h3>
-              <p className="text-sm text-gray-600 mb-4">Choose which devices to export data from</p>
+              {deviceContext ? (
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-3">
+                    Exporting data for <span className="font-medium">{deviceContext.deviceName}</span>. 
+                    You can select additional devices if needed.
+                  </p>
+                  
+                  {/* Quick Export Options for Device Context */}
+                  <div className="quick-export-section border rounded-lg p-4">
+                    <h4 className="text-sm font-medium text-blue-900 mb-2">Quick Export Options</h4>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleQuickExport('24h')}
+                        disabled={quickExportInProgress !== null}
+                        className="quick-export-button px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-1"
+                      >
+                        {quickExportInProgress === '24h' ? (
+                          <div className="animate-spin h-3 w-3 border border-white border-t-transparent rounded-full" />
+                        ) : null}
+                        <span>Last 24 Hours</span>
+                      </button>
+                      <button
+                        onClick={() => handleQuickExport('7d')}
+                        disabled={quickExportInProgress !== null}
+                        className="quick-export-button px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-1"
+                      >
+                        {quickExportInProgress === '7d' ? (
+                          <div className="animate-spin h-3 w-3 border border-white border-t-transparent rounded-full" />
+                        ) : null}
+                        <span>Last 7 Days</span>
+                      </button>
+                      <button
+                        onClick={() => handleQuickExport('30d')}
+                        disabled={quickExportInProgress !== null}
+                        className="quick-export-button px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-1"
+                      >
+                        {quickExportInProgress === '30d' ? (
+                          <div className="animate-spin h-3 w-3 border border-white border-t-transparent rounded-full" />
+                        ) : null}
+                        <span>Last 30 Days</span>
+                      </button>
+                    </div>
+                    <p className="text-xs text-blue-700 mt-2">Quick exports use CSV format with all available metrics</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-600 mb-4">Choose which devices to export data from</p>
+              )}
               
               {availableDevices.length === 0 ? (
                 <p className="text-gray-500 text-sm">No devices with data available</p>
@@ -486,7 +656,7 @@ export default function DataExportModal({ isOpen, onClose }: DataExportModalProp
             <div className="bg-gray-50 p-4 rounded-md">
               <h4 className="text-sm font-medium text-gray-900 mb-2">Export Summary</h4>
               <div className="text-sm text-gray-600 space-y-1">
-                <div>Devices: {selectedDevices.length} selected</div>
+                <div>Devices: {selectedDevices.length} selected{deviceContext && selectedDevices.includes(deviceContext.deviceId) ? ` (including ${deviceContext.deviceName})` : ''}</div>
                 <div>Format: {availableFormats[format]?.name} (.{availableFormats[format]?.extension})</div>
                 <div>Date Range: {dateRange === 'custom' ? `${customStartDate} to ${customEndDate}` : dateRange}</div>
                 <div>Aggregation: {aggregation}</div>
@@ -548,6 +718,19 @@ export default function DataExportModal({ isOpen, onClose }: DataExportModalProp
   };
 
   const getStepTitle = () => {
+    if (modalTitle) {
+      return modalTitle;
+    }
+    
+    if (deviceContext) {
+      switch (step) {
+        case 1: return `Export Data - ${deviceContext.deviceName}`;
+        case 2: return `Configure Export - ${deviceContext.deviceName}`;
+        case 3: return `Preview & Export - ${deviceContext.deviceName}`;
+        default: return `Export Data - ${deviceContext.deviceName}`;
+      }
+    }
+    
     switch (step) {
       case 1: return 'Select Devices';
       case 2: return 'Configure Export';

@@ -43,4 +43,26 @@
   .status-offline {
     @apply bg-gray-400;
   }
+  
+  /* Device Export Styling */
+  .device-export-btn {
+    @apply transition-all duration-200;
+  }
+  
+  .device-actions {
+    @apply transition-opacity duration-200 hover:opacity-100;
+  }
+  
+  .device-card:hover .device-actions {
+    @apply opacity-100;
+  }
+  
+  /* Quick export styling */
+  .quick-export-section {
+    @apply bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200;
+  }
+  
+  .quick-export-button {
+    @apply transition-all duration-200 hover:scale-105 hover:shadow-sm;
+  }
 }

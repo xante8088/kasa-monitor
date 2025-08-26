@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import { io, Socket } from 'socket.io-client'
+import { CompactExportButton } from './export-button'
+import { DataExportModal } from './data-export-modal'
 
 interface DeviceCardProps {
   device: {
@@ -21,6 +23,7 @@ interface DeviceCardProps {
 export function DeviceCard({ device, onClick }: DeviceCardProps) {
   const [realtimeData, setRealtimeData] = useState<any>(null)
   const [socket, setSocket] = useState<Socket | null>(null)
+  const [showExportModal, setShowExportModal] = useState(false)
 
   const { data: deviceData } = useQuery({
     queryKey: ['device', device.ip],
@@ -57,6 +60,15 @@ export function DeviceCard({ device, onClick }: DeviceCardProps) {
   const currentData = realtimeData || deviceData || device
   const powerW = currentData.current_power_w || 0
   const todayKwh = currentData.today_energy_kwh || 0
+  
+  const handleDeviceQuickExport = () => {
+    setShowExportModal(true)
+  }
+  
+  const handleDeviceQuickExportWithStop = (e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent triggering device detail navigation
+    handleDeviceQuickExport()
+  }
 
   return (
     <div 
@@ -104,9 +116,33 @@ export function DeviceCard({ device, onClick }: DeviceCardProps) {
       </div>
 
       <div className="mt-4 pt-3 border-t border-gray-200">
-        <p className="text-xs text-gray-500">{device.mac}</p>
-        <p className="text-xs text-gray-500">{device.ip}</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs text-gray-500">{device.mac}</p>
+            <p className="text-xs text-gray-500">{device.ip}</p>
+          </div>
+          <div className="device-actions" onClick={handleDeviceQuickExportWithStop}>
+            <CompactExportButton
+              onClick={handleDeviceQuickExport}
+              title={`Export data for ${device.alias}`}
+              className="opacity-70 hover:opacity-100"
+            />
+          </div>
+        </div>
       </div>
+      
+      {/* Device-specific export modal */}
+      {showExportModal && (
+        <DataExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          preselectedDevices={[device.ip]}
+          deviceContext={{
+            deviceId: device.ip,
+            deviceName: device.alias
+          }}
+        />
+      )}
     </div>
   )
 }

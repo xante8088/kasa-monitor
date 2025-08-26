@@ -8,6 +8,9 @@ import { VoltageChart } from './charts/voltage-chart'
 import { EnergyChart } from './charts/energy-chart'
 import { DeviceControls } from './device-controls'
 import { DeviceStats } from './device-stats'
+import { SecondaryExportButton } from './export-button'
+import { DataExportModal } from './data-export-modal'
+import { useState } from 'react'
 
 interface DeviceDetailProps {
   deviceIp: string
@@ -15,6 +18,8 @@ interface DeviceDetailProps {
 }
 
 export function DeviceDetail({ deviceIp, onBack }: DeviceDetailProps) {
+  const [showExportModal, setShowExportModal] = useState(false)
+  
   const { data: device, isLoading, refetch } = useQuery({
     queryKey: ['device', deviceIp],
     queryFn: async () => {
@@ -75,11 +80,18 @@ export function DeviceDetail({ deviceIp, onBack }: DeviceDetailProps) {
           <span>Back to Devices</span>
         </button>
         
-        <DeviceControls 
-          deviceIp={deviceIp} 
-          isOn={device.is_on}
-          onUpdate={refetch}
-        />
+        <div className="flex items-center space-x-3">
+          <SecondaryExportButton
+            onClick={() => setShowExportModal(true)}
+            className="device-export-btn"
+            showText={true}
+          />
+          <DeviceControls 
+            deviceIp={deviceIp} 
+            isOn={device.is_on}
+            onUpdate={refetch}
+          />
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow-md p-6">
@@ -149,6 +161,19 @@ export function DeviceDetail({ deviceIp, onBack }: DeviceDetailProps) {
         <h3 className="text-lg font-semibold mb-4">Energy Usage Trend</h3>
         <EnergyChart data={history} />
       </div>
+      
+      {/* Device-specific export modal */}
+      {showExportModal && (
+        <DataExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          preselectedDevices={[deviceIp]}
+          deviceContext={{
+            deviceId: deviceIp,
+            deviceName: device.alias
+          }}
+        />
+      )}
     </div>
   )
 }

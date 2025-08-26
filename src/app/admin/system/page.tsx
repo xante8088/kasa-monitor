@@ -217,14 +217,14 @@ export default function SystemConfigPage() {
       });
 
       if (response.ok) {
-        setSuccess('Configuration saved successfully');
-        setTimeout(() => setSuccess(''), 3000);
+        setSuccess('Configuration saved successfully. All settings persist across container updates.');
+        setTimeout(() => setSuccess(''), 5000);
       } else {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         setError(errorData.detail || 'Failed to save configuration');
       }
     } catch (err) {
-      setError('Connection error');
+      setError('Connection error - please check your network connection and try again');
     } finally {
       setSaving(false);
     }
@@ -259,9 +259,27 @@ export default function SystemConfigPage() {
     handleInputChange(section, field, array);
   };
 
+  // Helper function to check SSL configuration completeness
+  const getSSLStatus = () => {
+    const hasCert = config.ssl?.cert_path && config.ssl.cert_path.trim();
+    const hasKey = config.ssl?.key_path && config.ssl.key_path.trim();
+    const isEnabled = config.ssl?.enabled;
+    
+    return {
+      hasCert,
+      hasKey,
+      isEnabled,
+      isComplete: hasCert && hasKey,
+      canAutoEnable: hasCert && hasKey && !isEnabled
+    };
+  };
+
   const uploadCertificate = async (type: 'cert' | 'key', file: File) => {
     const formData = new FormData();
     formData.append('file', file);
+    setSaving(true);
+    setError('');
+    setSuccess('');
 
     try {
       const token = localStorage.getItem('token');
@@ -275,12 +293,33 @@ export default function SystemConfigPage() {
         const data = await response.json();
         const field = type === 'cert' ? 'cert_path' : 'key_path';
         handleInputChange('ssl', field, data.path);
-        setSuccess(`${type === 'cert' ? 'Certificate' : 'Private key'} uploaded successfully`);
+        
+        // Show enhanced success message about persistence and auto-enablement
+        let successMsg = `${type === 'cert' ? 'SSL certificate' : 'SSL private key'} uploaded successfully and stored persistently.`;
+        
+        // Check if SSL was auto-enabled
+        const otherType = type === 'cert' ? 'key' : 'cert';
+        const otherPath = config.ssl?.[`${otherType}_path`];
+        if (otherPath && otherPath.trim()) {
+          successMsg += ` SSL has been automatically enabled since both certificate and private key are now present. Configuration persists across container updates.`;
+          // Update SSL enabled status in the UI
+          handleInputChange('ssl', 'enabled', true);
+        } else {
+          successMsg += ` Upload the ${type === 'cert' ? 'private key' : 'certificate'} to automatically enable SSL.`;
+        }
+        
+        setSuccess(successMsg);
+        
+        // Refresh the configuration to get the latest database values
+        setTimeout(() => fetchConfig(), 1000);
       } else {
-        setError(`Failed to upload ${type === 'cert' ? 'certificate' : 'private key'}`);
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData.detail || `Failed to upload ${type === 'cert' ? 'certificate' : 'private key'}`);
       }
     } catch (err) {
-      setError('Upload failed');
+      setError('Upload failed - connection error');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -296,9 +335,11 @@ export default function SystemConfigPage() {
         setSslFiles(data.files || []);
       } else {
         console.error('Failed to fetch SSL files');
+        setError('Failed to load SSL files list');
       }
     } catch (err) {
       console.error('Error fetching SSL files:', err);
+      setError('Network error while loading SSL files');
     }
   };
 
@@ -598,20 +639,122 @@ export default function SystemConfigPage() {
       <div className="space-y-8">
         {/* SSL Configuration */}
         <div className="bg-white shadow-lg rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">SSL/HTTPS Configuration</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">SSL/HTTPS Configuration</h2>
+            <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+              Persistent across updates
+            </div>
+          </div>
+          
+          {/* SSL Status Display */}
+          <div className="mb-6 p-4 rounded-lg border">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-medium text-gray-900">SSL Status</h3>
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+                  getSSLStatus().isComplete && getSSLStatus().isEnabled
+                    ? 'bg-green-100 text-green-800'
+                    : getSSLStatus().isComplete
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {getSSLStatus().isComplete && getSSLStatus().isEnabled ? 'Active' : 
+                   getSSLStatus().isComplete ? 'Ready' : 'Incomplete'}
+                </span>
+                {getSSLStatus().canAutoEnable && (
+                  <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                    Auto-enable available
+                  </span>
+                )}
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-medium text-gray-700">Certificate:</span>
+                <div className="mt-1">
+                  {config.ssl?.cert_path ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-600">✓</span>
+                      <span className="font-mono text-gray-600 break-all">{config.ssl.cert_path}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">○</span>
+                      <span className="text-gray-500">No certificate uploaded</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div>
+                <span className="font-medium text-gray-700">Private Key:</span>
+                <div className="mt-1">
+                  {config.ssl?.key_path ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-600">✓</span>
+                      <span className="font-mono text-gray-600 break-all">{config.ssl.key_path}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">○</span>
+                      <span className="text-gray-500">No private key uploaded</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {config.ssl?.enabled && (
+              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <span className="text-green-600">🔒</span>
+                  <span className="text-sm text-green-800 font-medium">
+                    SSL is enabled and configured. Certificates persist across container updates.
+                  </span>
+                </div>
+                <div className="mt-2 text-xs text-green-700">
+                  Your SSL certificates are stored persistently and will be automatically loaded when the application starts.
+                </div>
+              </div>
+            )}
+            
+            {!config.ssl?.enabled && config.ssl?.cert_path && config.ssl?.key_path && (
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <span className="text-blue-600">ℹ</span>
+                  <span className="text-sm text-blue-800 font-medium">
+                    SSL certificates are ready but SSL is disabled.
+                  </span>
+                </div>
+                <div className="mt-2 text-xs text-blue-700">
+                  Enable SSL below to start using HTTPS with your uploaded certificates.
+                </div>
+              </div>
+            )}
+          </div>
           
           <div className="space-y-4">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="ssl_enabled"
-                checked={config.ssl?.enabled ?? false}
-                onChange={(e) => handleInputChange('ssl', 'enabled', e.target.checked)}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label htmlFor="ssl_enabled" className="ml-2 text-sm text-gray-900">
-                Enable SSL/HTTPS
-              </label>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="ssl_enabled"
+                  checked={config.ssl?.enabled ?? false}
+                  onChange={(e) => handleInputChange('ssl', 'enabled', e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="ssl_enabled" className="ml-2 text-sm text-gray-900">
+                  Enable SSL/HTTPS
+                </label>
+              </div>
+              
+              {config.ssl?.cert_path && config.ssl?.key_path && (
+                <div className="text-xs text-green-600 flex items-center gap-1">
+                  <span>✓</span>
+                  <span>Auto-enabled when both cert & key present</span>
+                </div>
+              )}
             </div>
 
             {config.ssl?.enabled && (
@@ -626,8 +769,9 @@ export default function SystemConfigPage() {
                         type="text"
                         value={config.ssl?.cert_path ?? ''}
                         onChange={(e) => handleInputChange('ssl', 'cert_path', e.target.value)}
-                        placeholder="/path/to/certificate.crt"
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="/app/ssl/certificate.crt (auto-populated after upload)"
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                        readOnly={!!config.ssl?.cert_path}
                       />
                       <input
                         type="file"
@@ -636,8 +780,12 @@ export default function SystemConfigPage() {
                           const file = e.target.files?.[0];
                           if (file) uploadCertificate('cert', file);
                         }}
-                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                        disabled={saving}
+                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50"
                       />
+                      <p className="text-xs text-gray-500">
+                        Upload your SSL certificate. Files are stored persistently and will be retained across container updates.
+                      </p>
                     </div>
                   </div>
 
@@ -650,8 +798,9 @@ export default function SystemConfigPage() {
                         type="text"
                         value={config.ssl?.key_path ?? ''}
                         onChange={(e) => handleInputChange('ssl', 'key_path', e.target.value)}
-                        placeholder="/path/to/private.key"
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="/app/ssl/private.key (auto-populated after upload)"
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                        readOnly={!!config.ssl?.key_path}
                       />
                       <input
                         type="file"
@@ -660,8 +809,12 @@ export default function SystemConfigPage() {
                           const file = e.target.files?.[0];
                           if (file) uploadCertificate('key', file);
                         }}
-                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                        disabled={saving}
+                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50"
                       />
+                      <p className="text-xs text-gray-500">
+                        Upload your SSL private key. Files are stored persistently with secure permissions (600) and retained across container updates.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -693,7 +846,7 @@ export default function SystemConfigPage() {
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   />
                   <p className="mt-1 text-xs text-gray-500">
-                    Port for HTTPS connections (default: 5273, standard: 443)
+                    Port for HTTPS connections (default: 5273, standard: 443). This setting persists across container updates.
                   </p>
                 </div>
 
@@ -1521,6 +1674,26 @@ export default function SystemConfigPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SSL Persistence Information */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex">
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-blue-800">
+                SSL Certificate Persistence
+              </h3>
+              <div className="mt-2 text-sm text-blue-700">
+                <ul className="list-disc list-inside space-y-1">
+                  <li><strong>Persistent Storage:</strong> SSL certificates are stored in persistent volumes and survive container updates</li>
+                  <li><strong>Database Integration:</strong> Certificate paths are stored in the database and automatically loaded on startup</li>
+                  <li><strong>Auto-Enablement:</strong> SSL is automatically enabled when both certificate and private key are present</li>
+                  <li><strong>Secure Permissions:</strong> Private keys are automatically secured with 600 permissions</li>
+                  <li><strong>Container Updates:</strong> Your SSL configuration persists across Docker container updates and restarts</li>
+                </ul>
               </div>
             </div>
           </div>

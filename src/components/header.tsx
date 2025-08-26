@@ -9,9 +9,10 @@ interface HeaderProps {
   onDiscoverClick: () => void
   onRatesClick: () => void
   onDeviceManagementClick?: () => void
+  onExportClick?: () => void
 }
 
-export function Header({ onDiscoverClick, onRatesClick, onDeviceManagementClick }: HeaderProps) {
+export function Header({ onDiscoverClick, onRatesClick, onDeviceManagementClick, onExportClick }: HeaderProps) {
   const { user, logout, hasPermission } = useAuth()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -70,6 +71,16 @@ export function Header({ onDiscoverClick, onRatesClick, onDeviceManagementClick 
               >
                 <Settings className="h-5 w-5" />
                 <span>Manage Devices</span>
+              </button>
+            )}
+
+            {onExportClick && hasPermission('data.export') && (
+              <button
+                onClick={onExportClick}
+                className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-green-700 hover:bg-green-600 transition-colors"
+              >
+                <Download className="h-5 w-5" />
+                <span>Export Data</span>
               </button>
             )}
 
@@ -192,6 +203,18 @@ export function Header({ onDiscoverClick, onRatesClick, onDeviceManagementClick 
                           <Bell className="h-4 w-4 mr-3" />
                           Notification Settings
                         </Link>
+                        {hasPermission('data.export') && (
+                          <button
+                            onClick={() => {
+                              onExportClick?.();
+                              setShowUserMenu(false);
+                            }}
+                            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          >
+                            <Download className="h-4 w-4 mr-3" />
+                            Data Export
+                          </button>
+                        )}
                         <hr className="my-2" />
                       </>
                     )}

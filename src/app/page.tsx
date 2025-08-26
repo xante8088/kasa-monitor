@@ -25,9 +25,14 @@ import { DeviceGrid } from '@/components/device-grid'
 import { DeviceDetail } from '@/components/device-detail'
 import { CostSummary } from '@/components/cost-summary'
 import { AppLayout } from '@/components/app-layout'
+import { PrimaryExportButton } from '@/components/export-button'
+import { DataExportModal } from '@/components/data-export-modal'
+import { useAuth } from '@/contexts/auth-context'
 
 export default function Home() {
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null)
+  const [showExportModal, setShowExportModal] = useState(false)
+  const { hasPermission } = useAuth()
 
   return (
     <AppLayout showCostSummary={true}>
@@ -39,11 +44,27 @@ export default function Home() {
           />
         ) : (
           <>
+            <div className="flex justify-between items-center mb-6">
+              <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+              {hasPermission('data.export') && (
+                <PrimaryExportButton
+                  onClick={() => setShowExportModal(true)}
+                  size="lg"
+                />
+              )}
+            </div>
             <CostSummary />
             <DeviceGrid onDeviceSelect={setSelectedDevice} />
           </>
         )}
       </main>
+      
+      {showExportModal && (
+        <DataExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+        />
+      )}
     </AppLayout>
   )
 }
