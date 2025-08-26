@@ -1,8 +1,10 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { safeConsoleError, safeStorage } from '@/lib/security-utils';
+import { apiClient, AuthEvent } from '@/lib/api-client';
+import { notificationSystem, AuthNotificationTemplates } from '@/lib/notification-system';
 
 interface User {
   id: number;
@@ -17,10 +19,14 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (token: string, userData: User) => void;
-  logout: () => void;
+  login: (token: string, userData: User, refreshToken?: string) => void;
+  logout: (reason?: string) => void;
   hasPermission: (permission: string) => boolean;
   isAuthenticated: boolean;
+  refreshToken: () => Promise<void>;
+  isTokenExpired: () => boolean;
+  getTokenExpirationTime: () => number | null;
+  sessionTimeRemaining: number | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,12 +44,25 @@ const PROTECTED_ROUTES = ['/admin'];
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionTimeRemaining, setSessionTimeRemaining] = useState<number | null>(null);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
     initializeAuth();
+    setupAuthEventHandlers();
   }, []);
+
+  useEffect(() => {
+    // Set up session monitoring
+    if (user) {
+      const interval = setInterval(updateSessionTimeRemaining, 60000); // Update every minute
+      updateSessionTimeRemaining(); // Initial update
+      return () => clearInterval(interval);
+    } else {
+      setSessionTimeRemaining(null);
+    }
+  }, [user]);
 
   useEffect(() => {
     // Handle route protection
@@ -62,29 +81,112 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return;
       }
 
-      // Verify token is still valid
-      const response = await fetch('/api/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`
+      // Check if token is expired
+      if (apiClient.isTokenExpired(token)) {
+        // Try to refresh the token
+        try {
+          await apiClient.refreshToken();
+          // Get updated user data after refresh
+          const currentUser = await apiClient.get('/api/auth/me');
+          setUser(currentUser);
+        } catch (refreshError) {
+          // Refresh failed, clear storage and redirect to login
+          clearAuthState();
         }
-      });
-
-      if (response.ok) {
-        const currentUser = await response.json();
-        setUser(currentUser);
       } else {
-        // Token is invalid, clear storage
-        safeStorage.removeItem('token');
-        safeStorage.removeItem('user');
+        // Token is still valid, verify with server
+        try {
+          const currentUser = await apiClient.get('/api/auth/me');
+          setUser(currentUser);
+        } catch (error) {
+          // API call failed, clear storage
+          clearAuthState();
+        }
       }
     } catch (error) {
       safeConsoleError('Auth initialization error', error);
-      safeStorage.removeItem('token');
-      safeStorage.removeItem('user');
+      clearAuthState();
     } finally {
       setLoading(false);
     }
   };
+
+  const clearAuthState = () => {
+    apiClient.clearAuth();
+    setUser(null);
+    setSessionTimeRemaining(null);
+  };
+
+  const setupAuthEventHandlers = () => {
+    return apiClient.onAuthEvent((event: AuthEvent) => {
+      switch (event.type) {
+        case apiClient.AuthEvents.TOKEN_REFRESHED:
+          notificationSystem.show(AuthNotificationTemplates.tokenRefreshed());
+          updateSessionTimeRemaining();
+          break;
+          
+        case apiClient.AuthEvents.TOKEN_REFRESH_FAILED:
+          notificationSystem.show(AuthNotificationTemplates.refreshFailed());
+          handleAuthFailure('refresh_failed');
+          break;
+          
+        case apiClient.AuthEvents.SESSION_EXPIRED:
+          notificationSystem.show(AuthNotificationTemplates.sessionExpired(pathname));
+          handleAuthFailure('session_expired');
+          break;
+          
+        case apiClient.AuthEvents.AUTHENTICATION_REQUIRED:
+          notificationSystem.show(AuthNotificationTemplates.authenticationRequired(pathname));
+          handleAuthFailure('authentication_required');
+          break;
+      }
+    });
+  };
+
+  const handleAuthFailure = useCallback((reason: string) => {
+    clearAuthState();
+    
+    // Redirect to login with appropriate parameters
+    const searchParams = new URLSearchParams();
+    if (pathname && pathname !== '/login') {
+      searchParams.set('returnUrl', pathname);
+    }
+    if (reason === 'session_expired') {
+      searchParams.set('sessionExpired', 'true');
+    }
+    
+    const loginUrl = `/login${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+    router.push(loginUrl);
+  }, [pathname, router]);
+
+  const updateSessionTimeRemaining = useCallback(() => {
+    const expirationTime = apiClient.getTokenExpirationTime();
+    if (expirationTime) {
+      const timeRemaining = Math.max(0, expirationTime - Date.now());
+      setSessionTimeRemaining(timeRemaining);
+      
+      // Show warning if less than 5 minutes remaining
+      const minutesRemaining = Math.floor(timeRemaining / (1000 * 60));
+      if (minutesRemaining <= 5 && minutesRemaining > 0) {
+        const warningShown = sessionStorage.getItem('session-warning-shown');
+        if (!warningShown) {
+          notificationSystem.show(AuthNotificationTemplates.sessionWarning(
+            minutesRemaining,
+            () => {
+              refreshToken();
+              sessionStorage.removeItem('session-warning-shown');
+            }
+          ));
+          sessionStorage.setItem('session-warning-shown', 'true');
+        }
+      } else if (minutesRemaining > 5) {
+        // Reset warning flag when session has more than 5 minutes
+        sessionStorage.removeItem('session-warning-shown');
+      }
+    } else {
+      setSessionTimeRemaining(null);
+    }
+  }, []);
 
   const handleRouteProtection = async () => {
     const isPublicRoute = PUBLIC_ROUTES.includes(pathname);
@@ -126,25 +228,69 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const login = (token: string, userData: User) => {
+  const login = useCallback((token: string, userData: User, refreshToken?: string) => {
     safeStorage.setItem('token', token);
     safeStorage.setItem('user', JSON.stringify(userData));
+    if (refreshToken) {
+      safeStorage.setItem('refresh_token', refreshToken);
+    }
     setUser(userData);
-    router.push('/');
-  };
+    
+    // Show welcome notification
+    notificationSystem.show(AuthNotificationTemplates.loginSuccess(userData.username));
+    
+    // Handle return URL
+    const searchParams = new URLSearchParams(window.location.search);
+    const returnUrl = searchParams.get('returnUrl');
+    
+    if (returnUrl && returnUrl !== '/login') {
+      router.push(decodeURIComponent(returnUrl));
+    } else {
+      router.push('/');
+    }
+  }, [router]);
 
-  const logout = () => {
-    safeStorage.removeItem('token');
-    safeStorage.removeItem('user');
-    setUser(null);
+  const logout = useCallback((reason?: string) => {
+    clearAuthState();
+    
+    // Show logout notification if it was intentional
+    if (!reason || reason === 'user_initiated') {
+      notificationSystem.show(AuthNotificationTemplates.logoutSuccess());
+    }
+    
+    // Clear session warning flag
+    sessionStorage.removeItem('session-warning-shown');
+    
     router.push('/login');
-  };
+  }, [router]);
 
-  const hasPermission = (permission: string): boolean => {
+  const refreshToken = useCallback(async (): Promise<void> => {
+    try {
+      await apiClient.refreshToken();
+      // Get updated user data after refresh
+      const currentUser = await apiClient.get('/api/auth/me');
+      setUser(currentUser);
+      updateSessionTimeRemaining();
+    } catch (error) {
+      safeConsoleError('Token refresh failed', error);
+      handleAuthFailure('refresh_failed');
+      throw error;
+    }
+  }, [handleAuthFailure]);
+
+  const isTokenExpired = useCallback((): boolean => {
+    return apiClient.isTokenExpired();
+  }, []);
+
+  const getTokenExpirationTime = useCallback((): number | null => {
+    return apiClient.getTokenExpirationTime();
+  }, []);
+
+  const hasPermission = useCallback((permission: string): boolean => {
     if (!user) return false;
     if (user.role === 'admin') return true;
     return user.permissions?.includes(permission) || false;
-  };
+  }, [user]);
 
   const isAuthenticated = !!user;
 
@@ -154,7 +300,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     login,
     logout,
     hasPermission,
-    isAuthenticated
+    isAuthenticated,
+    refreshToken,
+    isTokenExpired,
+    getTokenExpirationTime,
+    sessionTimeRemaining
   };
 
   // Show loading spinner while initializing
