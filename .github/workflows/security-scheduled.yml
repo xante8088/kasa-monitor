@@ -325,9 +325,22 @@ jobs:
     steps:
     - name: Create security issue
       uses: actions/github-script@v7
+      env:
+        CODEQL_RESULT: ${{ needs.codeql-analysis.result }}
+        VULN_SCAN_RESULT: ${{ needs.vulnerability-scan.result }}
+        SECRET_SCAN_RESULT: ${{ needs.secret-scanning.result }}
+        DEPENDENCY_SCAN_RESULT: ${{ needs.dependency-scanning.result }}
       with:
         script: |
           const title = `🚨 Weekly Security Scan Failed - ${new Date().toISOString().split('T')[0]}`;
+          
+          // Build failed components list
+          const failedComponents = [];
+          if (process.env.CODEQL_RESULT === 'failure') failedComponents.push('- ❌ CodeQL Analysis');
+          if (process.env.VULN_SCAN_RESULT === 'failure') failedComponents.push('- ❌ Vulnerability Scan');
+          if (process.env.SECRET_SCAN_RESULT === 'failure') failedComponents.push('- ❌ Secret Scanning');
+          if (process.env.DEPENDENCY_SCAN_RESULT === 'failure') failedComponents.push('- ❌ Dependency Scanning');
+          
           const body = `
           ## Security Scan Failure Report
           
@@ -336,10 +349,7 @@ jobs:
           
           ### Failed Components:
           
-          ${needs.codeql-analysis.result === 'failure' ? '- ❌ CodeQL Analysis' : ''}
-          ${needs.vulnerability-scan.result === 'failure' ? '- ❌ Vulnerability Scan' : ''}
-          ${needs.secret-scanning.result === 'failure' ? '- ❌ Secret Scanning' : ''}
-          ${needs.dependency-scanning.result === 'failure' ? '- ❌ Dependency Scanning' : ''}
+          ${failedComponents.join('\n          ')}
           
           ### Next Steps:
           
