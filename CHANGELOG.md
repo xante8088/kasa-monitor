@@ -1,3 +1,9 @@
+## [1.2.0](https://github.com/xante8088/kasa-monitor/compare/v1.1.2...v1.2.0) (2025-08-25)
+
+### 🚀 Features
+
+* implement optimized GitHub Actions workflows for efficient CI/CD ([eea6e72](https://github.com/xante8088/kasa-monitor/commit/eea6e724d2c1d140700982ac28e9f36760e03d3a))
+
 ## [1.1.2](https://github.com/xante8088/kasa-monitor/compare/v1.1.1...v1.1.2) (2025-08-25)
 
 ### 🐛 Bug Fixes
