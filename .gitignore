@@ -25,6 +25,12 @@ dist/
 .env.test.local
 .env.production.local
 
+# Security files (prevent accidental commits of secrets)
+*jwt_secret*
+*secret.txt
+*token.txt
+*.key.txt
+
 # Logs
 *.log
 npm-debug.log*

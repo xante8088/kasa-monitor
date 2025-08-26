@@ -25,7 +25,7 @@ Content-Type: application/json
 **Response:**
 ```json
 {
-  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+  "access_token": "jwt_token_example_not_real_do_not_use_in_production",
   "user": {
     "id": 1,
     "username": "admin",
