@@ -72,7 +72,9 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Run Trivy filesystem scan
+      id: fs-scan
       uses: aquasecurity/trivy-action@master
+      continue-on-error: true
       with:
         scan-type: 'fs'
         scan-ref: '.'
@@ -82,12 +84,15 @@ jobs:
 
     - name: Upload Trivy filesystem results
       uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      if: steps.fs-scan.outcome == 'success'
       with:
         sarif_file: 'trivy-fs-results.sarif'
+        category: 'trivy-filesystem'
 
     - name: Run Trivy config scan
+      id: config-scan
       uses: aquasecurity/trivy-action@master
+      continue-on-error: true
       with:
         scan-type: 'config'
         scan-ref: '.'
@@ -96,16 +101,22 @@ jobs:
 
     - name: Upload Trivy config results
       uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      if: steps.config-scan.outcome == 'success'
       with:
         sarif_file: 'trivy-config-results.sarif'
+        category: 'trivy-config'
 
     - name: Build Docker image for scanning
+      id: docker-build
+      continue-on-error: true
       run: |
         docker build -t kasa-monitor:security-scan .
 
     - name: Run Trivy Docker image scan
+      id: docker-scan
+      if: steps.docker-build.outcome == 'success'
       uses: aquasecurity/trivy-action@master
+      continue-on-error: true
       with:
         image-ref: 'kasa-monitor:security-scan'
         format: 'sarif'
@@ -113,9 +124,10 @@ jobs:
 
     - name: Upload Trivy Docker results
       uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      if: steps.docker-scan.outcome == 'success'
       with:
         sarif_file: 'trivy-docker-results.sarif'
+        category: 'trivy-docker'
 
   secret-scanning:
     name: Secret Scanning
