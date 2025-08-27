@@ -1,0 +1,137 @@
+name: Docker Build On-Demand
+
+# This workflow allows building Docker images without creating a release
+# Use case: Critical fixes that need immediate deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_suffix:
+        description: 'Version suffix (e.g., hotfix-1)'
+        required: false
+        default: ''
+      push_latest:
+        description: 'Also tag as latest'
+        required: true
+        default: true
+        type: boolean
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'src/**'
+      - 'public/**'
+      - 'Dockerfile'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/docker-build-on-demand.yml'
+
+env:
+  DOCKER_REGISTRY: docker.io
+  IMAGE_NAME: xante8088/kasa-monitor
+
+jobs:
+  build-docker:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    # Only run if:
+    # - Manually triggered
+    # - Commit message contains [docker-build]
+    # - Critical files changed and commit is fix/feat
+    if: |
+      github.event_name == 'workflow_dispatch' || 
+      contains(github.event.head_commit.message, '[docker-build]') ||
+      (github.event_name == 'push' && (
+        contains(github.event.head_commit.message, 'fix:') ||
+        contains(github.event.head_commit.message, 'feat:') ||
+        contains(github.event.head_commit.message, 'security:')
+      ))
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+      
+    - name: Determine version
+      id: version
+      run: |
+        # Get base version from package.json
+        BASE_VERSION=$(node -p "require('./package.json').version")
+        
+        # Add suffix if provided (manual trigger)
+        if [[ -n "${{ github.event.inputs.version_suffix }}" ]]; then
+          VERSION="${BASE_VERSION}-${{ github.event.inputs.version_suffix }}"
+        else
+          # For automatic builds, add commit SHA
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          VERSION="${BASE_VERSION}-${SHORT_SHA}"
+        fi
+        
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
+        echo "🏷️ Building Docker image with version: $VERSION"
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver-opts: network=host
+    
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.DOCKER_REGISTRY }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=raw,value=${{ steps.version.outputs.version }}
+          type=raw,value=${{ steps.version.outputs.base_version }}
+          type=raw,value=latest,enable=${{ github.event.inputs.push_latest == 'true' || github.event_name == 'push' }}
+          type=sha,prefix={{branch}}-
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: |
+          type=gha,scope=buildkit-ondemand
+          type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:cache-main
+        cache-to: |
+          type=gha,scope=buildkit-ondemand,mode=max
+        build-args: |
+          VERSION=${{ steps.version.outputs.version }}
+          BUILDKIT_INLINE_CACHE=1
+    
+    - name: Create deployment summary
+      run: |
+        echo "## 🚀 Docker Build Complete" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Build Information" >> $GITHUB_STEP_SUMMARY
+        echo "- **Version**: \`${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Base Version**: \`${{ steps.version.outputs.base_version }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Commit**: [\`$(git rev-parse --short HEAD)\`](${{ github.event.head_commit.url }})" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Docker Tags" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Deployment Instructions" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+        echo "# Pull the new image" >> $GITHUB_STEP_SUMMARY
+        echo "docker pull ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "# Or use docker-compose" >> $GITHUB_STEP_SUMMARY
+        echo "docker-compose pull && docker-compose up -d" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
