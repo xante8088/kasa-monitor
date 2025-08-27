@@ -42,6 +42,7 @@ jobs:
     
     - name: Log in to Docker Hub (if secrets available)
       uses: docker/login-action@v3
+      if: ${{ secrets.DOCKER_USERNAME != '' && secrets.DOCKER_PASSWORD != '' }}
       continue-on-error: true
       with:
         registry: ${{ env.DOCKER_REGISTRY }}
