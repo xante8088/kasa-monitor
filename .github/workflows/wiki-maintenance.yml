@@ -56,9 +56,9 @@ jobs:
           echo "  With issues: $issue_count"
           echo "  Missing footer: $missing_count"
           
-          echo "::set-output name=compliant_count::$compliant_count"
-          echo "::set-output name=issue_count::$issue_count"
-          echo "::set-output name=missing_count::$missing_count"
+          echo "compliant_count=$compliant_count" >> $GITHUB_OUTPUT
+          echo "issue_count=$issue_count" >> $GITHUB_OUTPUT
+          echo "missing_count=$missing_count" >> $GITHUB_OUTPUT
       
       - name: Check for outdated documentation
         id: outdated_check
@@ -109,8 +109,8 @@ jobs:
           echo "Critical (>$CRITICAL_AGE_DAYS days): $critical_count files"
           echo "Warning (>$WARNING_AGE_DAYS days): $warning_count files"
           
-          echo "::set-output name=critical_count::$critical_count"
-          echo "::set-output name=warning_count::$warning_count"
+          echo "critical_count=$critical_count" >> $GITHUB_OUTPUT
+          echo "warning_count=$warning_count" >> $GITHUB_OUTPUT
       
       - name: Validate cross-references
         id: crossref_check
@@ -166,7 +166,7 @@ jobs:
           fi
           
           echo "$broken_links" > broken-links.txt
-          echo "::set-output name=broken_count::$broken_count"
+          echo "broken_count=$broken_count" >> $GITHUB_OUTPUT
       
       - name: Check external links
         id: external_links
@@ -205,7 +205,7 @@ jobs:
           echo ""
           echo "Files with broken external links: $failed_count"
           echo "$failed_files" > failed-external-links.txt
-          echo "::set-output name=failed_external::$failed_count"
+          echo "failed_external=$failed_count" >> $GITHUB_OUTPUT
       
       - name: Analyze documentation coverage
         run: |

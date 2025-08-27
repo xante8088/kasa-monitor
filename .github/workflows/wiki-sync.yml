@@ -124,7 +124,7 @@ jobs:
           
           echo ""
           echo "=== Validation Complete ==="
-          echo "::set-output name=file_count::$file_count"
+          echo "file_count=$file_count" >> $GITHUB_OUTPUT
 
   sync-wiki:
     runs-on: ubuntu-latest
@@ -161,10 +161,10 @@ jobs:
         run: |
           if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
             echo "🔍 DRY RUN MODE ENABLED - No actual sync will occur"
-            echo "::set-output name=dry_run::true"
+            echo "dry_run=true" >> $GITHUB_OUTPUT
           else
             echo "🚀 LIVE SYNC MODE - Wiki will be updated"
-            echo "::set-output name=dry_run::false"
+            echo "dry_run=false" >> $GITHUB_OUTPUT
           fi
       
       - name: Sync to GitHub Wiki
