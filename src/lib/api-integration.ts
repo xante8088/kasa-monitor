@@ -158,7 +158,7 @@ export const migrateApiCall = {
 
 // Utility to create query keys with consistent structure
 export const createQueryKey = (resource: string, id?: string | number, filters?: Record<string, any>) => {
-  const key = [resource];
+  const key: (string | number | Record<string, any>)[] = [resource];
   if (id) key.push(id);
   if (filters) key.push(filters);
   return key;
