@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# Git hook to remind about [docker-build] tag for source code changes
+# To enable: git config core.hooksPath .githooks
+
+COMMIT_MSG_FILE=$1
+COMMIT_SOURCE=$2
+SHA1=$3
+
+# Only process for regular commits (not merges, squashes, etc.)
+if [ -z "$COMMIT_SOURCE" ]; then
+    # Get list of staged files
+    STAGED_FILES=$(git diff --cached --name-only)
+    
+    # Check for source code changes
+    SOURCE_CHANGED=false
+    
+    for file in $STAGED_FILES; do
+        # Check for source code patterns
+        if [[ "$file" == backend/*.py ]] || \
+           [[ "$file" == src/*.tsx ]] || \
+           [[ "$file" == src/*.ts ]] || \
+           [[ "$file" == src/*.jsx ]] || \
+           [[ "$file" == src/*.js ]] || \
+           [[ "$file" == Dockerfile* ]] || \
+           [[ "$file" == docker-compose*.yml ]] || \
+           [[ "$file" == package*.json ]] || \
+           [[ "$file" == requirements*.txt ]] || \
+           [[ "$file" == backend/requirements/*.txt ]]; then
+            SOURCE_CHANGED=true
+            break
+        fi
+    done
+    
+    # If source code changed, check if [docker-build] is already in message
+    if [ "$SOURCE_CHANGED" = true ]; then
+        if ! grep -q "\[docker-build\]" "$COMMIT_MSG_FILE"; then
+            # Add a comment to the commit message file
+            echo "" >> "$COMMIT_MSG_FILE"
+            echo "# ⚠️  Source code changes detected!" >> "$COMMIT_MSG_FILE"
+            echo "# Consider adding [docker-build] tag to trigger Docker image build." >> "$COMMIT_MSG_FILE"
+            echo "# Example: 'fix: resolve authentication issue [docker-build]'" >> "$COMMIT_MSG_FILE"
+            echo "#" >> "$COMMIT_MSG_FILE"
+            echo "# Changed files that may need Docker rebuild:" >> "$COMMIT_MSG_FILE"
+            
+            for file in $STAGED_FILES; do
+                if [[ "$file" == backend/*.py ]] || \
+                   [[ "$file" == src/* ]] || \
+                   [[ "$file" == Dockerfile* ]] || \
+                   [[ "$file" == docker-compose*.yml ]] || \
+                   [[ "$file" == package*.json ]] || \
+                   [[ "$file" == requirements*.txt ]]; then
+                    echo "#   - $file" >> "$COMMIT_MSG_FILE"
+                fi
+            done
+            
+            echo "#" >> "$COMMIT_MSG_FILE"
+            echo "# To skip Docker build, remove this comment and commit without tag." >> "$COMMIT_MSG_FILE"
+        fi
+    fi
+fi
