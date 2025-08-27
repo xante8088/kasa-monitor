@@ -277,23 +277,23 @@ class DatabaseManager:
 
         # Use InfluxDB if available for better time-series queries
         if self.use_influx and self.influx_client:
-            return await self._get_influx_device_history(device_ip, start_time, end_time, interval)
+            return await self._get_influx_device_history(
+                device_ip, start_time, end_time, interval
+            )
         else:
             # Enhanced SQLite implementation with aggregation
-            return await self._get_sqlite_device_history(device_ip, start_time, end_time, interval)
+            return await self._get_sqlite_device_history(
+                device_ip, start_time, end_time, interval
+            )
 
     async def _get_influx_device_history(
-        self, 
-        device_ip: str, 
-        start_time: datetime, 
-        end_time: datetime, 
-        interval: str
+        self, device_ip: str, start_time: datetime, end_time: datetime, interval: str
     ) -> List[Dict[str, Any]]:
         """Get device history from InfluxDB with proper aggregation."""
         query_api = self.influx_client.query_api()
-        
+
         # Enhanced InfluxDB query with proper aggregation
-        query = f'''
+        query = f"""
         import "timezone"
         
         // Get power, voltage, current data with mean aggregation
@@ -318,22 +318,18 @@ class DatabaseManager:
         union(tables: [power_voltage_data, energy_data])
             |> sort(columns: ["_time"])
             |> yield(name: "aggregated")
-        '''
-        
+        """
+
         result = await query_api.query(query)
         return self._process_influx_device_history(result)
 
     async def _get_sqlite_device_history(
-        self, 
-        device_ip: str, 
-        start_time: datetime, 
-        end_time: datetime, 
-        interval: str
+        self, device_ip: str, start_time: datetime, end_time: datetime, interval: str
     ) -> List[Dict[str, Any]]:
         """Get device history from SQLite with aggregation."""
         # Convert interval to SQL-compatible format
         sql_interval = self._convert_interval_to_sql(interval)
-        
+
         if sql_interval:
             # Use aggregation for better performance on large datasets
             cursor = await self.sqlite_conn.execute(
@@ -395,39 +391,51 @@ class DatabaseManager:
 
     def _convert_interval_to_sql(self, interval: str) -> bool:
         """Check if interval is supported by SQLite aggregation."""
-        supported_intervals = ['1m', '5m', '15m', '1h', '4h', '12h']
+        supported_intervals = ["1m", "5m", "15m", "1h", "4h", "12h"]
         return interval in supported_intervals
 
     def _process_influx_device_history(self, result) -> List[Dict[str, Any]]:
         """Process InfluxDB query results into device history format."""
         # Group records by timestamp
         data_by_time = {}
-        
+
         for table in result:
             for record in table.records:
                 timestamp = record.get_time().isoformat()
                 field = record.get_field()
                 value = record.get_value()
-                
+
                 if timestamp not in data_by_time:
                     data_by_time[timestamp] = {"timestamp": timestamp}
-                
+
                 # Round values appropriately
                 if field in ["current_power_w"]:
-                    data_by_time[timestamp][field] = round(value, 2) if value is not None else None
+                    data_by_time[timestamp][field] = (
+                        round(value, 2) if value is not None else None
+                    )
                 elif field == "voltage":
-                    data_by_time[timestamp][field] = round(value, 1) if value is not None else None
+                    data_by_time[timestamp][field] = (
+                        round(value, 1) if value is not None else None
+                    )
                 elif field == "current":
-                    data_by_time[timestamp][field] = round(value, 3) if value is not None else None
-                elif field in ["today_energy_kwh", "month_energy_kwh", "total_energy_kwh"]:
-                    data_by_time[timestamp][field] = round(value, 3) if value is not None else None
+                    data_by_time[timestamp][field] = (
+                        round(value, 3) if value is not None else None
+                    )
+                elif field in [
+                    "today_energy_kwh",
+                    "month_energy_kwh",
+                    "total_energy_kwh",
+                ]:
+                    data_by_time[timestamp][field] = (
+                        round(value, 3) if value is not None else None
+                    )
                 else:
                     data_by_time[timestamp][field] = value
-        
+
         # Convert to sorted list
         result_list = list(data_by_time.values())
         result_list.sort(key=lambda x: x["timestamp"])
-        
+
         return result_list
 
     async def get_device_data_range(self, device_ip: str) -> Optional[Dict[str, Any]]:
@@ -441,7 +449,7 @@ class DatabaseManager:
         """Get data range from InfluxDB."""
         try:
             query_api = self.influx_client.query_api()
-            query = f'''
+            query = f"""
             from(bucket: "{self.influx_bucket}")
                 |> range(start: 0)
                 |> filter(fn: (r) => r["device_ip"] == "{device_ip}")
@@ -449,11 +457,11 @@ class DatabaseManager:
                 |> group()
                 |> min()
                 |> yield(name: "min_time")
-            '''
-            
+            """
+
             min_result = await query_api.query(query)
-            
-            query = f'''
+
+            query = f"""
             from(bucket: "{self.influx_bucket}")
                 |> range(start: 0)
                 |> filter(fn: (r) => r["device_ip"] == "{device_ip}")
@@ -461,34 +469,34 @@ class DatabaseManager:
                 |> group()
                 |> max()
                 |> yield(name: "max_time")
-            '''
-            
+            """
+
             max_result = await query_api.query(query)
-            
+
             min_time = None
             max_time = None
-            
+
             for table in min_result:
                 for record in table.records:
                     min_time = record.get_time()
                     break
-                    
+
             for table in max_result:
                 for record in table.records:
                     max_time = record.get_time()
                     break
-            
+
             if min_time and max_time:
                 return {
                     "earliest_timestamp": min_time.isoformat(),
                     "latest_timestamp": max_time.isoformat(),
                     "total_days": (max_time - min_time).days,
-                    "has_data": True
+                    "has_data": True,
                 }
-                
+
         except Exception as e:
             logger.error(f"Error getting InfluxDB data range for {device_ip}: {str(e)}")
-        
+
         return None
 
     async def _get_sqlite_data_range(self, device_ip: str) -> Optional[Dict[str, Any]]:
@@ -505,24 +513,24 @@ class DatabaseManager:
                 """,
                 (device_ip,),
             )
-            
+
             row = await cursor.fetchone()
-            
+
             if row and row[0] and row[1]:
-                earliest = datetime.fromisoformat(row[0].replace('Z', '+00:00'))
-                latest = datetime.fromisoformat(row[1].replace('Z', '+00:00'))
-                
+                earliest = datetime.fromisoformat(row[0].replace("Z", "+00:00"))
+                latest = datetime.fromisoformat(row[1].replace("Z", "+00:00"))
+
                 return {
                     "earliest_timestamp": row[0],
                     "latest_timestamp": row[1],
                     "total_days": (latest - earliest).days,
                     "total_records": row[2],
-                    "has_data": True
+                    "has_data": True,
                 }
-                
+
         except Exception as e:
             logger.error(f"Error getting SQLite data range for {device_ip}: {str(e)}")
-            
+
         return None
 
     async def get_device_stats(self, device_ip: str) -> Dict[str, Any]:
