@@ -51,7 +51,7 @@ class NotificationSystem {
     this.notifyListeners();
 
     // Auto-dismiss non-persistent notifications
-    if (!options.persistent && toast.duration > 0) {
+    if (!options.persistent && toast.duration && toast.duration > 0) {
       setTimeout(() => {
         this.dismiss(id);
       }, toast.duration);
