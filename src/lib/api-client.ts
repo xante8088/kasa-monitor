@@ -357,4 +357,4 @@ export interface AuthEvent {
 export const apiClient = new ApiClient();
 
 // Export types
-export type { RequestConfig, AuthEvent };
+export type { RequestConfig };
