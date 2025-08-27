@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-Comprehensive troubleshooting guide for common issues and their solutions in Kasa Monitor v1.2.0.
+Comprehensive troubleshooting guide for common issues and their solutions in Kasa Monitor v1.2.1.
 
 ## Table of Contents
 
@@ -8,6 +8,8 @@ Comprehensive troubleshooting guide for common issues and their solutions in Kas
 - [Authentication & Session Problems](#authentication--session-problems)
 - [Data Export Issues](#data-export-issues)
 - [Device Persistence Problems](#device-persistence-problems)
+- [Time Period Selection Issues](#time-period-selection-issues)
+- [Chart Display Problems](#chart-display-problems)
 - [Audit Log Display Issues](#audit-log-display-issues)
 - [Docker & Container Issues](#docker--container-issues)
 - [Performance Problems](#performance-problems)
@@ -339,6 +341,155 @@ DROP VIEW IF EXISTS device_status_view;
 CREATE VIEW device_status_view AS SELECT * FROM devices;
 ```
 
+## Time Period Selection Issues
+
+### Time Period Not Updating Charts
+
+**Problem:** Selecting a different time period doesn't update the chart data.
+
+**Solution:**
+```javascript
+// Check if the component is properly receiving period updates
+useEffect(() => {
+  console.log('Period changed:', selectedPeriod);
+  fetchData(selectedPeriod);
+}, [selectedPeriod]);
+
+// Ensure API call includes the period parameter
+const fetchData = async (period) => {
+  const response = await fetch(
+    `/api/device/${deviceIp}/history?period=${period}&aggregation=auto`
+  );
+  // ...
+};
+```
+
+### Custom Date Range Not Working
+
+**Problem:** Custom date range picker doesn't function correctly.
+
+**Solution:**
+```javascript
+// Verify date format is correct
+const formatDate = (date) => {
+  return date.toISOString().split('T')[0]; // YYYY-MM-DD format
+};
+
+// Check browser compatibility
+if (!window.DateTimeFormat) {
+  console.warn('Browser does not support DateTimeFormat');
+  // Use fallback date picker
+}
+```
+
+### Chart Memory Leak with Rapid Period Changes
+
+**Problem:** Memory usage increases when rapidly switching between time periods.
+
+**Solution:**
+```javascript
+// Proper cleanup in React component
+useEffect(() => {
+  let isMounted = true;
+  const controller = new AbortController();
+  
+  const fetchData = async () => {
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal
+      });
+      if (isMounted) {
+        setData(await response.json());
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error(error);
+      }
+    }
+  };
+  
+  fetchData();
+  
+  return () => {
+    isMounted = false;
+    controller.abort();
+    // Clean up chart instance
+    if (chartRef.current) {
+      chartRef.current.destroy();
+    }
+  };
+}, [period]);
+```
+
+## Chart Display Problems
+
+### Charts Not Loading After Update
+
+**Problem:** Charts show loading spinner indefinitely after v1.2.1 update.
+
+**Solution:**
+```bash
+# Clear browser cache
+# Chrome/Edge: Ctrl+Shift+R or Cmd+Shift+R
+# Firefox: Ctrl+F5 or Cmd+Shift+R
+# Safari: Cmd+Option+R
+
+# Clear application cache
+localStorage.clear();
+sessionStorage.clear();
+
+# Force reload
+location.reload(true);
+```
+
+### Incorrect Data Aggregation
+
+**Problem:** Chart shows incorrect aggregation for selected time period.
+
+**Solution:**
+```sql
+-- Check aggregation settings in database
+SELECT * FROM system_config WHERE key LIKE 'aggregation%';
+
+-- Verify data points exist for the period
+SELECT COUNT(*), 
+       MIN(timestamp) as earliest,
+       MAX(timestamp) as latest
+FROM readings 
+WHERE device_ip = '192.168.1.100'
+  AND timestamp > datetime('now', '-7 days');
+```
+
+### Chart Performance Issues
+
+**Problem:** Charts lag or freeze with large datasets.
+
+**Solution:**
+```javascript
+// Enable performance optimizations
+const chartOptions = {
+  animation: {
+    duration: 0  // Disable animations for better performance
+  },
+  parsing: false,  // Pre-parse data
+  normalized: true, // Data is already normalized
+  spanGaps: true,  // Handle missing data points
+  datasets: {
+    line: {
+      pointRadius: 0,  // Hide points for better performance
+      borderWidth: 1   // Thinner lines
+    }
+  }
+};
+
+// Limit data points
+const maxDataPoints = 1000;
+if (data.length > maxDataPoints) {
+  // Implement data decimation
+  data = decimateData(data, maxDataPoints);
+}
+```
+
 ## Audit Log Display Issues
 
 ### Audit Log Modal Shows Grey Overlay
@@ -520,7 +671,7 @@ docker exec kasa-monitor ps aux
 
 ---
 
-**Document Version:** 1.0.0  
-**Last Updated:** 2025-08-26  
+**Document Version:** 1.1.0  
+**Last Updated:** 2025-08-27  
 **Review Status:** Current  
-**Change Summary:** Initial comprehensive troubleshooting guide for v1.2.0 features
+**Change Summary:** Updated for v1.2.1 with new sections for time period selection and chart display issues

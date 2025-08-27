@@ -1395,13 +1395,80 @@ class KasaMonitorApp:
             device_ip: str,
             start_time: Optional[datetime] = None,
             end_time: Optional[datetime] = None,
-            interval: str = "1h",
+            interval: Optional[str] = None,
+            time_period: Optional[str] = None,
+            response: Response = None,
         ):
-            """Get historical data for a device."""
-            history = await self.db_manager.get_device_history(
-                device_ip, start_time, end_time, interval
-            )
-            return history
+            """Get historical data for a device with time period filtering."""
+            try:
+                # Validate time parameters
+                if start_time and end_time and start_time >= end_time:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail="start_time must be before end_time"
+                    )
+                
+                # Check maximum range (90 days)
+                if start_time and end_time:
+                    time_diff = end_time - start_time
+                    if time_diff.days > 90:
+                        raise HTTPException(
+                            status_code=400, 
+                            detail="Time range cannot exceed 90 days"
+                        )
+                
+                # Validate time_period if provided
+                valid_periods = ['1h', '6h', '24h', '3d', '7d', '30d', 'custom']
+                if time_period and time_period not in valid_periods:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"Invalid time_period. Must be one of: {valid_periods}"
+                    )
+                
+                # Auto-select interval based on time range if not provided
+                if not interval:
+                    interval = self._get_optimal_interval(start_time, end_time, time_period)
+                
+                history = await self.db_manager.get_device_history(
+                    device_ip, start_time, end_time, interval
+                )
+                
+                # Add caching headers for better performance
+                if response and time_period:
+                    cache_duration = self._get_cache_duration(time_period)
+                    response.headers["Cache-Control"] = f"public, max-age={cache_duration}"
+                
+                return {
+                    "data": history,
+                    "metadata": {
+                        "time_period": time_period,
+                        "start_time": start_time.isoformat() if start_time else None,
+                        "end_time": end_time.isoformat() if end_time else None,
+                        "interval": interval,
+                        "data_points": len(history) if history else 0
+                    }
+                }
+                
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Error getting device history for {device_ip}: {str(e)}")
+                raise HTTPException(status_code=500, detail="Internal server error")
+
+        @self.app.get("/api/device/{device_ip}/history/range")
+        async def get_device_history_range(device_ip: str):
+            """Get available data range for a device."""
+            try:
+                data_range = await self.db_manager.get_device_data_range(device_ip)
+                if not data_range:
+                    raise HTTPException(
+                        status_code=404, 
+                        detail="No historical data found for this device"
+                    )
+                return data_range
+            except Exception as e:
+                logger.error(f"Error getting data range for device {device_ip}: {str(e)}")
+                raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.get("/api/device/{device_ip}/stats")
         async def get_device_stats(device_ip: str):
@@ -4461,6 +4528,66 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                     error_message=str(e),
                 )
                 await self.audit_logger.log_event_async(system_error_event)
+
+    def _get_optimal_interval(self, start_time: Optional[datetime], end_time: Optional[datetime], time_period: Optional[str]) -> str:
+        """Auto-select optimal interval based on time range."""
+        if time_period:
+            # Map time periods to optimal intervals
+            period_to_interval = {
+                '1h': '1m',
+                '6h': '5m',
+                '24h': '15m',
+                '3d': '1h',
+                '7d': '4h',
+                '30d': '12h',
+                'custom': '1h'  # Default for custom, may be overridden below
+            }
+            interval = period_to_interval.get(time_period, '1h')
+            
+            # For custom periods, adjust based on actual time range
+            if time_period == 'custom' and start_time and end_time:
+                time_diff = end_time - start_time
+                if time_diff.days <= 1:
+                    interval = '15m'
+                elif time_diff.days <= 7:
+                    interval = '1h'
+                elif time_diff.days <= 30:
+                    interval = '4h'
+                else:
+                    interval = '12h'
+            
+            return interval
+        
+        # Fallback logic based on time range
+        if start_time and end_time:
+            time_diff = end_time - start_time
+            if time_diff.total_seconds() <= 3600:  # 1 hour
+                return '1m'
+            elif time_diff.total_seconds() <= 21600:  # 6 hours
+                return '5m'
+            elif time_diff.days <= 1:
+                return '15m'
+            elif time_diff.days <= 7:
+                return '1h'
+            elif time_diff.days <= 30:
+                return '4h'
+            else:
+                return '12h'
+        
+        return '1h'  # Default
+
+    def _get_cache_duration(self, time_period: str) -> int:
+        """Get cache duration in seconds based on time period."""
+        cache_durations = {
+            '1h': 30,      # 30 seconds for 1 hour view
+            '6h': 60,      # 1 minute for 6 hour view
+            '24h': 300,    # 5 minutes for 24 hour view
+            '3d': 900,     # 15 minutes for 3 day view
+            '7d': 1800,    # 30 minutes for 7 day view
+            '30d': 3600,   # 1 hour for 30 day view
+            'custom': 300  # 5 minutes for custom range
+        }
+        return cache_durations.get(time_period, 300)
 
 
 if __name__ == "__main__":

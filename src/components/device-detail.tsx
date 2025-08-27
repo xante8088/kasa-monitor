@@ -6,6 +6,7 @@ import { ArrowLeft, Power, Zap, Activity, TrendingUp } from 'lucide-react'
 import { PowerChart } from './charts/power-chart'
 import { VoltageChart } from './charts/voltage-chart'
 import { EnergyChart } from './charts/energy-chart'
+import { ChartContainer } from './chart-container'
 import { DeviceControls } from './device-controls'
 import { DeviceStats } from './device-stats'
 import { SecondaryExportButton } from './export-button'
@@ -29,14 +30,7 @@ export function DeviceDetail({ deviceIp, onBack }: DeviceDetailProps) {
     refetchInterval: 5000,
   })
 
-  const { data: history } = useQuery({
-    queryKey: ['device-history', deviceIp],
-    queryFn: async () => {
-      const response = await axios.get(`/api/device/${deviceIp}/history`)
-      return response.data
-    },
-    refetchInterval: 60000,
-  })
+  // Note: history data fetching is now handled by ChartContainer components
 
   const { data: stats } = useQuery({
     queryKey: ['device-stats', deviceIp],
@@ -146,21 +140,49 @@ export function DeviceDetail({ deviceIp, onBack }: DeviceDetailProps) {
       {stats && <DeviceStats stats={stats} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-semibold mb-4">Power Consumption</h3>
-          <PowerChart data={history} />
-        </div>
+        <ChartContainer
+          title="Power Consumption"
+          deviceIp={deviceIp}
+          dataEndpoint="/api/device/{deviceIp}/history"
+        >
+          {({ data, timeRange, isLoading, error }) => (
+            <PowerChart 
+              data={data} 
+              timeRange={timeRange}
+              isLoading={isLoading}
+            />
+          )}
+        </ChartContainer>
         
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-semibold mb-4">Voltage</h3>
-          <VoltageChart data={history} />
-        </div>
+        <ChartContainer
+          title="Voltage"
+          deviceIp={deviceIp}
+          dataEndpoint="/api/device/{deviceIp}/history"
+        >
+          {({ data, timeRange, isLoading, error }) => (
+            <VoltageChart 
+              data={data} 
+              timeRange={timeRange}
+              isLoading={isLoading}
+            />
+          )}
+        </ChartContainer>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h3 className="text-lg font-semibold mb-4">Energy Usage Trend</h3>
-        <EnergyChart data={history} />
-      </div>
+      <ChartContainer
+        title="Energy Usage Trend"
+        deviceIp={deviceIp}
+        dataEndpoint="/api/device/{deviceIp}/history"
+        className="col-span-full"
+      >
+        {({ data, timeRange, isLoading, error }) => (
+          <EnergyChart 
+            data={data} 
+            timeRange={timeRange}
+            isLoading={isLoading}
+          />
+        )}
+      </ChartContainer>
       
       {/* Device-specific export modal */}
       {showExportModal && (

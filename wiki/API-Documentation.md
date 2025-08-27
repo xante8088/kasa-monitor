@@ -267,26 +267,49 @@ Content-Type: application/json
 GET /api/device/{device_ip}
 ```
 
-#### Get Device History
+#### Get Device History (Enhanced v1.2.1)
 ```http
-GET /api/device/{device_ip}/history?start_time=2024-01-01&end_time=2024-01-31&interval=1h
+GET /api/device/{device_ip}/history?period=7d&aggregation=auto&timezone=America/New_York
 ```
 
 **Query Parameters:**
-- `start_time`: ISO 8601 datetime (optional)
-- `end_time`: ISO 8601 datetime (optional)
-- `interval`: Data aggregation interval (1h, 6h, 1d)
+- `period`: Predefined time period (24h, 7d, 30d, 3m, 6m, 1y) - v1.2.1
+- `start_time`: ISO 8601 datetime (optional, for custom range)
+- `end_time`: ISO 8601 datetime (optional, for custom range)
+- `interval`: Data aggregation interval (5m, 1h, 6h, 1d, 1w) - deprecated, use `aggregation`
+- `aggregation`: Data aggregation level (auto, raw, hourly, daily, weekly, monthly) - v1.2.1
+- `timezone`: User's timezone for proper date alignment - v1.2.1
 
-**Response:**
+**Automatic Aggregation (v1.2.1):**
+When using `aggregation=auto`, the system automatically determines optimal intervals:
+- 24h → 5-minute intervals
+- 7d → Hourly intervals
+- 30d → 6-hour intervals
+- 3m/6m → Daily intervals
+- 1y → Weekly intervals
+
+**Response (v1.2.1):**
 ```json
-[
-  {
-    "timestamp": "2024-01-15T10:00:00Z",
-    "power_w": 45.2,
-    "energy_kwh": 0.045,
-    "cost": 0.005
+{
+  "data": [
+    {
+      "timestamp": "2024-01-15T10:00:00Z",
+      "power_w": 45.2,
+      "energy_kwh": 0.045,
+      "cost": 0.005,
+      "min_power_w": 40.1,
+      "max_power_w": 50.3,
+      "avg_power_w": 45.2
+    }
+  ],
+  "metadata": {
+    "count": 168,
+    "period": "7d",
+    "aggregation": "1h",
+    "cached": true,
+    "query_time_ms": 45
   }
-]
+}
 ```
 
 #### Get Device Statistics
@@ -1248,9 +1271,7 @@ Future versions will use `/api/v2/` format.
 
 ---
 
-**Document Version:** 2.0.0  
-**Last Updated:** 2025-08-26  
+**Document Version:** 2.1.0  
+**Last Updated:** 2025-08-27  
 **Review Status:** Current  
-**Change Summary:** Major update with v1.2.0 security enhancements including authentication improvements, data export security, SSL persistence, and structured error responses  
-**Review Status:** Current  
-**Change Summary:** Added security notes for file uploads, CORS policy, and JWT authentication updates
+**Change Summary:** Updated for v1.2.1 with enhanced history endpoint featuring time period support, automatic aggregation, and performance optimizations
