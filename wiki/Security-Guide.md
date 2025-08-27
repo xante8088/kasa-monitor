@@ -18,14 +18,21 @@ Comprehensive security best practices and hardening guide for Kasa Monitor.
 └─────────────────────────────────────┘
 ```
 
-## Recent Security Enhancements (v1.2.0)
+## Recent Security Enhancements (v1.2.0 - v1.2.1)
 
-### Critical Security Fixes Implemented
+### Critical Security Fixes Implemented (v1.2.0)
 - **Data Export Security** - Permission enforcement, ownership validation, rate limiting
 - **Authentication Improvements** - Token refresh, structured errors, session management
 - **SSL Certificate Persistence** - Secure volume storage with auto-detection
 - **Audit Logging Compliance** - GDPR/SOX compliant comprehensive logging
 - **Session Security** - Concurrent session limits, fingerprinting, warnings
+
+### Additional Security Improvements (v1.2.1)
+- **Enhanced SSL Handling** - Better cross-device filesystem compatibility
+- **Improved Database Security** - Fixed table reference vulnerabilities
+- **API Rate Limiting** - Enhanced rate limiting for history endpoints
+- **Data Aggregation Security** - Secure caching with user-based isolation
+- **Docker Security** - Fixed build vulnerabilities in GitHub Actions
 
 ## Quick Security Checklist
 
@@ -850,7 +857,7 @@ async def export_user_data(user_id: int):
 
 ---
 
-**Document Version:** 2.0.0  
-**Last Updated:** 2025-08-26  
+**Document Version:** 2.1.0  
+**Last Updated:** 2025-08-27  
 **Review Status:** Current  
-**Change Summary:** Major update with v1.2.0 security enhancements including data export security, authentication improvements, session management, comprehensive audit logging, and GDPR/SOX compliance features
+**Change Summary:** Updated for v1.2.1 with additional security improvements including enhanced SSL handling, database security fixes, and improved API rate limiting

@@ -57,7 +57,7 @@ version: '3.8'
 
 services:
   kasa-monitor:
-    image: xante8088/kasa-monitor:v1.0.0  # Use specific version
+    image: xante8088/kasa-monitor:v1.2.1  # Use specific version
     container_name: kasa-monitor
     restart: unless-stopped
     
@@ -71,10 +71,11 @@ services:
       - "127.0.0.1:3000:3000"  # Localhost only
       - "127.0.0.1:5272:5272"
     
-    # Volumes
+    # Volumes (Enhanced v1.2.1 - SSL persistence)
     volumes:
       - kasa_data:/app/data
       - kasa_logs:/app/logs
+      - kasa_ssl:/app/ssl  # SSL certificate persistence (v1.2.0+)
       - ./config:/app/config:ro  # Config files
       - /etc/localtime:/etc/localtime:ro  # Sync time
     
@@ -190,6 +191,8 @@ volumes:
   kasa_data:
     driver: local
   kasa_logs:
+    driver: local
+  kasa_ssl:  # SSL certificate persistence (v1.2.0+)
     driver: local
   redis_data:
     driver: local
@@ -389,7 +392,7 @@ spec:
     spec:
       containers:
       - name: kasa-monitor
-        image: xante8088/kasa-monitor:v1.0.0
+        image: xante8088/kasa-monitor:v1.2.1
         ports:
         - containerPort: 3000
         - containerPort: 5272
@@ -783,7 +786,7 @@ echo "$(openssl rand -hex 32)" | docker secret create influx_token -
 
 ---
 
-**Document Version:** 1.1.0  
-**Last Updated:** 2025-08-20  
+**Document Version:** 1.2.0  
+**Last Updated:** 2025-08-27  
 **Review Status:** Current  
-**Change Summary:** Added security hardening section with JWT, CORS, database credentials, and file upload security configurations
+**Change Summary:** Updated for v1.2.1 with SSL volume persistence, enhanced security configurations, and Docker build improvements

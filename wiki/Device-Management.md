@@ -107,9 +107,23 @@ The device management interface shows:
 
 | Status | Name | Model | IP | Power | Last Seen | Actions |
 |--------|------|-------|-----|-------|-----------|---------|
-| 🟢 | Living Room | HS110 | 192.168.1.100 | 45W | Just now | Edit/Delete |
-| 🟢 | Kitchen | KP115 | 192.168.1.101 | 0W | 1 min ago | Edit/Delete |
-| 🔴 | Bedroom | HS105 | 192.168.1.102 | - | 1 hour ago | Edit/Delete |
+| 🟢 | Living Room | HS110 | 192.168.1.100 | 45W | Just now | View/Edit/Export/Delete |
+| 🟢 | Kitchen | KP115 | 192.168.1.101 | 0W | 1 min ago | View/Edit/Export/Delete |
+| 🔴 | Bedroom | HS105 | 192.168.1.102 | - | 1 hour ago | View/Edit/Export/Delete |
+
+### Device Details View (Enhanced v1.2.1)
+
+**Time Period Selection:**
+Each chart in the device details view now includes individual time period selectors:
+- Power consumption chart with 24h/7d/30d/3m/6m/1y/custom options
+- Energy usage chart with intelligent aggregation
+- Cost analysis chart with period-based calculations
+
+**Chart Features:**
+- Automatic data aggregation based on selected period
+- Responsive design for mobile devices
+- Export data for selected period
+- Print-friendly view option
 
 ### Editing Devices
 
@@ -415,7 +429,7 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
 
 ---
 
-**Document Version:** 1.0.0  
-**Last Updated:** 2025-08-20  
+**Document Version:** 1.1.0  
+**Last Updated:** 2025-08-27  
 **Review Status:** Current  
-**Change Summary:** Initial version tracking added
+**Change Summary:** Updated for v1.2.1 with enhanced device details view featuring time period selectors and improved chart capabilities
