@@ -57,24 +57,6 @@ export function createEnhancedQueryClient(): QueryClient {
           return false;
         }
       }
-    },
-    queryCache: {
-      onError: (error, query) => {
-        // Global error handling for queries
-        safeConsoleError(`Query failed for key: ${JSON.stringify(query.queryKey)}`, error);
-        
-        // Handle authentication errors globally
-        if (error instanceof ApiError && error.status === 401) {
-          // The API client will handle this through its event system
-          return;
-        }
-      }
-    },
-    mutationCache: {
-      onError: (error, variables, context, mutation) => {
-        // Global error handling for mutations
-        safeConsoleError(`Mutation failed: ${mutation.options.mutationKey || 'unknown'}`, error);
-      }
     }
   });
 }
