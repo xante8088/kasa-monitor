@@ -433,7 +433,9 @@ class DatabaseManager:
                     "ip": row[0],
                     "name": row[1],  # This is alias in device_info table
                     "type": row[2],
-                    "is_active": bool(row[3]),  # This is is_monitored in device_info table
+                    "is_active": bool(
+                        row[3]
+                    ),  # This is is_monitored in device_info table
                     "last_seen": row[4],
                 }
             )

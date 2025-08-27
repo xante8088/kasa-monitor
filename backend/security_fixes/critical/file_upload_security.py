@@ -8,8 +8,8 @@ Licensed under GPL v3
 
 import hashlib
 import os
-import tempfile
 import shutil
+import tempfile
 
 try:
     import magic

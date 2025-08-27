@@ -173,7 +173,7 @@ class AuthManager:
                     "message": "Your session has expired. Please log in again.",
                     "error_code": "TOKEN_EXPIRED",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "redirect_to": "/login"
+                    "redirect_to": "/login",
                 },
                 headers={"WWW-Authenticate": "Bearer"},
             )
@@ -191,7 +191,7 @@ class AuthManager:
                     "message": "Invalid authentication credentials. Please log in again.",
                     "error_code": "TOKEN_INVALID",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "redirect_to": "/login"
+                    "redirect_to": "/login",
                 },
                 headers={"WWW-Authenticate": "Bearer"},
             )
@@ -203,7 +203,7 @@ class AuthManager:
         # Refresh tokens last 7 days
         expire = datetime.now(timezone.utc) + timedelta(days=7)
         to_encode.update({"exp": expire, "type": "refresh"})
-        
+
         current_secret = get_current_jwt_secret()
         encoded_jwt = jwt.encode(to_encode, current_secret, algorithm=ALGORITHM)
         return encoded_jwt
@@ -237,7 +237,7 @@ class AuthManager:
                     "message": "Refresh token has expired. Please log in again.",
                     "error_code": "REFRESH_TOKEN_EXPIRED",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "redirect_to": "/login"
+                    "redirect_to": "/login",
                 },
                 headers={"WWW-Authenticate": "Bearer"},
             )
@@ -249,7 +249,7 @@ class AuthManager:
                     "message": "Invalid refresh token. Please log in again.",
                     "error_code": "REFRESH_TOKEN_INVALID",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "redirect_to": "/login"
+                    "redirect_to": "/login",
                 },
                 headers={"WWW-Authenticate": "Bearer"},
             )
@@ -299,7 +299,7 @@ def require_auth(
                 "message": "Authentication required. Please log in to continue.",
                 "error_code": "AUTH_REQUIRED",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "redirect_to": "/login"
+                "redirect_to": "/login",
             },
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -314,7 +314,7 @@ def require_auth(
                 "message": "Invalid authentication token. Please log in again.",
                 "error_code": "TOKEN_INVALID",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "redirect_to": "/login"
+                "redirect_to": "/login",
             },
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -387,10 +387,10 @@ def is_local_network_ip(client_ip: str) -> bool:
 def get_auth_security_status() -> Dict[str, Any]:
     """Get comprehensive authentication security status."""
     from jwt_secret_manager import get_jwt_secret_manager
-    
+
     manager = get_jwt_secret_manager()
     secret_info = manager.get_secret_info()
-    
+
     return {
         "jwt_configuration": {
             "algorithm": ALGORITHM,
@@ -401,7 +401,7 @@ def get_auth_security_status() -> Dict[str, Any]:
                 "secret_file_exists": secret_info.get("file_exists"),
                 "file_permissions": secret_info.get("file_permissions"),
                 "current_secret_age_days": secret_info.get("current_age_days"),
-            }
+            },
         },
         "security_features": {
             "bcrypt_password_hashing": True,
@@ -417,34 +417,42 @@ def get_auth_security_status() -> Dict[str, Any]:
             "refresh_token_lifetime": "7 days",
             "token_validation_strict": True,
         },
-        "recommendations": _get_security_recommendations(secret_info)
+        "recommendations": _get_security_recommendations(secret_info),
     }
 
 
 def _get_security_recommendations(secret_info: Dict[str, Any]) -> List[str]:
     """Get security recommendations based on current configuration."""
     recommendations = []
-    
+
     # Check secret age
     age_days = secret_info.get("current_age_days", 0)
     if age_days > 30:
-        recommendations.append(f"JWT secret is {age_days} days old. Consider rotating for enhanced security.")
-    
+        recommendations.append(
+            f"JWT secret is {age_days} days old. Consider rotating for enhanced security."
+        )
+
     # Check file permissions
     permissions = secret_info.get("file_permissions")
     if permissions and permissions != "600":
-        recommendations.append(f"JWT secret file has permissions {permissions}. Should be 600 for security.")
-    
+        recommendations.append(
+            f"JWT secret file has permissions {permissions}. Should be 600 for security."
+        )
+
     # Check if environment variable is used
     if not os.getenv("JWT_SECRET_KEY"):
-        recommendations.append("Consider setting JWT_SECRET_KEY environment variable for production.")
-    
+        recommendations.append(
+            "Consider setting JWT_SECRET_KEY environment variable for production."
+        )
+
     # General recommendations
-    recommendations.extend([
-        "Ensure HTTPS is enabled in production environments",
-        "Regularly monitor authentication logs for suspicious activity",
-        "Consider implementing rate limiting on authentication endpoints",
-        "Review and rotate JWT secrets periodically",
-    ])
-    
+    recommendations.extend(
+        [
+            "Ensure HTTPS is enabled in production environments",
+            "Regularly monitor authentication logs for suspicious activity",
+            "Consider implementing rate limiting on authentication endpoints",
+            "Review and rotate JWT secrets periodically",
+        ]
+    )
+
     return recommendations

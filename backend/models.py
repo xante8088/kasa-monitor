@@ -115,7 +115,7 @@ class Token(BaseModel):
 
 class RefreshTokenRequest(BaseModel):
     """Model for token refresh request."""
-    
+
     refresh_token: str
 
 

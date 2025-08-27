@@ -22,44 +22,58 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
-
-from auth import get_current_user, require_admin
 from data_export_service import DataExportService
 from export_retention_config import ExportRetentionConfig
 from export_retention_scheduler import get_scheduler
 from export_retention_service import ExportRetentionService
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
+
+from auth import get_current_user, require_admin
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/exports/retention", tags=["Export Retention"])
 
+
 # Pydantic models
 class RetentionPolicyUpdate(BaseModel):
     """Model for updating retention policies."""
-    policies: Dict[str, int] = Field(..., description="Format to retention days mapping")
+
+    policies: Dict[str, int] = Field(
+        ..., description="Format to retention days mapping"
+    )
+
 
 class RetentionConfigUpdate(BaseModel):
     """Model for updating retention configuration."""
+
     key: str = Field(..., description="Configuration key")
     value: str = Field(..., description="Configuration value")
 
+
 class ExtendRetentionRequest(BaseModel):
     """Model for extending export retention."""
+
     export_id: str = Field(..., description="Export ID")
-    additional_days: int = Field(..., gt=0, le=365, description="Additional days to extend retention")
+    additional_days: int = Field(
+        ..., gt=0, le=365, description="Additional days to extend retention"
+    )
+
 
 class RetentionStats(BaseModel):
     """Model for retention statistics."""
+
     exports_by_status: Dict[str, int]
     expiring_in_24h: int
     expired_pending_cleanup: int
     storage: Dict
     files_deleted_last_7_days: int
 
+
 class MaintenanceResults(BaseModel):
     """Model for maintenance results."""
+
     timestamp: str
     tasks_completed: List[Dict]
     errors: List[str]
@@ -70,9 +84,11 @@ def get_retention_service() -> ExportRetentionService:
     """Get retention service instance."""
     return ExportRetentionService()
 
+
 def get_retention_config() -> ExportRetentionConfig:
     """Get retention config instance."""
     return ExportRetentionConfig()
+
 
 def get_export_service() -> DataExportService:
     """Get data export service instance."""
@@ -87,16 +103,16 @@ async def get_retention_status(
     """Get export retention system status."""
     try:
         stats = await retention_service.get_retention_statistics()
-        
+
         # Add scheduler status if available
         scheduler = get_scheduler()
         if scheduler:
             stats["scheduler"] = scheduler.get_scheduler_status()
         else:
             stats["scheduler"] = {"is_running": False, "enabled": False}
-        
+
         return {"success": True, "data": stats}
-        
+
     except Exception as e:
         logger.error(f"Error getting retention status: {e}")
         raise HTTPException(status_code=500, detail="Failed to get retention status")
@@ -111,7 +127,7 @@ async def get_retention_policies(
     try:
         policies = await retention_config.get_retention_policies()
         return {"success": True, "data": policies}
-        
+
     except Exception as e:
         logger.error(f"Error getting retention policies: {e}")
         raise HTTPException(status_code=500, detail="Failed to get retention policies")
@@ -130,29 +146,32 @@ async def update_retention_policies(
         for format_name, days in policy_update.policies.items():
             if days < 1 or days > 3650:  # 1 day to 10 years
                 raise HTTPException(
-                    status_code=400, 
-                    detail=f"Invalid retention days for {format_name}: {days}. Must be between 1 and 3650."
+                    status_code=400,
+                    detail=f"Invalid retention days for {format_name}: {days}. Must be between 1 and 3650.",
                 )
-        
+
         # Update in configuration
         success = await retention_config.update_retention_policies(
-            policy_update.policies, 
-            current_user["id"]
+            policy_update.policies, current_user["id"]
         )
-        
+
         if not success:
-            raise HTTPException(status_code=500, detail="Failed to update retention policies")
-        
+            raise HTTPException(
+                status_code=500, detail="Failed to update retention policies"
+            )
+
         # Update in retention service
         await retention_service.update_retention_policies(policy_update.policies)
-        
+
         return {"success": True, "message": "Retention policies updated successfully"}
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error updating retention policies: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update retention policies")
+        raise HTTPException(
+            status_code=500, detail="Failed to update retention policies"
+        )
 
 
 @router.get("/config/{category}", response_model=Dict)
@@ -165,10 +184,12 @@ async def get_retention_config(
     try:
         config = await retention_config.get_category_config(category)
         return {"success": True, "data": config}
-        
+
     except Exception as e:
         logger.error(f"Error getting retention config for {category}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get retention configuration")
+        raise HTTPException(
+            status_code=500, detail="Failed to get retention configuration"
+        )
 
 
 @router.put("/config", response_model=Dict)
@@ -180,16 +201,16 @@ async def update_retention_config(
     """Update retention configuration (admin only)."""
     try:
         success = await retention_config.set_config(
-            config_update.key, 
-            config_update.value, 
-            current_user["id"]
+            config_update.key, config_update.value, current_user["id"]
         )
-        
+
         if not success:
-            raise HTTPException(status_code=500, detail="Failed to update configuration")
-        
+            raise HTTPException(
+                status_code=500, detail="Failed to update configuration"
+            )
+
         return {"success": True, "message": "Configuration updated successfully"}
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -213,9 +234,9 @@ async def get_expiring_exports(
             exports = await export_service.get_expiring_exports_for_user(
                 current_user["id"], hours_ahead
             )
-        
+
         return {"success": True, "data": exports}
-        
+
     except Exception as e:
         logger.error(f"Error getting expiring exports: {e}")
         raise HTTPException(status_code=500, detail="Failed to get expiring exports")
@@ -233,21 +254,28 @@ async def get_export_retention_info(
         export_details = await export_service.get_export_by_id(export_id)
         if not export_details:
             raise HTTPException(status_code=404, detail="Export not found")
-        
-        if not current_user.get("is_admin", False) and export_details.get("user_id") != current_user["id"]:
+
+        if (
+            not current_user.get("is_admin", False)
+            and export_details.get("user_id") != current_user["id"]
+        ):
             raise HTTPException(status_code=403, detail="Access denied")
-        
+
         retention_info = await export_service.get_export_retention_info(export_id)
         if not retention_info:
-            raise HTTPException(status_code=404, detail="Retention information not found")
-        
+            raise HTTPException(
+                status_code=404, detail="Retention information not found"
+            )
+
         return {"success": True, "data": retention_info}
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error getting export retention info: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get retention information")
+        raise HTTPException(
+            status_code=500, detail="Failed to get retention information"
+        )
 
 
 @router.put("/exports/extend", response_model=Dict)
@@ -262,21 +290,26 @@ async def extend_export_retention(
         export_details = await export_service.get_export_by_id(extend_request.export_id)
         if not export_details:
             raise HTTPException(status_code=404, detail="Export not found")
-        
-        if not current_user.get("is_admin", False) and export_details.get("user_id") != current_user["id"]:
+
+        if (
+            not current_user.get("is_admin", False)
+            and export_details.get("user_id") != current_user["id"]
+        ):
             raise HTTPException(status_code=403, detail="Access denied")
-        
+
         # Extend retention
         success = await export_service.extend_export_retention(
-            extend_request.export_id, 
-            extend_request.additional_days
+            extend_request.export_id, extend_request.additional_days
         )
-        
+
         if not success:
             raise HTTPException(status_code=500, detail="Failed to extend retention")
-        
-        return {"success": True, "message": f"Retention extended by {extend_request.additional_days} days"}
-        
+
+        return {
+            "success": True,
+            "message": f"Retention extended by {extend_request.additional_days} days",
+        }
+
     except HTTPException:
         raise
     except Exception as e:
@@ -297,9 +330,9 @@ async def force_maintenance(
             results = await retention_service.run_daily_maintenance()
         else:
             results = await scheduler.force_daily_maintenance()
-        
+
         return {"success": True, "data": results}
-        
+
     except Exception as e:
         logger.error(f"Error running forced maintenance: {e}")
         raise HTTPException(status_code=500, detail="Failed to run maintenance")
@@ -323,9 +356,9 @@ async def force_emergency_cleanup(
             }
         else:
             results = await scheduler.force_storage_cleanup()
-        
+
         return {"success": True, "data": results}
-        
+
     except Exception as e:
         logger.error(f"Error running emergency cleanup: {e}")
         raise HTTPException(status_code=500, detail="Failed to run emergency cleanup")
@@ -340,10 +373,12 @@ async def get_retention_statistics(
     try:
         stats = await retention_service.get_retention_statistics()
         return {"success": True, "data": stats}
-        
+
     except Exception as e:
         logger.error(f"Error getting retention statistics: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get retention statistics")
+        raise HTTPException(
+            status_code=500, detail="Failed to get retention statistics"
+        )
 
 
 @router.post("/exports/{export_id}/download", response_model=Dict)
@@ -358,16 +393,19 @@ async def record_export_download(
         export_details = await export_service.get_export_by_id(export_id)
         if not export_details:
             raise HTTPException(status_code=404, detail="Export not found")
-        
-        if not current_user.get("is_admin", False) and export_details.get("user_id") != current_user["id"]:
+
+        if (
+            not current_user.get("is_admin", False)
+            and export_details.get("user_id") != current_user["id"]
+        ):
             raise HTTPException(status_code=403, detail="Access denied")
-        
+
         success = await export_service.record_export_download(export_id)
         if not success:
             raise HTTPException(status_code=500, detail="Failed to record download")
-        
+
         return {"success": True, "message": "Download recorded"}
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -385,7 +423,7 @@ async def export_retention_config(
     try:
         config_data = await retention_config.export_config(category)
         return {"success": True, "data": config_data}
-        
+
     except Exception as e:
         logger.error(f"Error exporting retention config: {e}")
         raise HTTPException(status_code=500, detail="Failed to export configuration")
@@ -400,12 +438,20 @@ async def import_retention_config(
     """Import retention configuration (admin only)."""
     try:
         results = await retention_config.import_config(config_data, current_user["id"])
-        
+
         if results["errors"] > 0:
-            return {"success": False, "data": results, "message": "Import completed with errors"}
-        
-        return {"success": True, "data": results, "message": "Configuration imported successfully"}
-        
+            return {
+                "success": False,
+                "data": results,
+                "message": "Import completed with errors",
+            }
+
+        return {
+            "success": True,
+            "data": results,
+            "message": "Configuration imported successfully",
+        }
+
     except Exception as e:
         logger.error(f"Error importing retention config: {e}")
         raise HTTPException(status_code=500, detail="Failed to import configuration")
