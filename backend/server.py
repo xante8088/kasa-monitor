@@ -1555,7 +1555,7 @@ class KasaMonitorApp:
             return stats
 
         @self.app.post("/api/device/{device_ip}/control")
-        @limiter.limit("60 per minute")
+        @self.limiter.limit("60 per minute")
         async def control_device(
             device_ip: str,
             action: str = Query(...),
@@ -1757,7 +1757,7 @@ class KasaMonitorApp:
 
         # Authentication endpoints
         @self.app.post("/api/auth/login", response_model=Token)
-        @limiter.limit("5 per minute")
+        @self.limiter.limit("5 per minute")
         async def login(login_data: UserLogin, request: Request):
             """Authenticate user and return JWT token."""
 
@@ -2024,7 +2024,7 @@ class KasaMonitorApp:
             )
 
         @self.app.post("/api/auth/refresh", response_model=Token)
-        @limiter.limit("30 per minute")
+        @self.limiter.limit("30 per minute")
         async def refresh_token(refresh_request: RefreshTokenRequest, request: Request):
             """Refresh an expired access token using a valid refresh token."""
             client_ip = request.client.host if request.client else "unknown"
@@ -2232,7 +2232,7 @@ class KasaMonitorApp:
                 )
 
         @self.app.post("/api/auth/setup", response_model=User)
-        @limiter.limit("3 per hour")
+        @self.limiter.limit("3 per hour")
         async def initial_setup(admin_data: UserCreate):
             """Create initial admin user."""
             setup_required = await self.db_manager.is_setup_required()
@@ -2452,7 +2452,7 @@ class KasaMonitorApp:
             return {"qr_code": f"data:image/png;base64,{img_str}", "secret": secret}
 
         @self.app.post("/api/auth/2fa/verify")
-        @limiter.limit("10 per minute")
+        @self.limiter.limit("10 per minute")
         async def verify_2fa(
             verification_data: Dict[str, str], user: User = Depends(require_auth)
         ):
@@ -3576,7 +3576,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
 
         # Export endpoints
         @self.app.post("/api/export/devices")
-        @limiter.limit("10 per hour")
+        @self.limiter.limit("10 per hour")
         async def export_devices(
             format: str = "csv",
             include_energy: bool = True,
@@ -3667,7 +3667,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.post("/api/export/energy")
-        @limiter.limit("10 per hour")
+        @self.limiter.limit("10 per hour")
         async def export_energy(
             device_ip: Optional[str] = None,
             start_date: Optional[datetime] = None,
