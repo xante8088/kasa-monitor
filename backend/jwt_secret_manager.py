@@ -90,13 +90,42 @@ class JWTSecretManager:
 
         Returns:
             Current secret key string
+
+        Raises:
+            RuntimeError: If JWT_SECRET_KEY is not set in production environment
         """
         # First check environment variable
         env_secret = os.getenv("JWT_SECRET_KEY")
-        if env_secret and len(env_secret) >= 32:
+        if env_secret:
+            if len(env_secret) < 32:
+                error_msg = (
+                    "JWT_SECRET_KEY environment variable is too short. "
+                    "Must be at least 32 characters for security."
+                )
+                logger.critical(error_msg)
+                raise RuntimeError(error_msg)
+            
+            if not self.validate_secret_strength(env_secret):
+                logger.warning(
+                    "JWT_SECRET_KEY may have insufficient entropy. "
+                    "Consider using a longer, more random key."
+                )
+            
             logger.info("Using JWT secret from environment variable")
             return env_secret
 
+        # Check if we're in a production environment
+        environment = os.getenv("ENVIRONMENT", "development").lower()
+        if environment in ("production", "prod"):
+            error_msg = (
+                "JWT_SECRET_KEY environment variable is required in production. "
+                "Please set a secure JWT secret key (minimum 32 characters) "
+                "in your environment variables."
+            )
+            logger.critical(error_msg)
+            raise RuntimeError(error_msg)
+
+        # In development/test environments, allow fallback to persistent storage
         # Load from persistent storage
         secrets_data = self._load_secrets()
 
@@ -109,7 +138,11 @@ class JWTSecretManager:
             ):
                 return current_data["secret"]
 
-        # Generate new secret if none exists or expired
+        # Generate new secret if none exists or expired (development only)
+        logger.warning(
+            "No JWT_SECRET_KEY environment variable found. "
+            "Generating a new secret for development use only."
+        )
         return self._generate_new_secret()
 
     def _generate_new_secret(self) -> str:

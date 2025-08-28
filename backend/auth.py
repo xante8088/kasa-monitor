@@ -202,7 +202,23 @@ class AuthManager:
         to_encode = user_data.copy()
         # Refresh tokens last 7 days
         expire = datetime.now(timezone.utc) + timedelta(days=7)
-        to_encode.update({"exp": expire, "type": "refresh"})
+        
+        # Convert datetime objects to ISO strings for JSON serialization (except exp)
+        def serialize_datetime(obj):
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            elif isinstance(obj, dict):
+                return {k: serialize_datetime(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [serialize_datetime(v) for v in obj]
+            return obj
+        
+        # Serialize everything except exp (which JWT needs as datetime)
+        serialized_data = serialize_datetime(user_data)
+        to_encode = (
+            serialized_data.copy() if isinstance(serialized_data, dict) else user_data.copy()
+        )
+        to_encode.update({"exp": expire, "type": "refresh"})  # Add exp as datetime object
 
         current_secret = get_current_jwt_secret()
         encoded_jwt = jwt.encode(to_encode, current_secret, algorithm=ALGORITHM)

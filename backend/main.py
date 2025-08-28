@@ -12,7 +12,7 @@ import uvicorn
 from data_management_api import router as data_management_router
 from database_api import router as database_router
 from database_pool import init_pool
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from health_monitor import health_monitor

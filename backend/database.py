@@ -19,6 +19,7 @@ along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
 import json
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
@@ -39,6 +40,15 @@ from models import (
     UserCreate,
     UserRole,
 )
+from retry_utils import (
+    DATABASE_RETRY_CONFIG,
+    NETWORK_RETRY_CONFIG,
+    RetryConfig,
+    retry_async,
+    retry_async_operation,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class DatabaseManager:
@@ -57,15 +67,80 @@ class DatabaseManager:
 
     async def initialize(self):
         """Initialize database connections and create tables."""
-        # Initialize SQLite
-        self.sqlite_conn = await aiosqlite.connect(self.sqlite_path)
-        await self._create_sqlite_tables()
-
+        # Initialize SQLite with retry logic
+        await self._initialize_sqlite()
+        
         # Initialize InfluxDB if configured
         if self.use_influx:
+            await self._initialize_influxdb()
+    
+    @retry_async(
+        config=DATABASE_RETRY_CONFIG,
+        operation_name="sqlite_initialization"
+    )
+    async def _initialize_sqlite(self):
+        """Initialize SQLite connection with retry logic."""
+        try:
+            # Ensure directory exists
+            db_dir = os.path.dirname(self.sqlite_path)
+            if db_dir and not os.path.exists(db_dir):
+                os.makedirs(db_dir, exist_ok=True)
+                
+            self.sqlite_conn = await aiosqlite.connect(self.sqlite_path)
+            
+            # Configure SQLite for better performance and reliability
+            await self.sqlite_conn.execute("PRAGMA journal_mode=WAL")
+            await self.sqlite_conn.execute("PRAGMA synchronous=NORMAL")
+            await self.sqlite_conn.execute("PRAGMA cache_size=10000")
+            await self.sqlite_conn.execute("PRAGMA temp_store=MEMORY")
+            await self.sqlite_conn.execute("PRAGMA busy_timeout=30000")  # 30 second timeout
+            
+            await self._create_sqlite_tables()
+            logger.info("SQLite database initialized successfully")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize SQLite database: {e}")
+            # Clean up partial connection
+            if self.sqlite_conn:
+                try:
+                    await self.sqlite_conn.close()
+                except:
+                    pass
+                self.sqlite_conn = None
+            raise
+    
+    @retry_async(
+        config=NETWORK_RETRY_CONFIG,
+        operation_name="influxdb_initialization"
+    )
+    async def _initialize_influxdb(self):
+        """Initialize InfluxDB connection with retry logic."""
+        try:
             self.influx_client = InfluxDBClientAsync(
-                url=self.influx_url, token=self.influx_token, org=self.influx_org
+                url=self.influx_url, 
+                token=self.influx_token, 
+                org=self.influx_org,
+                timeout=10000,  # 10 second timeout
+                enable_gzip=True
             )
+            
+            # Test the connection
+            health = await self.influx_client.health()
+            if health.status != "pass":
+                raise ConnectionError(f"InfluxDB health check failed: {health.message}")
+                
+            logger.info("InfluxDB client initialized successfully")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize InfluxDB client: {e}")
+            # Clean up partial connection
+            if self.influx_client:
+                try:
+                    await self.influx_client.close()
+                except:
+                    pass
+                self.influx_client = None
+            raise
 
     async def close(self):
         """Close database connections."""
@@ -198,56 +273,91 @@ class DatabaseManager:
         await self.sqlite_conn.commit()
 
     async def store_device_reading(self, device_data: DeviceData):
-        """Store device reading in both SQLite and InfluxDB."""
-        # Update device info in SQLite
-        await self.sqlite_conn.execute(
-            """
-            INSERT OR REPLACE INTO device_info
-            (device_ip, alias, model, device_type, mac, last_seen)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """,
-            (
-                device_data.ip,
-                device_data.alias,
-                device_data.model,
-                device_data.device_type,
-                device_data.mac,
-                device_data.timestamp,
-            ),
-        )
-
-        # Store reading in SQLite
-        await self.sqlite_conn.execute(
-            """
-            INSERT INTO device_readings
-            (device_ip, timestamp, is_on, current_power_w, voltage, current,
-             today_energy_kwh, month_energy_kwh, total_energy_kwh, rssi)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-            (
-                device_data.ip,
-                device_data.timestamp,
-                device_data.is_on,
-                device_data.current_power_w,
-                device_data.voltage,
-                device_data.current,
-                device_data.today_energy_kwh,
-                device_data.month_energy_kwh,
-                device_data.total_energy_kwh,
-                device_data.rssi,
-            ),
-        )
-
-        await self.sqlite_conn.commit()
-
+        """Store device reading in both SQLite and InfluxDB with retry logic."""
+        # Store in SQLite with retry
+        await self._store_sqlite_reading(device_data)
+        
         # Store in InfluxDB if available
         if self.use_influx and self.influx_client:
+            await self._store_influx_reading(device_data)
+    
+    @retry_async(
+        config=DATABASE_RETRY_CONFIG,
+        operation_name="store_sqlite_reading"
+    )
+    async def _store_sqlite_reading(self, device_data: DeviceData):
+        """Store device reading in SQLite with retry logic."""
+        try:
+            if not self.sqlite_conn:
+                raise ConnectionError("SQLite connection not available")
+                
+            # Update device info in SQLite
+            await self.sqlite_conn.execute(
+                """
+                INSERT OR REPLACE INTO device_info
+                (device_ip, alias, model, device_type, mac, last_seen)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """,
+                (
+                    device_data.ip,
+                    device_data.alias,
+                    device_data.model,
+                    device_data.device_type,
+                    device_data.mac,
+                    device_data.timestamp,
+                ),
+            )
+
+            # Store reading in SQLite
+            await self.sqlite_conn.execute(
+                """
+                INSERT INTO device_readings
+                (device_ip, timestamp, is_on, current_power_w, voltage, current,
+                 today_energy_kwh, month_energy_kwh, total_energy_kwh, rssi)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                (
+                    device_data.ip,
+                    device_data.timestamp,
+                    device_data.is_on,
+                    device_data.current_power_w,
+                    device_data.voltage,
+                    device_data.current,
+                    device_data.today_energy_kwh,
+                    device_data.month_energy_kwh,
+                    device_data.total_energy_kwh,
+                    device_data.rssi,
+                ),
+            )
+
+            await self.sqlite_conn.commit()
+            
+        except Exception as e:
+            # Rollback on error
+            if self.sqlite_conn:
+                try:
+                    await self.sqlite_conn.rollback()
+                except:
+                    pass
+            logger.error(f"Failed to store SQLite reading for {device_data.ip}: {e}")
+            raise
+    
+    @retry_async(
+        config=NETWORK_RETRY_CONFIG,
+        operation_name="store_influx_reading"
+    )
+    async def _store_influx_reading(self, device_data: DeviceData):
+        """Store device reading in InfluxDB with retry logic."""
+        try:
+            if not self.influx_client:
+                raise ConnectionError("InfluxDB client not available")
+                
             point = (
                 Point("device_reading")
                 .tag("device_ip", device_data.ip)
-                .tag("alias", device_data.alias)
-                .tag("model", device_data.model)
-                .tag("device_type", device_data.device_type)
+                .tag("alias", device_data.alias or "unknown")
+                .tag("model", device_data.model or "unknown")
+                .tag("device_type", device_data.device_type or "unknown")
                 .field("is_on", device_data.is_on)
                 .field("current_power_w", device_data.current_power_w or 0)
                 .field("voltage", device_data.voltage or 0)
@@ -261,6 +371,11 @@ class DatabaseManager:
 
             write_api = self.influx_client.write_api()
             await write_api.write(bucket=self.influx_bucket, record=point)
+            
+        except Exception as e:
+            logger.error(f"Failed to store InfluxDB reading for {device_data.ip}: {e}")
+            # Don't re-raise for InfluxDB failures - SQLite is the primary store
+            # This allows the system to continue working even if InfluxDB is down
 
     async def get_device_history(
         self,

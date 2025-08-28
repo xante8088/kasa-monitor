@@ -6,7 +6,8 @@ Implements SQLAlchemy connection pooling with monitoring and optimization
 import asyncio
 import logging
 import os
-from contextlib import contextmanager
+import time
+from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timedelta
 from typing import Any, Dict, Generator, Optional
 
@@ -16,6 +17,8 @@ from sqlalchemy.exc import DBAPIError, DisconnectionError, TimeoutError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 from sqlalchemy.pool import NullPool, QueuePool, StaticPool
+
+from retry_utils import DATABASE_RETRY_CONFIG, RetryConfig, retry_async
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +79,17 @@ class DatabasePool:
             "connections_failed": 0,
             "overflow_created": 0,
             "pool_timeouts": 0,
+            "health_checks_performed": 0,
+            "health_checks_failed": 0,
+            "connections_recovered": 0,
         }
+        
+        # Health monitoring
+        self.last_health_check = None
+        self.consecutive_failures = 0
+        self.is_healthy = True
+        self.health_check_interval = 60  # seconds
+        self.max_consecutive_failures = 3
 
     def _get_database_url(self) -> str:
         """Get database URL from environment or default"""
@@ -209,7 +222,7 @@ class DatabasePool:
     @contextmanager
     def get_db(self) -> Generator[Session, None, None]:
         """
-        Get a database session (sync)
+        Get a database session (sync) with enhanced error handling
 
         Yields:
             Database session
@@ -217,35 +230,74 @@ class DatabasePool:
         if not hasattr(self, "SessionLocal"):
             raise RuntimeError("Sync engine not initialized")
 
-        db = self.SessionLocal()
+        db = None
         try:
+            db = self.SessionLocal()
             yield db
             db.commit()
         except Exception as e:
-            db.rollback()
-            logger.error(f"Database error: {e}")
+            if db:
+                try:
+                    db.rollback()
+                except Exception as rollback_error:
+                    logger.error(f"Rollback failed: {rollback_error}")
+                    
+            logger.error(f"Database session error: {e}")
+            self.failed_connections += 1
             raise
         finally:
-            db.close()
+            if db:
+                try:
+                    db.close()
+                except Exception as close_error:
+                    logger.error(f"Failed to close database session: {close_error}")
 
-    async def get_async_db(self) -> AsyncSession:
+    @asynccontextmanager
+    async def get_async_db(self):
         """
-        Get an async database session
+        Get an async database session with enhanced error handling
 
-        Returns:
+        Yields:
             Async database session
         """
         if not hasattr(self, "AsyncSessionLocal"):
             raise RuntimeError("Async engine not initialized")
 
-        async with self.AsyncSessionLocal() as session:
-            try:
-                yield session
-                await session.commit()
-            except Exception as e:
-                await session.rollback()
-                logger.error(f"Async database error: {e}")
-                raise
+        session = None
+        try:
+            session = self.AsyncSessionLocal()
+            yield session
+            await session.commit()
+        except Exception as e:
+            if session:
+                try:
+                    await session.rollback()
+                except Exception as rollback_error:
+                    logger.error(f"Async rollback failed: {rollback_error}")
+                    
+            logger.error(f"Async database session error: {e}")
+            self.failed_connections += 1
+            raise
+        finally:
+            if session:
+                try:
+                    await session.close()
+                except Exception as close_error:
+                    logger.error(f"Failed to close async database session: {close_error}")
+    
+    @retry_async(
+        config=DATABASE_RETRY_CONFIG,
+        operation_name="get_resilient_session"
+    )
+    async def get_resilient_async_session(self):
+        """
+        Get a resilient async session that automatically retries on connection failures
+        
+        Yields:
+            Async database session with retry logic
+        """
+        async with self.get_async_db() as session:
+            yield session
 
     def execute_query(self, query: str, params: Optional[Dict] = None) -> Any:
         """
@@ -279,31 +331,119 @@ class DatabasePool:
             result = await db.execute(text(query), params or {})
             return result.fetchall()
 
+    @retry_async(
+        config=DATABASE_RETRY_CONFIG,
+        operation_name="database_health_check"
+    )
+    async def enhanced_health_check(self) -> Dict[str, Any]:
+        """
+        Perform enhanced health check with recovery capabilities
+        
+        Returns:
+            Health status dictionary with detailed metrics
+        """
+        self.stats["health_checks_performed"] += 1
+        check_start_time = time.time()
+        
+        try:
+            # Test async connection if available
+            if hasattr(self, "async_engine"):
+                async with self.async_engine.connect() as conn:
+                    result = await conn.execute(text("SELECT 1"))
+                    await result.fetchone()
+            elif hasattr(self, "engine"):
+                # Fallback to sync connection test
+                with self.engine.connect() as conn:
+                    result = conn.execute(text("SELECT 1"))
+                    result.fetchone()
+            else:
+                raise RuntimeError("No database engine available")
+
+            # Get pool statistics
+            pool_impl = getattr(self, "async_engine", getattr(self, "engine", None)).pool
+            check_duration = time.time() - check_start_time
+
+            status = {
+                "status": "healthy",
+                "timestamp": datetime.now().isoformat(),
+                "check_duration_ms": round(check_duration * 1000, 2),
+                "active_connections": self.active_connections,
+                "total_connections": self.total_connections,
+                "failed_connections": self.failed_connections,
+                "consecutive_failures": self.consecutive_failures,
+                "pool_metrics": {
+                    "pool_size": getattr(pool_impl, "size", lambda: 0)() if callable(getattr(pool_impl, "size", 0)) else getattr(pool_impl, "size", 0),
+                    "overflow": getattr(pool_impl, "overflow", lambda: 0)() if callable(getattr(pool_impl, "overflow", 0)) else getattr(pool_impl, "overflow", 0),
+                    "checked_in": getattr(pool_impl, "checkedin", lambda: 0)() if callable(getattr(pool_impl, "checkedin", 0)) else getattr(pool_impl, "checkedin", 0),
+                    "checked_out": getattr(pool_impl, "checkedout", lambda: 0)() if callable(getattr(pool_impl, "checkedout", 0)) else getattr(pool_impl, "checkedout", 0),
+                },
+                "performance_metrics": self._get_performance_metrics(),
+                "stats": self.stats.copy(),
+            }
+
+            # Reset failure counter on successful health check
+            self.consecutive_failures = 0
+            self.is_healthy = True
+            self.last_health_check = datetime.now()
+            
+            return status
+
+        except Exception as e:
+            self.stats["health_checks_failed"] += 1
+            self.consecutive_failures += 1
+            check_duration = time.time() - check_start_time
+            
+            # Mark as unhealthy if too many consecutive failures
+            if self.consecutive_failures >= self.max_consecutive_failures:
+                self.is_healthy = False
+                logger.error(f"Database marked as unhealthy after {self.consecutive_failures} consecutive failures")
+                
+                # Attempt connection recovery
+                await self._attempt_recovery()
+
+            logger.error(f"Health check failed after {check_duration:.2f}s: {e}")
+            
+            return {
+                "status": "unhealthy",
+                "timestamp": datetime.now().isoformat(),
+                "check_duration_ms": round(check_duration * 1000, 2),
+                "error": str(e),
+                "consecutive_failures": self.consecutive_failures,
+                "active_connections": self.active_connections,
+                "failed_connections": self.failed_connections,
+                "is_healthy": self.is_healthy,
+                "stats": self.stats.copy(),
+            }
+    
     def health_check(self) -> Dict[str, Any]:
         """
-        Perform health check on connection pool
-
+        Synchronous health check for compatibility
+        
         Returns:
             Health status dictionary
         """
         try:
             # Test connection
-            with self.engine.connect() as conn:
-                result = conn.execute(text("SELECT 1"))
-                result.fetchone()
+            if hasattr(self, "engine"):
+                with self.engine.connect() as conn:
+                    result = conn.execute(text("SELECT 1"))
+                    result.fetchone()
+            else:
+                raise RuntimeError("No sync engine available")
 
             # Get pool statistics
             pool_impl = self.engine.pool
 
             status = {
                 "status": "healthy",
+                "timestamp": datetime.now().isoformat(),
                 "active_connections": self.active_connections,
                 "total_connections": self.total_connections,
                 "failed_connections": self.failed_connections,
                 "pool_size": getattr(pool_impl, "size", 0),
                 "overflow": getattr(pool_impl, "overflow", 0),
                 "checked_in": getattr(pool_impl, "checkedin", 0),
-                "stats": self.stats,
+                "stats": self.stats.copy(),
             }
 
             # Calculate average wait time
@@ -317,13 +457,70 @@ class DatabasePool:
             return status
 
         except Exception as e:
-            logger.error(f"Health check failed: {e}")
+            self.consecutive_failures += 1
+            logger.error(f"Sync health check failed: {e}")
             return {
                 "status": "unhealthy",
+                "timestamp": datetime.now().isoformat(),
                 "error": str(e),
+                "consecutive_failures": self.consecutive_failures,
                 "active_connections": self.active_connections,
                 "failed_connections": self.failed_connections,
             }
+    
+    def _get_performance_metrics(self) -> Dict[str, Any]:
+        """Get performance metrics for the connection pool"""
+        metrics = {}
+        
+        # Connection wait times
+        if self.connection_wait_time:
+            wait_times = self.connection_wait_time
+            metrics.update({
+                "avg_wait_time_ms": sum(wait_times) / len(wait_times) * 1000,
+                "min_wait_time_ms": min(wait_times) * 1000,
+                "max_wait_time_ms": max(wait_times) * 1000,
+                "wait_time_samples": len(wait_times),
+            })
+        
+        # Connection utilization
+        if hasattr(self, "engine"):
+            pool_impl = self.engine.pool
+            pool_size = getattr(pool_impl, "size", lambda: 0)()
+            if pool_size > 0:
+                utilization = (self.active_connections / pool_size) * 100
+                metrics["pool_utilization_percent"] = round(utilization, 2)
+        
+        return metrics
+    
+    async def _attempt_recovery(self):
+        """Attempt to recover from connection failures"""
+        logger.info("Attempting database connection recovery...")
+        
+        try:
+            # Close existing connections
+            if hasattr(self, "engine"):
+                self.engine.dispose()
+                logger.info("Disposed of sync engine connections")
+                
+            if hasattr(self, "async_engine"):
+                await self.async_engine.dispose()  
+                logger.info("Disposed of async engine connections")
+            
+            # Recreate engines
+            if self.use_async:
+                self._setup_async_engine()
+            else:
+                self._setup_sync_engine()
+                
+            # Re-setup event listeners
+            self._setup_event_listeners()
+            
+            self.stats["connections_recovered"] += 1
+            logger.info("Database connection recovery completed successfully")
+            
+        except Exception as e:
+            logger.error(f"Database connection recovery failed: {e}")
+            raise
 
     async def async_health_check(self) -> Dict[str, Any]:
         """
