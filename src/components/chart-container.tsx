@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode, useState, useCallback, useEffect } from 'react'
+import { ReactNode, useState, useCallback, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { RefreshCw, AlertCircle, TrendingUp } from 'lucide-react'
 import { TimePeriodSelector } from './time-period-selector'
@@ -16,6 +16,7 @@ import {
   getRefreshInterval,
   filterDataByTimeRange
 } from '@/lib/time-period-utils'
+import { queryConfig } from '@/lib/api-integration'
 
 interface ChartContainerProps {
   title: string
@@ -49,11 +50,41 @@ export function ChartContainer({
     }
   )
 
-  // Calculate current time range
-  const timeRange = calculateTimeRange(timePeriod.type, timePeriod.customRange)
+  // Add debouncing for time period changes to prevent excessive API calls
+  const [debouncedTimePeriod, setDebouncedTimePeriod] = useState(timePeriod)
+  
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      setDebouncedTimePeriod(timePeriod)
+    }, 500) // 500ms debounce
+
+    return () => clearTimeout(debounceTimer)
+  }, [timePeriod])
+
+  // Calculate stable time range with debouncing
+  const timeRange = useMemo(() => {
+    return calculateTimeRange(debouncedTimePeriod.type, debouncedTimePeriod.customRange)
+  }, [debouncedTimePeriod.type, debouncedTimePeriod.customRange])
   
   // Get refresh interval based on time period
-  const refreshInterval = getRefreshInterval(timePeriod.type)
+  const refreshInterval = useMemo(() => getRefreshInterval(debouncedTimePeriod.type), [debouncedTimePeriod.type])
+
+  // Create stable query key to prevent excessive refetches
+  const queryKey = useMemo(() => {
+    // Round timestamps to nearest minute for non-realtime data to prevent excessive queries
+    const shouldRoundTime = !['1h', '6h'].includes(debouncedTimePeriod.type)
+    const roundToMinutes = (date: Date) => {
+      const rounded = new Date(date)
+      rounded.setSeconds(0, 0)
+      return rounded.toISOString()
+    }
+    
+    const startTime = shouldRoundTime ? roundToMinutes(timeRange.startTime) : timeRange.startTime.toISOString()
+    const endTime = shouldRoundTime ? roundToMinutes(timeRange.endTime) : timeRange.endTime.toISOString()
+    
+    // Create deduplicated key for device history calls
+    return ['device-history', deviceIp, debouncedTimePeriod.type, startTime, endTime]
+  }, [deviceIp, debouncedTimePeriod.type, timeRange.startTime, timeRange.endTime])
 
   // Fetch data with time filtering
   const { 
@@ -63,7 +94,7 @@ export function ChartContainer({
     refetch,
     isRefetching 
   } = useQuery({
-    queryKey: ['chart-data', deviceIp, dataEndpoint, timeRange.startTime.toISOString(), timeRange.endTime.toISOString()],
+    queryKey,
     queryFn: async () => {
       const apiParams = timeRangeToApiParams(timeRange)
       const url = new URL(dataEndpoint.replace('{deviceIp}', deviceIp), window.location.origin)
@@ -86,9 +117,11 @@ export function ChartContainer({
       
       return response.json()
     },
-    refetchInterval: refreshInterval,
-    enabled: timePeriod.isCustomRangeValid,
-    staleTime: refreshInterval / 2, // Consider data stale after half the refresh interval
+    // Use history-optimized configuration for better performance
+    ...queryConfig.history,
+    // Override with time-period specific refresh intervals only for realtime data
+    refetchInterval: ['1h', '6h'].includes(debouncedTimePeriod.type) ? refreshInterval : false,
+    enabled: debouncedTimePeriod.isCustomRangeValid
   })
 
   // Filter data by time range (client-side backup if API doesn't support filtering)
@@ -170,7 +203,7 @@ export function ChartContainer({
               </button>
             </div>
           </div>
-        ) : !timePeriod.isCustomRangeValid ? (
+        ) : !debouncedTimePeriod.isCustomRangeValid ? (
           <div className="flex items-center justify-center h-64 text-center">
             <div className="space-y-2">
               <AlertCircle className="h-8 w-8 text-yellow-500 mx-auto" />

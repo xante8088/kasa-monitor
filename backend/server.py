@@ -204,6 +204,7 @@ class DeviceManager:
 
     def __init__(self):
         self.devices: Dict[str, Device] = {}
+        self.offline_devices: Dict[str, Dict] = {}  # Store offline device info
         self.credentials: Optional[Credentials] = None
         self.last_discovery: Optional[datetime] = None
 
@@ -1014,9 +1015,16 @@ class KasaMonitorApp:
                 redis_client=None
             )  # Using memory storage for now
 
-            # Create limiter for SlowAPI
+            # Create limiter for SlowAPI with dynamic limits
+            def dynamic_key_func(request: Request):
+                return self.rate_limiter.get_rate_limit_key(request)
+            
+            def dynamic_limit_func(request: Request):
+                return self.rate_limiter.get_limit_for_endpoint(request)
+            
             limiter = Limiter(
-                key_func=get_remote_address, default_limits=["100 per minute"]
+                key_func=dynamic_key_func,
+                default_limits=["200 per minute"]  # Increased default for better UX
             )
 
             # Add middleware
@@ -1028,15 +1036,70 @@ class KasaMonitorApp:
                 """Handle rate limit exceeded with audit logging."""
                 await self._log_rate_limit_exceeded(request, exc)
 
+                # Determine client type and provide appropriate message
+                client_ip = request.client.host if request.client else "unknown"
+                user_agent = request.headers.get("user-agent", "")
+                is_api_request = request.url.path.startswith("/api/")
+                
+                # Check if it's a local network request
+                is_local = False
+                try:
+                    import ipaddress
+                    local_networks = [
+                        "127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"
+                    ]
+                    ip = ipaddress.ip_address(client_ip)
+                    for network_str in local_networks:
+                        network = ipaddress.ip_network(network_str)
+                        if ip in network:
+                            is_local = True
+                            break
+                except:
+                    pass
+
+                # Create user-friendly error message
+                if is_api_request:
+                    error_detail = {
+                        "error": "rate_limit_exceeded",
+                        "message": "Request rate limit exceeded. Please reduce the frequency of requests.",
+                        "suggestion": "Consider implementing request batching or caching on the client side.",
+                        "retry_after": exc.retry_after,
+                        "limit": exc.limit,
+                        "is_local_network": is_local
+                    }
+                    
+                    if is_local:
+                        error_detail["note"] = "Local network requests have higher limits. This may indicate a client-side issue with request frequency."
+                        
+                    content = json.dumps(error_detail, indent=2)
+                    media_type = "application/json"
+                else:
+                    content = f"Rate limit exceeded. Please try again in {exc.retry_after} seconds."
+                    media_type = "text/plain"
+
+                # Enhanced headers
+                headers = {
+                    "Retry-After": str(exc.retry_after),
+                    "X-RateLimit-Limit": str(exc.limit),
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": str(exc.reset_time),
+                    "X-RateLimit-Window": "60",  # Default to 60 seconds
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                }
+                
+                # Add CORS headers if needed
+                origin = request.headers.get("origin")
+                if origin:
+                    headers["Access-Control-Allow-Origin"] = origin
+                    headers["Access-Control-Allow-Credentials"] = "true"
+                    headers["Access-Control-Expose-Headers"] = "X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, Retry-After"
+
                 response = Response(
-                    content=f"Rate limit exceeded: {exc.detail}",
+                    content=content,
                     status_code=429,
-                    headers={
-                        "Retry-After": str(exc.retry_after),
-                        "X-RateLimit-Limit": str(exc.limit),
-                        "X-RateLimit-Remaining": "0",
-                        "X-RateLimit-Reset": str(exc.reset_time),
-                    },
+                    headers=headers,
+                    media_type=media_type
                 )
                 return response
 
@@ -1146,8 +1209,10 @@ class KasaMonitorApp:
 
         @self.app.get("/api/devices")
         async def get_devices():
-            """Get list of all discovered devices."""
+            """Get list of all discovered devices (both online and offline)."""
             devices_data = []
+            
+            # Add online/connected devices
             for ip, device in self.device_manager.devices.items():
                 devices_data.append(
                     {
@@ -1157,8 +1222,17 @@ class KasaMonitorApp:
                         "device_type": str(device.device_type),
                         "is_on": device.is_on,
                         "mac": device.mac,
+                        "is_offline": False,
                     }
                 )
+            
+            # Add offline devices that couldn't connect during startup
+            if hasattr(self.device_manager, 'offline_devices'):
+                for ip, offline_device in self.device_manager.offline_devices.items():
+                    # Only add if not already in connected devices
+                    if ip not in self.device_manager.devices:
+                        devices_data.append(offline_device)
+            
             return devices_data
 
         @self.app.post("/api/discover")
@@ -1209,7 +1283,7 @@ class KasaMonitorApp:
             return {"discovered": len(devices)}
 
         @self.app.post("/api/devices/manual")
-        async def add_manual_device(device_config: dict):
+        async def add_manual_device(device_config: dict, user: User = Depends(require_auth)):
             """Manually add a device by IP address."""
             ip = device_config.get("ip")
             alias = device_config.get("alias", f"Device at {ip}")
@@ -1296,7 +1370,7 @@ class KasaMonitorApp:
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.delete("/api/devices/{device_ip}")
-        async def remove_device(device_ip: str):
+        async def remove_device(device_ip: str, user: User = Depends(require_auth)):
             """Remove a device from monitoring."""
             try:
                 # Remove from device manager
@@ -1481,6 +1555,7 @@ class KasaMonitorApp:
             return stats
 
         @self.app.post("/api/device/{device_ip}/control")
+        @limiter.limit("60 per minute")
         async def control_device(
             device_ip: str,
             action: str = Query(...),
@@ -1641,17 +1716,6 @@ class KasaMonitorApp:
                     status_code=400, detail="Failed to update IP (may already exist)"
                 )
 
-        @self.app.delete("/api/devices/{device_ip}")
-        async def remove_device(device_ip: str):
-            """Remove a device from monitoring."""
-            success = await self.db_manager.remove_device(device_ip)
-            if success:
-                # Remove from device manager
-                if device_ip in self.device_manager.devices:
-                    del self.device_manager.devices[device_ip]
-                return {"message": f"Device {device_ip} removed"}
-            else:
-                raise HTTPException(status_code=400, detail="Failed to remove device")
 
         @self.app.put("/api/devices/{device_ip}/notes")
         async def update_device_notes(
@@ -1693,6 +1757,7 @@ class KasaMonitorApp:
 
         # Authentication endpoints
         @self.app.post("/api/auth/login", response_model=Token)
+        @limiter.limit("5 per minute")
         async def login(login_data: UserLogin, request: Request):
             """Authenticate user and return JWT token."""
 
@@ -1959,6 +2024,7 @@ class KasaMonitorApp:
             )
 
         @self.app.post("/api/auth/refresh", response_model=Token)
+        @limiter.limit("30 per minute")
         async def refresh_token(refresh_request: RefreshTokenRequest, request: Request):
             """Refresh an expired access token using a valid refresh token."""
             client_ip = request.client.host if request.client else "unknown"
@@ -2166,6 +2232,7 @@ class KasaMonitorApp:
                 )
 
         @self.app.post("/api/auth/setup", response_model=User)
+        @limiter.limit("3 per hour")
         async def initial_setup(admin_data: UserCreate):
             """Create initial admin user."""
             setup_required = await self.db_manager.is_setup_required()
@@ -2385,6 +2452,7 @@ class KasaMonitorApp:
             return {"qr_code": f"data:image/png;base64,{img_str}", "secret": secret}
 
         @self.app.post("/api/auth/2fa/verify")
+        @limiter.limit("10 per minute")
         async def verify_2fa(
             verification_data: Dict[str, str], user: User = Depends(require_auth)
         ):
@@ -3508,6 +3576,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
 
         # Export endpoints
         @self.app.post("/api/export/devices")
+        @limiter.limit("10 per hour")
         async def export_devices(
             format: str = "csv",
             include_energy: bool = True,
@@ -3598,6 +3667,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.post("/api/export/energy")
+        @limiter.limit("10 per hour")
         async def export_energy(
             device_ip: Optional[str] = None,
             start_date: Optional[datetime] = None,
@@ -4399,6 +4469,29 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                     logger.warning(
                         f"Could not connect to saved device {device_info['alias']} ({device_info['device_ip']}): {e}"
                     )
+                    # Add disconnected device as placeholder to maintain dashboard visibility
+                    # This allows the device to show in the UI as "offline" rather than hidden
+                    try:
+                        # Create minimal device representation for offline devices
+                        offline_device_data = {
+                            "ip": device_info["device_ip"],
+                            "alias": device_info["alias"],
+                            "model": device_info.get("model", "Unknown"),
+                            "device_type": device_info.get("device_type", "Unknown"),
+                            "is_on": False,
+                            "mac": device_info.get("mac", ""),
+                            "is_offline": True,
+                            "last_seen": device_info.get("last_seen", "Unknown")
+                        }
+                        # Store offline device info for the /api/devices endpoint
+                        if not hasattr(self.device_manager, 'offline_devices'):
+                            self.device_manager.offline_devices = {}
+                        self.device_manager.offline_devices[device_info["device_ip"]] = offline_device_data
+                        logger.info(
+                            f"Added offline device to dashboard: {device_info['alias']} ({device_info['device_ip']})"
+                        )
+                    except Exception as offline_error:
+                        logger.error(f"Error adding offline device {device_info['device_ip']}: {offline_error}")
         except Exception as e:
             logger.error(f"Error loading saved devices: {e}")
 
@@ -4423,11 +4516,54 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         device_data = await self.device_manager.get_device_data(ip)
                         if device_data:
                             device_data_list.append(device_data)
+                            # If device was offline, remove it from offline list and log reconnection
+                            if hasattr(self.device_manager, 'offline_devices') and ip in self.device_manager.offline_devices:
+                                del self.device_manager.offline_devices[ip]
+                                logger.info(f"Device {ip} reconnected successfully")
                         else:
                             failed_devices.append(ip)
                     except Exception as e:
                         failed_devices.append(ip)
                         logger.warning(f"Failed to poll device {ip}: {e}")
+                        # Move failed online device to offline list
+                        if ip in self.device_manager.devices:
+                            try:
+                                device = self.device_manager.devices[ip]
+                                offline_device_data = {
+                                    "ip": ip,
+                                    "alias": device.alias,
+                                    "model": device.model,
+                                    "device_type": str(device.device_type),
+                                    "is_on": False,
+                                    "mac": device.mac,
+                                    "is_offline": True,
+                                    "last_seen": datetime.now().isoformat()
+                                }
+                                if not hasattr(self.device_manager, 'offline_devices'):
+                                    self.device_manager.offline_devices = {}
+                                self.device_manager.offline_devices[ip] = offline_device_data
+                                # Remove from active devices
+                                del self.device_manager.devices[ip]
+                                logger.info(f"Moved failed device {ip} to offline list")
+                            except Exception as move_error:
+                                logger.error(f"Error moving device {ip} to offline: {move_error}")
+                else:
+                    # Try to reconnect offline devices every few polling cycles
+                    if hasattr(self.device_manager, 'offline_devices') and ip in self.device_manager.offline_devices:
+                        # Attempt reconnection (with reduced frequency to avoid spam)
+                        import random
+                        if random.randint(1, 10) == 1:  # 10% chance per polling cycle
+                            try:
+                                logger.info(f"Attempting to reconnect to offline device {ip}")
+                                device = await self.device_manager.connect_to_device(ip)
+                                if device:
+                                    logger.info(f"Successfully reconnected to device {ip}")
+                                    # Remove from offline list since it's now connected
+                                    del self.device_manager.offline_devices[ip]
+                            except Exception as reconnect_error:
+                                logger.debug(f"Reconnection attempt failed for {ip}: {reconnect_error}")
+                    else:
+                        failed_devices.append(ip)
 
             for device_data in device_data_list:
                 # Store in database

@@ -12,8 +12,9 @@ export function createEnhancedQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 5000,
-        refetchInterval: 30000,
+        staleTime: 30000, // Increased from 5 seconds to 30 seconds
+        refetchInterval: false, // Disable automatic refetch by default
+        gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes (was cacheTime)
         retry: (failureCount, error: any) => {
           // Don't retry on authentication errors
           if (error instanceof ApiError) {
@@ -170,25 +171,38 @@ export const queryConfig = {
   realtime: {
     staleTime: 0,
     refetchInterval: 5000,
-    refetchIntervalInBackground: true
+    refetchIntervalInBackground: true,
+    gcTime: 1 * 60 * 1000 // 1 minute cache for realtime data
   },
 
   // Static data (infrequent updates)
   static: {
     staleTime: 5 * 60 * 1000, // 5 minutes
-    refetchInterval: false
+    refetchInterval: false,
+    gcTime: 30 * 60 * 1000 // 30 minutes cache for static data
   },
 
   // User data (medium frequency updates)
   user: {
     staleTime: 30 * 1000, // 30 seconds
-    refetchInterval: 2 * 60 * 1000 // 2 minutes
+    refetchInterval: 2 * 60 * 1000, // 2 minutes
+    gcTime: 5 * 60 * 1000 // 5 minutes cache
   },
 
   // Device data (regular updates)
   device: {
     staleTime: 10 * 1000, // 10 seconds
-    refetchInterval: 30 * 1000 // 30 seconds
+    refetchInterval: 30 * 1000, // 30 seconds
+    gcTime: 5 * 60 * 1000 // 5 minutes cache
+  },
+
+  // Historical data (optimized for minimal refetches)
+  history: {
+    staleTime: 2 * 60 * 1000, // 2 minutes - historical data doesn't change rapidly
+    refetchInterval: false, // Don't auto-refetch historical data
+    gcTime: 15 * 60 * 1000, // 15 minutes cache for history data
+    refetchOnWindowFocus: false, // Don't refetch on window focus
+    refetchOnReconnect: false // Don't refetch on reconnect
   }
 };
 
