@@ -56,12 +56,16 @@ class EnhancedDatabaseManager(DatabaseManager):
             logger.info("Enhanced database manager initialized with connection pool")
 
         except Exception as e:
-            logger.error(f"Failed to initialize with pool, falling back to direct connections: {e}")
+            logger.error(
+                f"Failed to initialize with pool, falling back to direct connections: {e}"
+            )
             # Fallback to direct connection mode
             self.use_pool = False
             await super().initialize()
 
-    @retry_async(config=DATABASE_RETRY_CONFIG, operation_name="enhanced_store_device_reading")
+    @retry_async(
+        config=DATABASE_RETRY_CONFIG, operation_name="enhanced_store_device_reading"
+    )
     async def store_device_reading(self, device_data):
         """Enhanced store_device_reading with automatic retry logic."""
         if self.use_pool and self.pool:
@@ -223,20 +227,26 @@ class DatabaseHealthMonitor:
         # Check connection pool status
         pool_status = status.get("connection_pool", {})
         if pool_status.get("status") == "unhealthy":
-            issues.append(f"Connection pool unhealthy: {pool_status.get('error', 'Unknown error')}")
+            issues.append(
+                f"Connection pool unhealthy: {pool_status.get('error', 'Unknown error')}"
+            )
 
         # Check retry statistics for high failure rates
         retry_stats = status.get("retry_statistics", {})
         if retry_stats.get("failed_attempts", 0) > 10:
             success_rate = retry_stats.get("success_rate", 1.0)
             if success_rate < 0.8:  # Less than 80% success rate
-                issues.append(f"High failure rate in database operations: {success_rate:.1%}")
+                issues.append(
+                    f"High failure rate in database operations: {success_rate:.1%}"
+                )
 
         return issues
 
     async def _trigger_alert(self, issues: List[str]):
         """Trigger alert for persistent issues."""
-        logger.error(f"Database alert triggered after {self.consecutive_failures} consecutive failures:")
+        logger.error(
+            f"Database alert triggered after {self.consecutive_failures} consecutive failures:"
+        )
         for issue in issues:
             logger.error(f"  - {issue}")
 
@@ -253,7 +263,9 @@ class DatabaseHealthMonitor:
 
 
 def create_enhanced_database_manager(
-    use_pool: bool = True, pool_config: Optional[Dict[str, Any]] = None, start_monitoring: bool = True
+    use_pool: bool = True,
+    pool_config: Optional[Dict[str, Any]] = None,
+    start_monitoring: bool = True,
 ) -> EnhancedDatabaseManager:
     """
     Factory function to create an enhanced database manager with optimal settings.
@@ -302,7 +314,9 @@ DEVELOPMENT_CONFIG = {
 }
 
 
-async def initialize_database_system(environment: str = "production") -> EnhancedDatabaseManager:
+async def initialize_database_system(
+    environment: str = "production",
+) -> EnhancedDatabaseManager:
     """
     Initialize the complete database system with appropriate configuration.
 

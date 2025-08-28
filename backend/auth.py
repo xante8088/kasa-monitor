@@ -107,13 +107,17 @@ class AuthManager:
         return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
     @staticmethod
-    def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+    def create_access_token(
+        data: Dict[str, Any], expires_delta: Optional[timedelta] = None
+    ) -> str:
         """Create a JWT access token."""
         to_encode = data.copy()
         if expires_delta:
             expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+            expire = datetime.now(timezone.utc) + timedelta(
+                minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+            )
 
         # Convert datetime objects to ISO strings for JSON serialization (except exp)
         def serialize_datetime(obj):
@@ -127,7 +131,9 @@ class AuthManager:
 
         # Serialize everything except exp (which JWT needs as datetime)
         serialized_data = serialize_datetime(data)
-        to_encode = serialized_data.copy() if isinstance(serialized_data, dict) else data.copy()
+        to_encode = (
+            serialized_data.copy() if isinstance(serialized_data, dict) else data.copy()
+        )
         to_encode.update({"exp": expire})  # Add exp as datetime object
 
         # Use secure secret manager for token creation
@@ -175,7 +181,9 @@ class AuthManager:
             # Invalid token - none of the secrets worked
             import logging
 
-            logging.error(f"JWT verification failed with all secrets: {str(last_exception)}")
+            logging.error(
+                f"JWT verification failed with all secrets: {str(last_exception)}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail={
@@ -207,8 +215,14 @@ class AuthManager:
 
         # Serialize everything except exp (which JWT needs as datetime)
         serialized_data = serialize_datetime(user_data)
-        to_encode = serialized_data.copy() if isinstance(serialized_data, dict) else user_data.copy()
-        to_encode.update({"exp": expire, "type": "refresh"})  # Add exp as datetime object
+        to_encode = (
+            serialized_data.copy()
+            if isinstance(serialized_data, dict)
+            else user_data.copy()
+        )
+        to_encode.update(
+            {"exp": expire, "type": "refresh"}
+        )  # Add exp as datetime object
 
         current_secret = get_current_jwt_secret()
         encoded_jwt = jwt.encode(to_encode, current_secret, algorithm=ALGORITHM)
@@ -266,7 +280,9 @@ class AuthManager:
         return ROLE_PERMISSIONS.get(role, [])
 
     @staticmethod
-    def check_permission(user_permissions: list[Permission], required_permission: Permission) -> bool:
+    def check_permission(
+        user_permissions: list[Permission], required_permission: Permission
+    ) -> bool:
         """Check if user has required permission."""
         return required_permission in user_permissions
 
@@ -345,7 +361,9 @@ def require_permission(permission: Permission):
 def require_admin(user: User = Depends(require_auth)) -> User:
     """Require admin role."""
     if not user.is_admin and user.role != UserRole.ADMIN:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+        )
     return user
 
 
@@ -353,7 +371,9 @@ def get_network_access_config() -> Dict[str, Any]:
     """Get network access configuration."""
     return {
         "allow_local_only": os.getenv("ALLOW_LOCAL_ONLY", "true").lower() == "true",
-        "allowed_networks": os.getenv("ALLOWED_NETWORKS", "192.168.0.0/16,10.0.0.0/8,172.16.0.0/12").split(","),
+        "allowed_networks": os.getenv(
+            "ALLOWED_NETWORKS", "192.168.0.0/16,10.0.0.0/8,172.16.0.0/12"
+        ).split(","),
         "use_https": os.getenv("USE_HTTPS", "false").lower() == "true",
         "ssl_cert_path": os.getenv("SSL_CERT_PATH", ""),
         "ssl_key_path": os.getenv("SSL_KEY_PATH", ""),
@@ -428,16 +448,22 @@ def _get_security_recommendations(secret_info: Dict[str, Any]) -> List[str]:
     # Check secret age
     age_days = secret_info.get("current_age_days", 0)
     if age_days > 30:
-        recommendations.append(f"JWT secret is {age_days} days old. Consider rotating for enhanced security.")
+        recommendations.append(
+            f"JWT secret is {age_days} days old. Consider rotating for enhanced security."
+        )
 
     # Check file permissions
     permissions = secret_info.get("file_permissions")
     if permissions and permissions != "600":
-        recommendations.append(f"JWT secret file has permissions {permissions}. Should be 600 for security.")
+        recommendations.append(
+            f"JWT secret file has permissions {permissions}. Should be 600 for security."
+        )
 
     # Check if environment variable is used
     if not os.getenv("JWT_SECRET_KEY"):
-        recommendations.append("Consider setting JWT_SECRET_KEY environment variable for production.")
+        recommendations.append(
+            "Consider setting JWT_SECRET_KEY environment variable for production."
+        )
 
     # General recommendations
     recommendations.extend(

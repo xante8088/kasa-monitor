@@ -70,7 +70,9 @@ class RetryStats:
         self.retry_counts: Dict[str, int] = {}
         self.total_delay = 0.0
 
-    def record_attempt(self, operation: str, attempt: int, success: bool, delay: float = 0.0):
+    def record_attempt(
+        self, operation: str, attempt: int, success: bool, delay: float = 0.0
+    ):
         """Record a retry attempt"""
         self.total_attempts += 1
         self.total_delay += delay
@@ -88,8 +90,16 @@ class RetryStats:
             "total_attempts": self.total_attempts,
             "successful_attempts": self.successful_attempts,
             "failed_attempts": self.failed_attempts,
-            "success_rate": (self.successful_attempts / self.total_attempts if self.total_attempts > 0 else 0.0),
-            "average_delay": (self.total_delay / self.total_attempts if self.total_attempts > 0 else 0.0),
+            "success_rate": (
+                self.successful_attempts / self.total_attempts
+                if self.total_attempts > 0
+                else 0.0
+            ),
+            "average_delay": (
+                self.total_delay / self.total_attempts
+                if self.total_attempts > 0
+                else 0.0
+            ),
             "retry_counts_by_operation": self.retry_counts.copy(),
         }
 
@@ -158,7 +168,9 @@ class RetryHandler:
             delay = self.config.base_delay * attempt
 
         elif self.config.strategy == RetryStrategy.EXPONENTIAL:
-            delay = self.config.base_delay * (self.config.backoff_factor ** (attempt - 1))
+            delay = self.config.base_delay * (
+                self.config.backoff_factor ** (attempt - 1)
+            )
 
         elif self.config.strategy == RetryStrategy.RANDOM:
             delay = random.uniform(self.config.base_delay, self.config.max_delay)
@@ -178,7 +190,9 @@ class RetryHandler:
         return delay
 
 
-def retry_sync(config: Optional[RetryConfig] = None, operation_name: Optional[str] = None):
+def retry_sync(
+    config: Optional[RetryConfig] = None, operation_name: Optional[str] = None
+):
     """Decorator for synchronous function retry logic"""
 
     if config is None:
@@ -197,7 +211,9 @@ def retry_sync(config: Optional[RetryConfig] = None, operation_name: Optional[st
                     _global_stats.record_attempt(op_name, attempt, True)
 
                     if config.log_attempts and attempt > 1:
-                        logger.info(f"Operation '{op_name}' succeeded on attempt {attempt}")
+                        logger.info(
+                            f"Operation '{op_name}' succeeded on attempt {attempt}"
+                        )
 
                     return result
 
@@ -230,7 +246,9 @@ def retry_sync(config: Optional[RetryConfig] = None, operation_name: Optional[st
             _global_stats.record_attempt(op_name, config.max_attempts, False)
 
             if config.log_attempts:
-                logger.error(f"Operation '{op_name}' failed after {config.max_attempts} attempts")
+                logger.error(
+                    f"Operation '{op_name}' failed after {config.max_attempts} attempts"
+                )
 
             raise last_exception
 
@@ -239,7 +257,9 @@ def retry_sync(config: Optional[RetryConfig] = None, operation_name: Optional[st
     return decorator
 
 
-def retry_async(config: Optional[RetryConfig] = None, operation_name: Optional[str] = None):
+def retry_async(
+    config: Optional[RetryConfig] = None, operation_name: Optional[str] = None
+):
     """Decorator for asynchronous function retry logic"""
 
     if config is None:
@@ -258,7 +278,9 @@ def retry_async(config: Optional[RetryConfig] = None, operation_name: Optional[s
                     _global_stats.record_attempt(op_name, attempt, True)
 
                     if config.log_attempts and attempt > 1:
-                        logger.info(f"Operation '{op_name}' succeeded on attempt {attempt}")
+                        logger.info(
+                            f"Operation '{op_name}' succeeded on attempt {attempt}"
+                        )
 
                     return result
 
@@ -291,7 +313,9 @@ def retry_async(config: Optional[RetryConfig] = None, operation_name: Optional[s
             _global_stats.record_attempt(op_name, config.max_attempts, False)
 
             if config.log_attempts:
-                logger.error(f"Operation '{op_name}' failed after {config.max_attempts} attempts")
+                logger.error(
+                    f"Operation '{op_name}' failed after {config.max_attempts} attempts"
+                )
 
             raise last_exception
 
@@ -353,7 +377,11 @@ FILE_OPERATION_RETRY_CONFIG = RetryConfig(
 
 
 async def retry_async_operation(
-    operation: Callable, config: Optional[RetryConfig] = None, operation_name: Optional[str] = None, *args, **kwargs
+    operation: Callable,
+    config: Optional[RetryConfig] = None,
+    operation_name: Optional[str] = None,
+    *args,
+    **kwargs,
 ) -> Any:
     """
     Retry an async operation without using decorators
@@ -381,7 +409,11 @@ async def retry_async_operation(
 
 
 def retry_sync_operation(
-    operation: Callable, config: Optional[RetryConfig] = None, operation_name: Optional[str] = None, *args, **kwargs
+    operation: Callable,
+    config: Optional[RetryConfig] = None,
+    operation_name: Optional[str] = None,
+    *args,
+    **kwargs,
 ) -> Any:
     """
     Retry a sync operation without using decorators
@@ -437,7 +469,10 @@ class RetryContext:
 
         retry_decision = self.handler.should_retry(exc_val, self.attempt)
 
-        if retry_decision == RetryResult.FAIL or self.attempt >= self.config.max_attempts:
+        if (
+            retry_decision == RetryResult.FAIL
+            or self.attempt >= self.config.max_attempts
+        ):
             _global_stats.record_attempt(self.operation_name, self.attempt, False)
             return False  # Let the exception propagate
 
@@ -456,7 +491,9 @@ class RetryContext:
         _global_stats.record_attempt(self.operation_name, self.attempt, False, delay)
 
         if self.config.log_attempts:
-            logger.info(f"Retrying '{self.operation_name}' in {delay:.2f}s (attempt {self.attempt + 1})...")
+            logger.info(
+                f"Retrying '{self.operation_name}' in {delay:.2f}s (attempt {self.attempt + 1})..."
+            )
 
         await asyncio.sleep(delay)
 

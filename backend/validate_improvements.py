@@ -63,7 +63,9 @@ async def test_async_retry_with_failures():
 
     call_count = 0
 
-    @retry_async(config=RetryConfig(max_attempts=3, base_delay=0.01, log_attempts=False))
+    @retry_async(
+        config=RetryConfig(max_attempts=3, base_delay=0.01, log_attempts=False)
+    )
     async def failing_then_success():
         nonlocal call_count
         call_count += 1
@@ -84,7 +86,9 @@ async def test_async_retry_exhausted():
 
     call_count = 0
 
-    @retry_async(config=RetryConfig(max_attempts=2, base_delay=0.01, log_attempts=False))
+    @retry_async(
+        config=RetryConfig(max_attempts=2, base_delay=0.01, log_attempts=False)
+    )
     async def always_failing():
         nonlocal call_count
         call_count += 1
@@ -161,7 +165,9 @@ def test_different_strategies():
 
     # Test linear backoff
     linear_config = RetryConfig(
-        strategy=RetryStrategy.LINEAR, base_delay=0.5, jitter=False  # Disable jitter for predictable testing
+        strategy=RetryStrategy.LINEAR,
+        base_delay=0.5,
+        jitter=False,  # Disable jitter for predictable testing
     )
     linear_handler = RetryHandler(linear_config)
 
@@ -214,7 +220,11 @@ async def test_predefined_configs():
     """Test predefined retry configurations"""
     print("Testing predefined retry configurations...")
 
-    from retry_utils import DATABASE_RETRY_CONFIG, NETWORK_RETRY_CONFIG, FILE_OPERATION_RETRY_CONFIG
+    from retry_utils import (
+        DATABASE_RETRY_CONFIG,
+        NETWORK_RETRY_CONFIG,
+        FILE_OPERATION_RETRY_CONFIG,
+    )
 
     # Test database config
     assert DATABASE_RETRY_CONFIG.max_attempts == 3
@@ -226,7 +236,9 @@ async def test_predefined_configs():
 
     # Test file operation config
     assert FILE_OPERATION_RETRY_CONFIG.strategy == RetryStrategy.LINEAR
-    assert not FILE_OPERATION_RETRY_CONFIG.log_attempts  # Should be False for frequent operations
+    assert (
+        not FILE_OPERATION_RETRY_CONFIG.log_attempts
+    )  # Should be False for frequent operations
 
     print("✓ Predefined configurations test passed")
 
@@ -296,7 +308,9 @@ async def performance_benchmark():
     # Benchmark operations with retries
     call_count = 0
 
-    @retry_async(config=RetryConfig(max_attempts=3, base_delay=0.001, log_attempts=False))
+    @retry_async(
+        config=RetryConfig(max_attempts=3, base_delay=0.001, log_attempts=False)
+    )
     async def retry_operation():
         nonlocal call_count
         call_count += 1
@@ -311,7 +325,9 @@ async def performance_benchmark():
     retry_time = time.time() - start_time
 
     print(f"33 operations with retries (100 total calls) took: {retry_time:.3f}s")
-    print(f"Overhead per retry: {(retry_time - success_time) / 67:.4f}s")  # 67 extra calls
+    print(
+        f"Overhead per retry: {(retry_time - success_time) / 67:.4f}s"
+    )  # 67 extra calls
 
 
 if __name__ == "__main__":
