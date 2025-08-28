@@ -148,3 +148,7 @@ data/
 internal-docs/
 docs-internal/
 private-docs/
+
+# Sensitive files directory (NEVER commit)
+.sensitive/
+.sensitive/**
