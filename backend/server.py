@@ -1557,6 +1557,7 @@ class KasaMonitorApp:
         @self.app.post("/api/device/{device_ip}/control")
         @self.limiter.limit("60 per minute")
         async def control_device(
+            request: Request,
             device_ip: str,
             action: str = Query(...),
             current_user: User = Depends(
@@ -2233,7 +2234,7 @@ class KasaMonitorApp:
 
         @self.app.post("/api/auth/setup", response_model=User)
         @self.limiter.limit("3 per hour")
-        async def initial_setup(admin_data: UserCreate):
+        async def initial_setup(request: Request, admin_data: UserCreate):
             """Create initial admin user."""
             setup_required = await self.db_manager.is_setup_required()
             if not setup_required:
@@ -2454,7 +2455,9 @@ class KasaMonitorApp:
         @self.app.post("/api/auth/2fa/verify")
         @self.limiter.limit("10 per minute")
         async def verify_2fa(
-            verification_data: Dict[str, str], user: User = Depends(require_auth)
+            request: Request,
+            verification_data: Dict[str, str], 
+            user: User = Depends(require_auth)
         ):
             """Verify 2FA setup."""
             token = verification_data.get("token")
@@ -3578,6 +3581,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
         @self.app.post("/api/export/devices")
         @self.limiter.limit("10 per hour")
         async def export_devices(
+            request: Request,
             format: str = "csv",
             include_energy: bool = True,
             user: User = Depends(require_permission(Permission.DATA_EXPORT)),
@@ -3669,6 +3673,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
         @self.app.post("/api/export/energy")
         @self.limiter.limit("10 per hour")
         async def export_energy(
+            request: Request,
             device_ip: Optional[str] = None,
             start_date: Optional[datetime] = None,
             end_date: Optional[datetime] = None,
