@@ -34,7 +34,18 @@ export function DeviceManagementModal({ isOpen, onClose }: DeviceManagementModal
   const { data: devices = [], refetch } = useQuery({
     queryKey: ['saved-devices'],
     queryFn: async () => {
-      const res = await fetch('/api/devices/saved')
+      const token = localStorage.getItem('token')
+      const res = await fetch('/api/devices/saved', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error('Authentication failed. Please log in again.')
+        }
+        throw new Error('Failed to fetch devices')
+      }
       return res.json()
     },
     enabled: isOpen
@@ -43,8 +54,21 @@ export function DeviceManagementModal({ isOpen, onClose }: DeviceManagementModal
   // Fetch network settings on mount
   useEffect(() => {
     if (isOpen) {
-      fetch('/api/settings/network')
-        .then(res => res.json())
+      const token = localStorage.getItem('token')
+      fetch('/api/settings/network', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+        .then(res => {
+          if (!res.ok) {
+            if (res.status === 401) {
+              throw new Error('Authentication failed. Please log in again.')
+            }
+            throw new Error('Failed to fetch network settings')
+          }
+          return res.json()
+        })
         .then(data => setNetworkSettings(data))
         .catch(err => safeConsoleError('Failed to fetch network settings', err))
     }
@@ -52,28 +76,48 @@ export function DeviceManagementModal({ isOpen, onClose }: DeviceManagementModal
 
   const updateMonitoringMutation = useMutation({
     mutationFn: async ({ deviceIp, enabled }: { deviceIp: string; enabled: boolean }) => {
+      const token = localStorage.getItem('token')
       const res = await fetch(`/api/devices/${deviceIp}/monitoring`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ enabled })
       })
-      if (!res.ok) throw new Error('Failed to update monitoring')
+      if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error('Authentication failed. Please log in again.')
+        }
+        throw new Error('Failed to update monitoring')
+      }
       return res.json()
     },
     onSuccess: () => {
       refetch()
       queryClient.invalidateQueries({ queryKey: ['devices'] })
+      setError(null) // Clear any previous errors
+    },
+    onError: (error: any) => {
+      setError(error.message)
     }
   })
 
   const updateIpMutation = useMutation({
     mutationFn: async ({ oldIp, newIp }: { oldIp: string; newIp: string }) => {
+      const token = localStorage.getItem('token')
       const res = await fetch(`/api/devices/${oldIp}/ip`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ new_ip: newIp })
       })
       if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error('Authentication failed. Please log in again.')
+        }
         const error = await res.json()
         throw new Error(error.detail || 'Failed to update IP')
       }
@@ -92,12 +136,21 @@ export function DeviceManagementModal({ isOpen, onClose }: DeviceManagementModal
 
   const updateNotesMutation = useMutation({
     mutationFn: async ({ deviceIp, notes }: { deviceIp: string; notes: string }) => {
+      const token = localStorage.getItem('token')
       const res = await fetch(`/api/devices/${deviceIp}/notes`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ notes })
       })
-      if (!res.ok) throw new Error('Failed to update notes')
+      if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error('Authentication failed. Please log in again.')
+        }
+        throw new Error('Failed to update notes')
+      }
       return res.json()
     },
     onSuccess: () => {
@@ -109,26 +162,46 @@ export function DeviceManagementModal({ isOpen, onClose }: DeviceManagementModal
 
   const removeDeviceMutation = useMutation({
     mutationFn: async (deviceIp: string) => {
+      const token = localStorage.getItem('token')
       const res = await fetch(`/api/devices/${deviceIp}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       })
-      if (!res.ok) throw new Error('Failed to remove device')
+      if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error('Authentication failed. Please log in again.')
+        }
+        throw new Error('Failed to remove device')
+      }
       return res.json()
     },
     onSuccess: () => {
       refetch()
       queryClient.invalidateQueries({ queryKey: ['devices'] })
+      setError(null) // Clear any previous errors
+    },
+    onError: (error: any) => {
+      setError(error.message)
     }
   })
 
   const addManualDeviceMutation = useMutation({
     mutationFn: async ({ ip, alias }: { ip: string; alias: string }) => {
+      const token = localStorage.getItem('token')
       const res = await fetch('/api/devices/manual', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ ip, alias })
       })
       if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error('Authentication failed. Please log in again.')
+        }
         const error = await res.text()
         throw new Error(error || 'Failed to add device')
       }

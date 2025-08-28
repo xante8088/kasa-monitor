@@ -19,7 +19,9 @@ along with Kasa Monitor. If not, see <https://www.gnu.org/licenses/>.
 """
 
 import asyncio
+import ipaddress
 import json
+import re
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -77,16 +79,42 @@ class RateLimiter:
             },
         }
 
-        # Endpoint-specific limits
+        # Endpoint-specific limits with burst allowance
         self.endpoint_limits = {
+            # Authentication endpoints - most restrictive
             "/api/auth/login": "5 per minute",
             "/api/auth/register": "3 per hour",
             "/api/auth/reset-password": "3 per hour",
+            "/api/auth/2fa/verify": "10 per minute",
+            "/api/auth/refresh": "30 per minute",
+            
+            # Device management endpoints
             "/api/devices/discover": "1 per minute",
+            "/api/device/*/control": "60 per minute",  # Allow frequent device controls
+            "/api/device/*/history": "200 per minute",  # High limit for history data
+            "/api/device/*/history/range": "100 per minute",
+            
+            # Data export endpoints
             "/api/export": "10 per hour",
             "/api/backup": "5 per day",
+            
+            # System configuration
             "/api/system/config": "20 per minute",
+            "/api/system/health": "60 per minute",
+            
+            # General API endpoints
+            "/api/devices": "120 per minute",  # Device list requests
+            "/api/dashboard/stats": "100 per minute",  # Dashboard data
         }
+        
+        # Local network ranges that should have higher limits or exemptions
+        self.local_networks = [
+            "127.0.0.0/8",      # Loopback
+            "10.0.0.0/8",       # Private Class A
+            "172.16.0.0/12",    # Private Class B
+            "192.168.0.0/16",   # Private Class C
+            "169.254.0.0/16",   # Link-local
+        ]
 
     def get_rate_limit_key(self, request: Request) -> str:
         """Generate rate limit key based on user and IP.
@@ -105,6 +133,40 @@ class RateLimiter:
         else:
             # Fall back to IP address
             return get_remote_address(request)
+
+    def is_local_network_ip(self, ip_str: str) -> bool:
+        """Check if IP address is from a local network.
+        
+        Args:
+            ip_str: IP address string
+            
+        Returns:
+            True if IP is from local network, False otherwise
+        """
+        try:
+            ip = ipaddress.ip_address(ip_str)
+            for network_str in self.local_networks:
+                network = ipaddress.ip_network(network_str)
+                if ip in network:
+                    return True
+            return False
+        except (ipaddress.AddressValueError, ValueError):
+            return False
+    
+    def match_endpoint_pattern(self, path: str, pattern: str) -> bool:
+        """Check if path matches endpoint pattern.
+        
+        Args:
+            path: Request path
+            pattern: Pattern with wildcards (e.g., /api/device/*/history)
+            
+        Returns:
+            True if path matches pattern
+        """
+        # Convert pattern to regex by replacing * with [^/]+
+        regex_pattern = pattern.replace("*", "[^/]+")
+        regex_pattern = f"^{regex_pattern}$"
+        return bool(re.match(regex_pattern, path))
 
     def get_user_tier(self, request: Request) -> str:
         """Determine user's rate limit tier.
@@ -136,12 +198,38 @@ class RateLimiter:
         Returns:
             Rate limit string
         """
-        # Check for endpoint-specific limit
         path = request.url.path
+        client_ip = get_remote_address(request)
+        
+        # Check if IP is from local network - apply more generous limits
+        is_local = self.is_local_network_ip(client_ip)
+        local_multiplier = 3 if is_local else 1
+        
+        # Check for exact endpoint match
         if path in self.endpoint_limits:
-            return self.endpoint_limits[path]
+            limit_str = self.endpoint_limits[path]
+            if is_local:
+                # Multiply the limit for local network IPs
+                limit_parts = limit_str.split()
+                if len(limit_parts) >= 3:
+                    count = int(limit_parts[0])
+                    unit = " ".join(limit_parts[1:])
+                    return f"{count * local_multiplier} {unit}"
+            return limit_str
+        
+        # Check for pattern match
+        for pattern, limit_str in self.endpoint_limits.items():
+            if self.match_endpoint_pattern(path, pattern):
+                if is_local:
+                    # Multiply the limit for local network IPs
+                    limit_parts = limit_str.split()
+                    if len(limit_parts) >= 3:
+                        count = int(limit_parts[0])
+                        unit = " ".join(limit_parts[1:])
+                        return f"{count * local_multiplier} {unit}"
+                return limit_str
 
-        # Get user tier and category
+        # Get user tier and category for default limits
         tier = self.get_user_tier(request)
 
         # Determine category based on path
@@ -152,7 +240,17 @@ class RateLimiter:
         else:
             category = "default"
 
-        return self.rate_limit_tiers[tier].get(category, "60 per minute")
+        base_limit = self.rate_limit_tiers[tier].get(category, "60 per minute")
+        
+        # Apply local network multiplier to default limits too
+        if is_local:
+            limit_parts = base_limit.split()
+            if len(limit_parts) >= 3:
+                count = int(limit_parts[0])
+                unit = " ".join(limit_parts[1:])
+                return f"{count * local_multiplier} {unit}"
+        
+        return base_limit
 
     def create_limiter_decorator(self, limit: Optional[str] = None):
         """Create a rate limiter decorator for endpoints.
