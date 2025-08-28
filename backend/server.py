@@ -147,9 +147,7 @@ try:
 
     data_management_available = True
 except ImportError:
-    logger.warning(
-        "Data management modules not available. Some features will be disabled."
-    )
+    logger.warning("Data management modules not available. Some features will be disabled.")
     data_management_available = False
 
 # Import additional modules
@@ -254,20 +252,14 @@ class DeviceManager:
             except Exception as update_error:
                 error_msg = str(update_error)
                 if "time zone" in error_msg.lower() or "timezone" in error_msg.lower():
-                    logger.warning(
-                        f"Timezone error for device {device_ip}: {error_msg}"
-                    )
+                    logger.warning(f"Timezone error for device {device_ip}: {error_msg}")
                     # Try to work around timezone issues by using a minimal update
                     try:
                         # Force refresh without relying on timezone-dependent operations
                         await device.protocol.query("system", "get_sysinfo")
-                        logger.info(
-                            f"Fallback update successful for device {device_ip}"
-                        )
+                        logger.info(f"Fallback update successful for device {device_ip}")
                     except Exception as fallback_error:
-                        logger.error(
-                            f"Fallback update failed for device {device_ip}: {fallback_error}"
-                        )
+                        logger.error(f"Fallback update failed for device {device_ip}: {fallback_error}")
                         # Continue with existing data if update fails
                         pass
                 else:
@@ -280,15 +272,9 @@ class DeviceManager:
                 if hasattr(device, "modules") and "Energy" in device.modules:
                     energy_module = device.modules["Energy"]
                     power_data = {
-                        "current_power_w": getattr(
-                            energy_module, "current_consumption", 0
-                        ),
-                        "today_energy_kwh": getattr(
-                            energy_module, "consumption_today", 0
-                        ),
-                        "month_energy_kwh": getattr(
-                            energy_module, "consumption_this_month", 0
-                        ),
+                        "current_power_w": getattr(energy_module, "current_consumption", 0),
+                        "today_energy_kwh": getattr(energy_module, "consumption_today", 0),
+                        "month_energy_kwh": getattr(energy_module, "consumption_this_month", 0),
                         "voltage": getattr(energy_module, "voltage", 0),
                         "current": getattr(energy_module, "current", 0),
                     }
@@ -302,9 +288,7 @@ class DeviceManager:
                             "total_energy_kwh": getattr(emeter, "total", 0),
                         }
                     except Exception as emeter_error:
-                        logger.warning(
-                            f"Failed to get emeter data for {device_ip}: {emeter_error}"
-                        )
+                        logger.warning(f"Failed to get emeter data for {device_ip}: {emeter_error}")
                         power_data = {
                             "current_power_w": 0,
                             "voltage": 0,
@@ -312,9 +296,7 @@ class DeviceManager:
                             "total_energy_kwh": 0,
                         }
             except Exception as power_error:
-                logger.warning(
-                    f"Failed to extract power data for {device_ip}: {power_error}"
-                )
+                logger.warning(f"Failed to extract power data for {device_ip}: {power_error}")
                 power_data = {}
 
             return DeviceData(
@@ -377,9 +359,7 @@ class KasaMonitorApp:
         self.backup_manager = None
         self.audit_logger = None
         if monitoring_available:
-            self.audit_logger = AuditLogger(
-                db_path="kasa_monitor.db", log_dir="./logs/audit"
-            )
+            self.audit_logger = AuditLogger(db_path="kasa_monitor.db", log_dir="./logs/audit")
             self.health_monitor = HealthMonitor(audit_logger=self.audit_logger)
             self.prometheus_metrics = PrometheusMetrics()
             self.alert_manager = AlertManager(db_path="kasa_monitor.db")
@@ -396,18 +376,14 @@ class KasaMonitorApp:
         self.plugin_api_router = None
         if plugin_system_available:
             self.hook_manager = HookManager()
-            self.plugin_loader = PluginLoader(
-                plugin_dir="./plugins", db_path="kasa_monitor.db", app_version="1.0.0"
-            )
+            self.plugin_loader = PluginLoader(plugin_dir="./plugins", db_path="kasa_monitor.db", app_version="1.0.0")
             self.plugin_api_router = PluginAPIRouter(
                 app=self.app,
                 plugin_loader=self.plugin_loader,
                 hook_manager=self.hook_manager,
                 db_path="kasa_monitor.db",
             )
-            self.data_export_router = DataExportAPIRouter(
-                app=self.app, db_path="kasa_monitor.db"
-            )
+            self.data_export_router = DataExportAPIRouter(app=self.app, db_path="kasa_monitor.db")
 
         self.setup_middleware()
         self.setup_rate_limiter()
@@ -495,10 +471,7 @@ class KasaMonitorApp:
                         "plugin_system" if self.plugin_loader else None,
                         "audit_logger",
                     ],
-                    "startup_duration_ms": (
-                        datetime.now() - startup_time
-                    ).total_seconds()
-                    * 1000,
+                    "startup_duration_ms": (datetime.now() - startup_time).total_seconds() * 1000,
                     "scheduler_jobs": ["device_polling"],
                 },
                 timestamp=startup_time,
@@ -583,10 +556,7 @@ class KasaMonitorApp:
                 resource_id="kasa_monitor",
                 action="Kasa Monitor system shutdown completed",
                 details={
-                    "shutdown_duration_ms": (
-                        datetime.now() - shutdown_time
-                    ).total_seconds()
-                    * 1000,
+                    "shutdown_duration_ms": (datetime.now() - shutdown_time).total_seconds() * 1000,
                     "final_shutdown_timestamp": datetime.now().isoformat(),
                     "clean_shutdown": True,
                 },
@@ -668,17 +638,11 @@ class KasaMonitorApp:
                             "duration_ms": duration_ms,
                             "status_code": response.status_code,
                             "client_ip": client_ip,
-                            "response_size": response.headers.get(
-                                "content-length", "unknown"
-                            ),
+                            "response_size": response.headers.get("content-length", "unknown"),
                         },
                         timestamp=datetime.now(),
                         success=response.status_code < 400,
-                        error_message=(
-                            None
-                            if response.status_code < 400
-                            else f"HTTP {response.status_code}"
-                        ),
+                        error_message=(None if response.status_code < 400 else f"HTTP {response.status_code}"),
                     )
                     # Only log significant API calls to avoid spam
                     if duration_ms > 500 or response.status_code >= 400:
@@ -725,9 +689,7 @@ class KasaMonitorApp:
             from security_fixes.critical.cors_fix import setup_cors_security
 
             self.cors_config = setup_cors_security(self.app)
-            logger.info(
-                f"Secure CORS configured for environment: {self.cors_config.environment}"
-            )
+            logger.info(f"Secure CORS configured for environment: {self.cors_config.environment}")
 
             # Update Socket.IO CORS to match app CORS
             if self.cors_config.allowed_origins:
@@ -735,9 +697,7 @@ class KasaMonitorApp:
                     async_mode="asgi",
                     cors_allowed_origins=self.cors_config.allowed_origins,
                 )
-                logger.info(
-                    f"Socket.IO CORS origins: {self.cors_config.allowed_origins}"
-                )
+                logger.info(f"Socket.IO CORS origins: {self.cors_config.allowed_origins}")
         except ImportError:
             logger.warning("CORS security fix not available, using restricted CORS")
             self.app.add_middleware(
@@ -762,9 +722,7 @@ class KasaMonitorApp:
             if exc.status_code == 401:
                 # If detail is already structured (from our enhanced auth), return as-is
                 if isinstance(exc.detail, dict):
-                    return JSONResponse(
-                        status_code=401, content=exc.detail, headers=exc.headers or {}
-                    )
+                    return JSONResponse(status_code=401, content=exc.detail, headers=exc.headers or {})
                 else:
                     # Legacy string detail - convert to structured format
                     error_code = "AUTH_ERROR"
@@ -814,9 +772,7 @@ class KasaMonitorApp:
                 "/api/auth/refresh",
             }
 
-            if request.url.path in public_paths or request.url.path.startswith(
-                "/static"
-            ):
+            if request.url.path in public_paths or request.url.path.startswith("/static"):
                 return await call_next(request)
 
             # Extract authorization header
@@ -841,9 +797,7 @@ class KasaMonitorApp:
                             session_manager = SessionManager(session_store)
 
                             # Get client info
-                            client_ip = (
-                                request.client.host if request.client else "unknown"
-                            )
+                            client_ip = request.client.host if request.client else "unknown"
                             user_agent = request.headers.get("user-agent", "unknown")
 
                             # For now, we'll just validate the token exists
@@ -899,9 +853,7 @@ class KasaMonitorApp:
             except HTTPException as e:
                 # Log session timeout if token expired
                 if "Token expired" in str(e.detail):
-                    asyncio.create_task(
-                        self._log_session_timeout(request, credentials.credentials)
-                    )
+                    asyncio.create_task(self._log_session_timeout(request, credentials.credentials))
                 raise e
 
         return auth_dependency
@@ -952,9 +904,7 @@ class KasaMonitorApp:
         ) -> User:
             if not AuthManager.check_permission(user.permissions, permission):
                 # Log permission denied
-                asyncio.create_task(
-                    self._log_permission_denied(request, user, permission)
-                )
+                asyncio.create_task(self._log_permission_denied(request, user, permission))
 
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -964,9 +914,7 @@ class KasaMonitorApp:
 
         return permission_dependency
 
-    async def _log_permission_denied(
-        self, request: Request, user: User, permission: Permission
-    ):
+    async def _log_permission_denied(self, request: Request, user: User, permission: Permission):
         """Log permission denied event."""
         if not self.audit_logger:
             return
@@ -1010,14 +958,10 @@ class KasaMonitorApp:
             from slowapi.util import get_remote_address
 
             # Initialize rate limiter
-            self.rate_limiter = RateLimiter(
-                redis_client=None
-            )  # Using memory storage for now
+            self.rate_limiter = RateLimiter(redis_client=None)  # Using memory storage for now
 
             # Create limiter for SlowAPI
-            limiter = Limiter(
-                key_func=get_remote_address, default_limits=["100 per minute"]
-            )
+            limiter = Limiter(key_func=get_remote_address, default_limits=["100 per minute"])
 
             # Add middleware
             self.app.add_middleware(SlowAPIMiddleware)
@@ -1082,9 +1026,7 @@ class KasaMonitorApp:
                     "retry_after": exc.retry_after,
                     "reset_time": exc.reset_time,
                     "rate_limit_key": get_remote_address(request),
-                    "query_params": (
-                        dict(request.query_params) if request.query_params else None
-                    ),
+                    "query_params": (dict(request.query_params) if request.query_params else None),
                 },
                 timestamp=datetime.now(timezone.utc),
                 success=False,
@@ -1094,9 +1036,7 @@ class KasaMonitorApp:
         except Exception as e:
             logger.error(f"Failed to log rate limit exceeded: {e}")
 
-    async def _log_suspicious_activity(
-        self, request: Request, activity_type: str, details: dict
-    ):
+    async def _log_suspicious_activity(self, request: Request, activity_type: str, details: dict):
         """Log suspicious activity."""
         if not self.audit_logger:
             return
@@ -1164,9 +1104,7 @@ class KasaMonitorApp:
         @self.app.post("/api/discover")
         async def discover_devices(
             credentials: Optional[Dict[str, str]] = None,
-            current_user: User = Depends(
-                require_permission(Permission.DEVICES_DISCOVER)
-            ),
+            current_user: User = Depends(require_permission(Permission.DEVICES_DISCOVER)),
         ):
             """Trigger device discovery and save to database."""
             username = credentials.get("username") if credentials else None
@@ -1256,9 +1194,7 @@ class KasaMonitorApp:
 
                         return {"status": "success", "device": device_data.dict()}
                 else:
-                    raise HTTPException(
-                        status_code=404, detail=f"Cannot connect to device at {ip}"
-                    )
+                    raise HTTPException(status_code=404, detail=f"Cannot connect to device at {ip}")
             except Exception as e:
                 logger.error(
                     "Error adding manual device %s: %s",
@@ -1373,12 +1309,8 @@ class KasaMonitorApp:
             """Get network configuration settings."""
             return {
                 "network_mode": os.getenv("NETWORK_MODE", "bridge"),
-                "discovery_enabled": os.getenv("DISCOVERY_ENABLED", "false").lower()
-                == "true",
-                "manual_devices_enabled": os.getenv(
-                    "MANUAL_DEVICES_ENABLED", "true"
-                ).lower()
-                == "true",
+                "discovery_enabled": os.getenv("DISCOVERY_ENABLED", "false").lower() == "true",
+                "manual_devices_enabled": os.getenv("MANUAL_DEVICES_ENABLED", "true").lower() == "true",
                 "host_ip": os.getenv("DOCKER_HOST_IP", None),
             }
 
@@ -1403,17 +1335,13 @@ class KasaMonitorApp:
             try:
                 # Validate time parameters
                 if start_time and end_time and start_time >= end_time:
-                    raise HTTPException(
-                        status_code=400, detail="start_time must be before end_time"
-                    )
+                    raise HTTPException(status_code=400, detail="start_time must be before end_time")
 
                 # Check maximum range (90 days)
                 if start_time and end_time:
                     time_diff = end_time - start_time
                     if time_diff.days > 90:
-                        raise HTTPException(
-                            status_code=400, detail="Time range cannot exceed 90 days"
-                        )
+                        raise HTTPException(status_code=400, detail="Time range cannot exceed 90 days")
 
                 # Validate time_period if provided
                 valid_periods = ["1h", "6h", "24h", "3d", "7d", "30d", "custom"]
@@ -1425,20 +1353,14 @@ class KasaMonitorApp:
 
                 # Auto-select interval based on time range if not provided
                 if not interval:
-                    interval = self._get_optimal_interval(
-                        start_time, end_time, time_period
-                    )
+                    interval = self._get_optimal_interval(start_time, end_time, time_period)
 
-                history = await self.db_manager.get_device_history(
-                    device_ip, start_time, end_time, interval
-                )
+                history = await self.db_manager.get_device_history(device_ip, start_time, end_time, interval)
 
                 # Add caching headers for better performance
                 if response and time_period:
                     cache_duration = self._get_cache_duration(time_period)
-                    response.headers["Cache-Control"] = (
-                        f"public, max-age={cache_duration}"
-                    )
+                    response.headers["Cache-Control"] = f"public, max-age={cache_duration}"
 
                 return {
                     "data": history,
@@ -1469,9 +1391,7 @@ class KasaMonitorApp:
                     )
                 return data_range
             except Exception as e:
-                logger.error(
-                    f"Error getting data range for device {device_ip}: {str(e)}"
-                )
+                logger.error(f"Error getting data range for device {device_ip}: {str(e)}")
                 raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.get("/api/device/{device_ip}/stats")
@@ -1484,9 +1404,7 @@ class KasaMonitorApp:
         async def control_device(
             device_ip: str,
             action: str = Query(...),
-            current_user: User = Depends(
-                require_permission(Permission.DEVICES_CONTROL)
-            ),
+            current_user: User = Depends(require_permission(Permission.DEVICES_CONTROL)),
         ):
             """Control a device (turn on/off)."""
             device = self.device_manager.devices.get(device_ip)
@@ -1543,9 +1461,7 @@ class KasaMonitorApp:
             return {"status": "success"}
 
         @self.app.get("/api/costs")
-        async def get_electricity_costs(
-            start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
-        ):
+        async def get_electricity_costs(start_date: Optional[datetime] = None, end_date: Optional[datetime] = None):
             """Calculate electricity costs for all devices."""
             costs = await self.db_manager.calculate_costs(start_date, end_date)
             return costs
@@ -1590,13 +1506,9 @@ class KasaMonitorApp:
                 await self.audit_logger.log_event_async(audit_event)
 
             if success:
-                return {
-                    "message": f"Monitoring {'enabled' if enabled else 'disabled'} for device {device_ip}"
-                }
+                return {"message": f"Monitoring {'enabled' if enabled else 'disabled'} for device {device_ip}"}
             else:
-                raise HTTPException(
-                    status_code=400, detail="Failed to update monitoring status"
-                )
+                raise HTTPException(status_code=400, detail="Failed to update monitoring status")
 
         @self.app.put("/api/devices/{device_ip}/ip")
         async def update_device_ip(
@@ -1637,9 +1549,7 @@ class KasaMonitorApp:
                     self.device_manager.devices[new_ip] = device
                 return {"message": f"Device IP updated from {device_ip} to {new_ip}"}
             else:
-                raise HTTPException(
-                    status_code=400, detail="Failed to update IP (may already exist)"
-                )
+                raise HTTPException(status_code=400, detail="Failed to update IP (may already exist)")
 
         @self.app.delete("/api/devices/{device_ip}")
         async def remove_device(device_ip: str):
@@ -1697,10 +1607,7 @@ class KasaMonitorApp:
             """Authenticate user and return JWT token."""
 
             # Check for test credentials in development mode (not production)
-            is_development = (
-                os.getenv("NODE_ENV") != "production"
-                and os.getenv("ENVIRONMENT") != "production"
-            )
+            is_development = os.getenv("NODE_ENV") != "production" and os.getenv("ENVIRONMENT") != "production"
             test_creds_path = os.path.join(
                 os.path.dirname(os.path.dirname(__file__)),
                 ".auth",
@@ -1733,21 +1640,13 @@ class KasaMonitorApp:
 
                             # Create access token and refresh token for test user
                             user_data = {"user": test_user.model_dump()}
-                            access_token = AuthManager.create_access_token(
-                                data=user_data
-                            )
-                            refresh_token = AuthManager.create_refresh_token(
-                                user_data
-                            )
+                            access_token = AuthManager.create_access_token(data=user_data)
+                            refresh_token = AuthManager.create_refresh_token(user_data)
 
                             # Log successful test user authentication
                             if self.audit_logger:
-                                client_ip = (
-                                    request.client.host if request.client else "unknown"
-                                )
-                                user_agent = request.headers.get(
-                                    "user-agent", "unknown"
-                                )
+                                client_ip = request.client.host if request.client else "unknown"
+                                user_agent = request.headers.get("user-agent", "unknown")
 
                                 audit_event = AuditEvent(
                                     event_type=AuditEventType.LOGIN_SUCCESS,
@@ -1817,12 +1716,8 @@ class KasaMonitorApp:
                     detail="Invalid username or password",
                 )
 
-            password_hash = await self.db_manager.get_user_password_hash(
-                login_data.username
-            )
-            if not password_hash or not AuthManager.verify_password(
-                login_data.password, password_hash
-            ):
+            password_hash = await self.db_manager.get_user_password_hash(login_data.username)
+            if not password_hash or not AuthManager.verify_password(login_data.password, password_hash):
                 # Log failed login attempt - invalid password
                 if self.audit_logger:
                     audit_event = AuditEvent(
@@ -1912,11 +1807,7 @@ class KasaMonitorApp:
                     resource_type=None,
                     resource_id=None,
                     action="User login successful",
-                    details={
-                        "login_method": (
-                            "password" if not totp_secret else "password+2fa"
-                        )
-                    },
+                    details={"login_method": ("password" if not totp_secret else "password+2fa")},
                     timestamp=datetime.now(timezone.utc),
                     success=True,
                 )
@@ -1944,9 +1835,7 @@ class KasaMonitorApp:
                     device_name=None,  # Could extract from user agent
                 )
 
-                logger.info(
-                    f"Session created for user {user.username}: {session_info['session_id']}"
-                )
+                logger.info(f"Session created for user {user.username}: {session_info['session_id']}")
 
             except Exception as e:
                 logger.warning(f"Failed to create session: {e}")
@@ -1968,9 +1857,7 @@ class KasaMonitorApp:
 
             try:
                 # Verify the refresh token
-                payload = AuthManager.verify_refresh_token(
-                    refresh_request.refresh_token
-                )
+                payload = AuthManager.verify_refresh_token(refresh_request.refresh_token)
                 user_data = payload.get("user")
 
                 if not user_data:
@@ -2117,9 +2004,7 @@ class KasaMonitorApp:
             return {"message": "Logged out successfully", "status": "success"}
 
         @self.app.get("/api/auth/security-status")
-        async def get_authentication_security_status(
-            request: Request, admin: User = Depends(require_admin)
-        ):
+        async def get_authentication_security_status(request: Request, admin: User = Depends(require_admin)):
             """Get comprehensive authentication security status (Admin only)."""
             try:
                 security_status = get_auth_security_status()
@@ -2127,9 +2012,7 @@ class KasaMonitorApp:
                 # Add runtime information
                 security_status["runtime_info"] = {
                     "server_uptime": (
-                        str(datetime.now(timezone.utc) - admin.created_at)
-                        if admin.created_at
-                        else "unknown"
+                        str(datetime.now(timezone.utc) - admin.created_at) if admin.created_at else "unknown"
                     ),
                     "total_admin_users": await self.db_manager.count_admin_users(),
                     "authentication_middleware_enabled": True,
@@ -2222,9 +2105,7 @@ class KasaMonitorApp:
 
         # Profile management endpoints
         @self.app.put("/api/auth/profile")
-        async def update_profile(
-            updates: Dict[str, Any], user: User = Depends(require_auth)
-        ):
+        async def update_profile(updates: Dict[str, Any], user: User = Depends(require_auth)):
             """Update user profile (name and email)."""
             allowed_fields = {"full_name", "email"}
             filtered_updates = {k: v for k, v in updates.items() if k in allowed_fields}
@@ -2232,9 +2113,7 @@ class KasaMonitorApp:
             if not filtered_updates:
                 raise HTTPException(status_code=400, detail="No valid fields to update")
 
-            success = await self.db_manager.update_user_profile(
-                user.id, filtered_updates
-            )
+            success = await self.db_manager.update_user_profile(user.id, filtered_updates)
             if not success:
                 raise HTTPException(status_code=400, detail="Failed to update profile")
 
@@ -2260,32 +2139,22 @@ class KasaMonitorApp:
             return {"message": "Profile updated successfully"}
 
         @self.app.post("/api/auth/change-password")
-        async def change_password(
-            password_data: Dict[str, str], user: User = Depends(require_auth)
-        ):
+        async def change_password(password_data: Dict[str, str], user: User = Depends(require_auth)):
             """Change user password."""
             current_password = password_data.get("current_password")
             new_password = password_data.get("new_password")
 
             if not current_password or not new_password:
-                raise HTTPException(
-                    status_code=400, detail="Both current and new passwords required"
-                )
+                raise HTTPException(status_code=400, detail="Both current and new passwords required")
 
             # Verify current password
             stored_user = await self.db_manager.get_user_by_username(user.username)
-            if not stored_user or not AuthManager.verify_password(
-                current_password, stored_user.password
-            ):
-                raise HTTPException(
-                    status_code=401, detail="Current password is incorrect"
-                )
+            if not stored_user or not AuthManager.verify_password(current_password, stored_user.password):
+                raise HTTPException(status_code=401, detail="Current password is incorrect")
 
             # Update password
             hashed_password = AuthManager.hash_password(new_password)
-            success = await self.db_manager.update_user_password(
-                user.id, hashed_password
-            )
+            success = await self.db_manager.update_user_password(user.id, hashed_password)
 
             if not success:
                 raise HTTPException(status_code=500, detail="Failed to update password")
@@ -2387,15 +2256,11 @@ class KasaMonitorApp:
             return {"qr_code": f"data:image/png;base64,{img_str}", "secret": secret}
 
         @self.app.post("/api/auth/2fa/verify")
-        async def verify_2fa(
-            verification_data: Dict[str, str], user: User = Depends(require_auth)
-        ):
+        async def verify_2fa(verification_data: Dict[str, str], user: User = Depends(require_auth)):
             """Verify 2FA setup."""
             token = verification_data.get("token")
             if not token:
-                raise HTTPException(
-                    status_code=400, detail="Verification token required"
-                )
+                raise HTTPException(status_code=400, detail="Verification token required")
 
             # Get temporary secret
             temp_secret = await self.db_manager.get_temp_totp_secret(user.id)
@@ -2566,11 +2431,7 @@ class KasaMonitorApp:
                         details={
                             "deleted_user_id": user_id,
                             "deleted_username": target_user.username,
-                            "deleted_user_role": (
-                                target_user.role.value
-                                if target_user.role
-                                else "unknown"
-                            ),
+                            "deleted_user_role": (target_user.role.value if target_user.role else "unknown"),
                             "deleted_user_email": target_user.email,
                             "deleted_by_admin": True,
                         },
@@ -2689,9 +2550,7 @@ class KasaMonitorApp:
                 if isinstance(value, dict):
                     # Handle nested configs like ssl, network
                     for sub_key, sub_value in value.items():
-                        await self.db_manager.set_system_config(
-                            f"{key}.{sub_key}", str(sub_value)
-                        )
+                        await self.db_manager.set_system_config(f"{key}.{sub_key}", str(sub_value))
                 else:
                     await self.db_manager.set_system_config(key, str(value))
             return {"message": "Configuration updated successfully"}
@@ -2729,9 +2588,7 @@ class KasaMonitorApp:
                                 "filename": file_path.name,
                                 "path": str(file_path),
                                 "size": stat.st_size,
-                                "modified": datetime.fromtimestamp(
-                                    stat.st_mtime
-                                ).isoformat(),
+                                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
                                 "type": file_type,
                             }
                         )
@@ -2761,9 +2618,7 @@ class KasaMonitorApp:
                 key_size = csr_data.get("key_size", 2048)
 
                 if not all([country, state, city, organization, common_name, email]):
-                    raise HTTPException(
-                        status_code=400, detail="Missing required CSR fields"
-                    )
+                    raise HTTPException(status_code=400, detail="Missing required CSR fields")
 
                 # Create ssl directory
                 ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
@@ -2858,12 +2713,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             """Download an SSL file."""
             try:
                 # Validate filename to prevent path traversal
-                if (
-                    not filename
-                    or ".." in filename
-                    or "/" in filename
-                    or "\\" in filename
-                ):
+                if not filename or ".." in filename or "/" in filename or "\\" in filename:
                     raise HTTPException(status_code=400, detail="Invalid filename")
 
                 # Use safe basename only
@@ -2905,16 +2755,12 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
 
                 # Create temporary ZIP file
-                with tempfile.NamedTemporaryFile(
-                    delete=False, suffix=".zip"
-                ) as tmp_zip:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp_zip:
                     with zipfile.ZipFile(tmp_zip.name, "w") as zf:
                         for filename in filenames:
                             file_path = ssl_dir / filename
 
-                            if file_path.exists() and str(file_path).startswith(
-                                str(ssl_dir)
-                            ):
+                            if file_path.exists() and str(file_path).startswith(str(ssl_dir)):
                                 zf.write(file_path, filename)
 
                 def cleanup_temp_file():
@@ -2937,9 +2783,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 return StreamingResponse(
                     file_generator(),
                     media_type="application/zip",
-                    headers={
-                        "Content-Disposition": f"attachment; filename=ssl_files.zip"
-                    },
+                    headers={"Content-Disposition": f"attachment; filename=ssl_files.zip"},
                 )
 
             except HTTPException:
@@ -2961,12 +2805,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                     raise HTTPException(status_code=400, detail="Invalid confirmation")
 
                 # Validate filename to prevent path traversal
-                if (
-                    not filename
-                    or ".." in filename
-                    or "/" in filename
-                    or "\\" in filename
-                ):
+                if not filename or ".." in filename or "/" in filename or "\\" in filename:
                     raise HTTPException(status_code=400, detail="Invalid filename")
 
                 # Use safe basename only
@@ -3055,74 +2894,41 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                     upload_result = await upload_manager.handle_upload(file, "ssl_cert")
 
                     # Move approved file to SSL directory
-                    ssl_dir = (
-                        Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
-                    )
+                    ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
                     ssl_dir.mkdir(exist_ok=True)
                     file_path = ssl_dir / file.filename
 
-                    if upload_manager.approve_quarantined_file(
-                        upload_result["quarantine_path"], str(file_path)
-                    ):
-                        logger.info(
-                            f"SSL certificate uploaded successfully: {file.filename}"
-                        )
+                    if upload_manager.approve_quarantined_file(upload_result["quarantine_path"], str(file_path)):
+                        logger.info(f"SSL certificate uploaded successfully: {file.filename}")
 
                         # Store certificate path in database
-                        await self.db_manager.set_system_config(
-                            "ssl.cert_path", str(file_path)
-                        )
-                        logger.info(
-                            f"SSL certificate path stored in database: {file_path}"
-                        )
+                        await self.db_manager.set_system_config("ssl.cert_path", str(file_path))
+                        logger.info(f"SSL certificate path stored in database: {file_path}")
 
                         # Check if both cert and key exist, then enable SSL
-                        ssl_key_path = await self.db_manager.get_system_config(
-                            "ssl.key_path"
-                        )
+                        ssl_key_path = await self.db_manager.get_system_config("ssl.key_path")
                         if ssl_key_path and Path(ssl_key_path).exists():
-                            await self.db_manager.set_system_config(
-                                "ssl.enabled", "true"
-                            )
-                            logger.info(
-                                "SSL enabled - both certificate and key are present"
-                            )
+                            await self.db_manager.set_system_config("ssl.enabled", "true")
+                            logger.info("SSL enabled - both certificate and key are present")
                     else:
-                        raise HTTPException(
-                            status_code=500, detail="Failed to move certificate file"
-                        )
+                        raise HTTPException(status_code=500, detail="Failed to move certificate file")
 
                 except ImportError:
-                    logger.warning(
-                        "Secure file upload not available, using basic validation"
-                    )
+                    logger.warning("Secure file upload not available, using basic validation")
                     # Fallback to basic validation
-                    if not file.filename or not file.filename.endswith(
-                        (".crt", ".cer", ".pem")
-                    ):
-                        raise HTTPException(
-                            status_code=400, detail="Invalid certificate file type"
-                        )
+                    if not file.filename or not file.filename.endswith((".crt", ".cer", ".pem")):
+                        raise HTTPException(status_code=400, detail="Invalid certificate file type")
 
                     # Basic size check
                     content = await file.read()
                     if len(content) > 5 * 1024 * 1024:  # 5MB limit for certificates
-                        raise HTTPException(
-                            status_code=400, detail="Certificate file too large"
-                        )
+                        raise HTTPException(status_code=400, detail="Certificate file too large")
 
                     # Validate certificate format
-                    if (
-                        b"-----BEGIN CERTIFICATE-----" not in content
-                        or b"-----END CERTIFICATE-----" not in content
-                    ):
-                        raise HTTPException(
-                            status_code=400, detail="Invalid certificate format"
-                        )
+                    if b"-----BEGIN CERTIFICATE-----" not in content or b"-----END CERTIFICATE-----" not in content:
+                        raise HTTPException(status_code=400, detail="Invalid certificate format")
 
-                    ssl_dir = (
-                        Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
-                    )
+                    ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
                     ssl_dir.mkdir(exist_ok=True)
                     file_path = ssl_dir / file.filename
 
@@ -3130,20 +2936,14 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         f.write(content)
 
                     # Store certificate path in database
-                    await self.db_manager.set_system_config(
-                        "ssl.cert_path", str(file_path)
-                    )
+                    await self.db_manager.set_system_config("ssl.cert_path", str(file_path))
                     logger.info(f"SSL certificate path stored in database: {file_path}")
 
                     # Check if both cert and key exist, then enable SSL
-                    ssl_key_path = await self.db_manager.get_system_config(
-                        "ssl.key_path"
-                    )
+                    ssl_key_path = await self.db_manager.get_system_config("ssl.key_path")
                     if ssl_key_path and Path(ssl_key_path).exists():
                         await self.db_manager.set_system_config("ssl.enabled", "true")
-                        logger.info(
-                            "SSL enabled - both certificate and key are present"
-                        )
+                        logger.info("SSL enabled - both certificate and key are present")
 
                 # Log successful certificate upload
                 if self.audit_logger:
@@ -3189,9 +2989,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         action="SSL certificate upload failed",
                         details={
                             "config_type": "ssl_certificate",
-                            "certificate_filename": getattr(
-                                file, "filename", "unknown"
-                            ),
+                            "certificate_filename": getattr(file, "filename", "unknown"),
                             "error_message": str(e),
                             "error_type": type(e).__name__,
                             "operation": "certificate_upload_failed",
@@ -3202,9 +3000,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                     )
                     await self.audit_logger.log_event_async(error_event)
 
-                raise HTTPException(
-                    status_code=500, detail="Failed to upload certificate"
-                )
+                raise HTTPException(status_code=500, detail="Failed to upload certificate")
 
         @self.app.post("/api/system/ssl/upload-key")
         async def upload_ssl_private_key(
@@ -3223,77 +3019,43 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                     upload_result = await upload_manager.handle_upload(file, "ssl_key")
 
                     # Move approved file to SSL directory
-                    ssl_dir = (
-                        Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
-                    )
+                    ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
                     ssl_dir.mkdir(exist_ok=True)
                     file_path = ssl_dir / file.filename
 
-                    if upload_manager.approve_quarantined_file(
-                        upload_result["quarantine_path"], str(file_path)
-                    ):
+                    if upload_manager.approve_quarantined_file(upload_result["quarantine_path"], str(file_path)):
                         # Set restrictive permissions on private key
                         os.chmod(file_path, 0o600)
-                        logger.info(
-                            f"SSL private key uploaded successfully: {file.filename}"
-                        )
+                        logger.info(f"SSL private key uploaded successfully: {file.filename}")
 
                         # Store private key path in database
-                        await self.db_manager.set_system_config(
-                            "ssl.key_path", str(file_path)
-                        )
-                        logger.info(
-                            f"SSL private key path stored in database: {file_path}"
-                        )
+                        await self.db_manager.set_system_config("ssl.key_path", str(file_path))
+                        logger.info(f"SSL private key path stored in database: {file_path}")
 
                         # Check if both cert and key exist, then enable SSL
-                        ssl_cert_path = await self.db_manager.get_system_config(
-                            "ssl.cert_path"
-                        )
+                        ssl_cert_path = await self.db_manager.get_system_config("ssl.cert_path")
                         if ssl_cert_path and Path(ssl_cert_path).exists():
-                            await self.db_manager.set_system_config(
-                                "ssl.enabled", "true"
-                            )
-                            logger.info(
-                                "SSL enabled - both certificate and key are present"
-                            )
+                            await self.db_manager.set_system_config("ssl.enabled", "true")
+                            logger.info("SSL enabled - both certificate and key are present")
                     else:
-                        raise HTTPException(
-                            status_code=500, detail="Failed to move private key file"
-                        )
+                        raise HTTPException(status_code=500, detail="Failed to move private key file")
 
                 except ImportError:
-                    logger.warning(
-                        "Secure file upload not available, using basic validation"
-                    )
+                    logger.warning("Secure file upload not available, using basic validation")
                     # Fallback to basic validation
-                    if not file.filename or not file.filename.endswith(
-                        (".key", ".pem")
-                    ):
-                        raise HTTPException(
-                            status_code=400, detail="Invalid private key file type"
-                        )
+                    if not file.filename or not file.filename.endswith((".key", ".pem")):
+                        raise HTTPException(status_code=400, detail="Invalid private key file type")
 
                     # Basic size check
                     content = await file.read()
                     if len(content) > 5 * 1024 * 1024:  # 5MB limit for keys
-                        raise HTTPException(
-                            status_code=400, detail="Private key file too large"
-                        )
+                        raise HTTPException(status_code=400, detail="Private key file too large")
 
                     # Validate private key format
-                    if (
-                        b"-----BEGIN" not in content
-                        or b"-----END" not in content
-                        or b"PRIVATE KEY" not in content
-                    ):
-                        raise HTTPException(
-                            status_code=400, detail="Invalid private key format"
-                        )
+                    if b"-----BEGIN" not in content or b"-----END" not in content or b"PRIVATE KEY" not in content:
+                        raise HTTPException(status_code=400, detail="Invalid private key format")
 
-                    ssl_dir = (
-                        Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
-                    )
+                    ssl_dir = Path("ssl") if not Path("/app").exists() else Path("/app/ssl")
                     ssl_dir.mkdir(exist_ok=True)
                     file_path = ssl_dir / file.filename
 
@@ -3304,20 +3066,14 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                     os.chmod(file_path, 0o600)
 
                     # Store private key path in database
-                    await self.db_manager.set_system_config(
-                        "ssl.key_path", str(file_path)
-                    )
+                    await self.db_manager.set_system_config("ssl.key_path", str(file_path))
                     logger.info(f"SSL private key path stored in database: {file_path}")
 
                     # Check if both cert and key exist, then enable SSL
-                    ssl_cert_path = await self.db_manager.get_system_config(
-                        "ssl.cert_path"
-                    )
+                    ssl_cert_path = await self.db_manager.get_system_config("ssl.cert_path")
                     if ssl_cert_path and Path(ssl_cert_path).exists():
                         await self.db_manager.set_system_config("ssl.enabled", "true")
-                        logger.info(
-                            "SSL enabled - both certificate and key are present"
-                        )
+                        logger.info("SSL enabled - both certificate and key are present")
 
                 # Log successful private key upload
                 if self.audit_logger:
@@ -3375,9 +3131,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                     )
                     await self.audit_logger.log_event_async(error_event)
 
-                raise HTTPException(
-                    status_code=500, detail="Failed to upload private key"
-                )
+                raise HTTPException(status_code=500, detail="Failed to upload private key")
 
         # Permission management endpoints
         @self.app.get("/api/permissions")
@@ -3410,9 +3164,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                     resource = parts[0].title()
                     description = f"{action} {resource}"
                 else:
-                    description = (
-                        perm.value.replace(".", " - ").replace("_", " ").title()
-                    )
+                    description = perm.value.replace(".", " - ").replace("_", " ").title()
 
                 permissions.append(
                     {
@@ -3436,9 +3188,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 role_perms.append(
                     {
                         "role": role.value,
-                        "permissions": [
-                            p.value for p in ROLE_PERMISSIONS.get(role, [])
-                        ],
+                        "permissions": [p.value for p in ROLE_PERMISSIONS.get(role, [])],
                     }
                 )
             return role_perms
@@ -3517,9 +3267,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
         ):
             """Export device data in various formats."""
             if not self.data_exporter:
-                raise HTTPException(
-                    status_code=503, detail="Export service not available"
-                )
+                raise HTTPException(status_code=503, detail="Export service not available")
 
             export_start_time = datetime.now()
 
@@ -3529,9 +3277,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                     filename = "devices.csv"
                     media_type = "text/csv"
                 elif format == "excel":
-                    content = await self.data_exporter.export_devices_excel(
-                        include_energy=include_energy
-                    )
+                    content = await self.data_exporter.export_devices_excel(include_energy=include_energy)
                     filename = "devices.xlsx"
                     media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 else:
@@ -3551,10 +3297,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                             "include_energy": include_energy,
                             "filename": filename,
                             "export_size_bytes": len(content),
-                            "export_duration_ms": (
-                                datetime.now() - export_start_time
-                            ).total_seconds()
-                            * 1000,
+                            "export_duration_ms": (datetime.now() - export_start_time).total_seconds() * 1000,
                             "export_timestamp": export_start_time.isoformat(),
                         },
                     )
@@ -3586,10 +3329,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                             "include_energy": include_energy,
                             "error_message": str(e),
                             "error_type": type(e).__name__,
-                            "export_duration_ms": (
-                                datetime.now() - export_start_time
-                            ).total_seconds()
-                            * 1000,
+                            "export_duration_ms": (datetime.now() - export_start_time).total_seconds() * 1000,
                         },
                         timestamp=datetime.now(),
                         success=False,
@@ -3609,9 +3349,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
         ):
             """Export energy consumption data."""
             if not self.data_exporter:
-                raise HTTPException(
-                    status_code=503, detail="Export service not available"
-                )
+                raise HTTPException(status_code=503, detail="Export service not available")
 
             export_start_time = datetime.now()
 
@@ -3637,16 +3375,11 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                             "export_type": "energy_data",
                             "format": format,
                             "device_ip": device_ip,
-                            "start_date": (
-                                start_date.isoformat() if start_date else None
-                            ),
+                            "start_date": (start_date.isoformat() if start_date else None),
                             "end_date": end_date.isoformat() if end_date else None,
                             "filename": filename,
                             "export_size_bytes": len(content),
-                            "export_duration_ms": (
-                                datetime.now() - export_start_time
-                            ).total_seconds()
-                            * 1000,
+                            "export_duration_ms": (datetime.now() - export_start_time).total_seconds() * 1000,
                             "export_timestamp": export_start_time.isoformat(),
                         },
                     )
@@ -3670,26 +3403,17 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         user_agent=None,
                         session_id=None,
                         resource_type="data",
-                        resource_id=(
-                            f"energy_export_{device_ip}"
-                            if device_ip
-                            else "energy_export_all"
-                        ),
+                        resource_id=(f"energy_export_{device_ip}" if device_ip else "energy_export_all"),
                         action="Energy data export failed",
                         details={
                             "export_type": "energy_data",
                             "format": format,
                             "device_ip": device_ip,
-                            "start_date": (
-                                start_date.isoformat() if start_date else None
-                            ),
+                            "start_date": (start_date.isoformat() if start_date else None),
                             "end_date": end_date.isoformat() if end_date else None,
                             "error_message": str(e),
                             "error_type": type(e).__name__,
-                            "export_duration_ms": (
-                                datetime.now() - export_start_time
-                            ).total_seconds()
-                            * 1000,
+                            "export_duration_ms": (datetime.now() - export_start_time).total_seconds() * 1000,
                         },
                         timestamp=datetime.now(),
                         success=False,
@@ -3707,9 +3431,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
         ):
             """Generate PDF report."""
             if not self.data_exporter:
-                raise HTTPException(
-                    status_code=503, detail="Export service not available"
-                )
+                raise HTTPException(status_code=503, detail="Export service not available")
 
             try:
                 content = await self.data_exporter.generate_pdf_report(
@@ -3718,9 +3440,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 return StreamingResponse(
                     io.BytesIO(content),
                     media_type="application/pdf",
-                    headers={
-                        "Content-Disposition": f"attachment; filename={report_type}_report.pdf"
-                    },
+                    headers={"Content-Disposition": f"attachment; filename={report_type}_report.pdf"},
                 )
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
@@ -3735,9 +3455,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
         ):
             """Get aggregated data for specified period."""
             if not self.data_aggregator:
-                raise HTTPException(
-                    status_code=503, detail="Aggregation service not available"
-                )
+                raise HTTPException(status_code=503, detail="Aggregation service not available")
 
             try:
                 from data_aggregation import AggregationPeriod
@@ -3751,9 +3469,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 )
                 return data
             except ValueError:
-                raise HTTPException(
-                    status_code=400, detail="Invalid aggregation period"
-                )
+                raise HTTPException(status_code=400, detail="Invalid aggregation period")
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
 
@@ -3765,9 +3481,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
         ):
             """Get statistical analysis for a device."""
             if not self.data_aggregator:
-                raise HTTPException(
-                    status_code=503, detail="Aggregation service not available"
-                )
+                raise HTTPException(status_code=503, detail="Aggregation service not available")
 
             try:
                 stats = await self.data_aggregator.calculate_statistics(
@@ -3783,14 +3497,10 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.get("/api/trends/{device_ip}")
-        async def get_trend_analysis(
-            device_ip: str, period: str = "day", lookback: int = 30
-        ):
+        async def get_trend_analysis(device_ip: str, period: str = "day", lookback: int = 30):
             """Get trend analysis for a device."""
             if not self.data_aggregator:
-                raise HTTPException(
-                    status_code=503, detail="Aggregation service not available"
-                )
+                raise HTTPException(status_code=503, detail="Aggregation service not available")
 
             try:
                 from data_aggregation import AggregationPeriod
@@ -3837,9 +3547,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
 
             @self.app.get("/api/health/detailed")
             async def detailed_health(
-                current_user: User = Depends(
-                    require_permission(Permission.SYSTEM_CONFIG)
-                ),
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
             ):
                 """Detailed health status with all components."""
                 return await self.health_monitor.perform_health_check()
@@ -3862,9 +3570,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             async def get_alerts(
                 severity: Optional[str] = None,
                 status: Optional[str] = None,
-                current_user: User = Depends(
-                    require_permission(Permission.DEVICES_VIEW)
-                ),
+                current_user: User = Depends(require_permission(Permission.DEVICES_VIEW)),
             ):
                 """Get active alerts."""
                 # Return empty list for now - AlertManager needs different parameters
@@ -3872,9 +3578,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
 
             @self.app.get("/api/alerts/rules")
             async def get_alert_rules(
-                current_user: User = Depends(
-                    require_permission(Permission.DEVICES_VIEW)
-                ),
+                current_user: User = Depends(require_permission(Permission.DEVICES_VIEW)),
             ):
                 """Get configured alert rules."""
                 return await self.alert_manager.get_rules()
@@ -3882,9 +3586,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             @self.app.post("/api/alerts/rules")
             async def create_alert_rule(
                 rule: Dict[str, Any],
-                current_user: User = Depends(
-                    require_permission(Permission.DEVICES_EDIT)
-                ),
+                current_user: User = Depends(require_permission(Permission.DEVICES_EDIT)),
             ):
                 """Create a new alert rule."""
                 return await self.alert_manager.create_rule(rule)
@@ -3892,9 +3594,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             @self.app.delete("/api/alerts/rules/{rule_id}")
             async def delete_alert_rule(
                 rule_id: int,
-                current_user: User = Depends(
-                    require_permission(Permission.DEVICES_EDIT)
-                ),
+                current_user: User = Depends(require_permission(Permission.DEVICES_EDIT)),
             ):
                 """Delete an alert rule."""
                 success = await self.alert_manager.delete_rule(rule_id)
@@ -3905,14 +3605,10 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             @self.app.post("/api/alerts/{alert_id}/acknowledge")
             async def acknowledge_alert(
                 alert_id: int,
-                current_user: User = Depends(
-                    require_permission(Permission.DEVICES_EDIT)
-                ),
+                current_user: User = Depends(require_permission(Permission.DEVICES_EDIT)),
             ):
                 """Acknowledge an alert."""
-                success = await self.alert_manager.acknowledge_alert(
-                    alert_id, user_id=current_user.id
-                )
+                success = await self.alert_manager.acknowledge_alert(alert_id, user_id=current_user.id)
                 if success:
                     return {"status": "success"}
                 raise HTTPException(status_code=404, detail="Alert not found")
@@ -3921,9 +3617,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             async def get_alert_history(
                 start_date: Optional[datetime] = None,
                 end_date: Optional[datetime] = None,
-                current_user: User = Depends(
-                    require_permission(Permission.DEVICES_VIEW)
-                ),
+                current_user: User = Depends(require_permission(Permission.DEVICES_VIEW)),
             ):
                 """Get alert history."""
                 # Return empty list for now - AlertManager doesn't have get_history method
@@ -3934,9 +3628,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
 
             @self.app.get("/api/device-groups")
             async def get_device_groups(
-                current_user: User = Depends(
-                    require_permission(Permission.DEVICES_VIEW)
-                ),
+                current_user: User = Depends(require_permission(Permission.DEVICES_VIEW)),
             ):
                 """Get all device groups."""
                 return self.device_group_manager.get_all_groups()
@@ -3944,9 +3636,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             @self.app.get("/api/device-groups/{group_id}")
             async def get_device_group(
                 group_id: int,
-                current_user: User = Depends(
-                    require_permission(Permission.DEVICES_VIEW)
-                ),
+                current_user: User = Depends(require_permission(Permission.DEVICES_VIEW)),
             ):
                 """Get a specific device group."""
                 group = self.device_group_manager.get_group(group_id)
@@ -3957,9 +3647,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             @self.app.post("/api/device-groups")
             async def create_device_group(
                 group_data: Dict[str, Any],
-                current_user: User = Depends(
-                    require_permission(Permission.DEVICES_EDIT)
-                ),
+                current_user: User = Depends(require_permission(Permission.DEVICES_EDIT)),
             ):
                 """Create a new device group."""
                 return self.device_group_manager.create_group(group_data)
@@ -3968,9 +3656,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             async def update_device_group(
                 group_id: int,
                 group_data: Dict[str, Any],
-                current_user: User = Depends(
-                    require_permission(Permission.DEVICES_EDIT)
-                ),
+                current_user: User = Depends(require_permission(Permission.DEVICES_EDIT)),
             ):
                 """Update a device group."""
                 success = self.device_group_manager.update_group(group_id, group_data)
@@ -3981,9 +3667,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             @self.app.delete("/api/device-groups/{group_id}")
             async def delete_device_group(
                 group_id: int,
-                current_user: User = Depends(
-                    require_permission(Permission.DEVICES_EDIT)
-                ),
+                current_user: User = Depends(require_permission(Permission.DEVICES_EDIT)),
             ):
                 """Delete a device group."""
                 success = self.device_group_manager.delete_group(group_id)
@@ -3995,14 +3679,10 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             async def control_device_group(
                 group_id: int,
                 action: Dict[str, str],
-                current_user: User = Depends(
-                    require_permission(Permission.DEVICES_CONTROL)
-                ),
+                current_user: User = Depends(require_permission(Permission.DEVICES_CONTROL)),
             ):
                 """Control all devices in a group."""
-                result = self.device_group_manager.control_group(
-                    group_id, action.get("action", "off")
-                )
+                result = self.device_group_manager.control_group(group_id, action.get("action", "off"))
                 return {"status": "success", "result": result}
 
         # Backup and restore endpoints
@@ -4010,18 +3690,14 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
 
             @self.app.get("/api/backups")
             async def get_backups(
-                current_user: User = Depends(
-                    require_permission(Permission.SYSTEM_CONFIG)
-                ),
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
             ):
                 """Get list of available backups."""
                 return await self.backup_manager.list_backups()
 
             @self.app.get("/api/backups/progress")
             async def get_backup_progress(
-                current_user: User = Depends(
-                    require_permission(Permission.SYSTEM_CONFIG)
-                ),
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
             ):
                 """Get current backup progress."""
                 return self.backup_manager.get_backup_progress()
@@ -4029,9 +3705,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             @self.app.post("/api/backups/create")
             async def create_backup(
                 backup_options: Dict[str, Any],
-                current_user: User = Depends(
-                    require_permission(Permission.SYSTEM_CONFIG)
-                ),
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
             ):
                 """Create a new backup."""
                 backup_info = await self.backup_manager.create_backup(
@@ -4054,9 +3728,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             @self.app.get("/api/backups/{filename}/download")
             async def download_backup(
                 filename: str,
-                current_user: User = Depends(
-                    require_permission(Permission.SYSTEM_CONFIG)
-                ),
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
             ):
                 """Download a backup file."""
                 file_path = await self.backup_manager.get_backup_file_by_name(filename)
@@ -4073,9 +3745,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             @self.app.delete("/api/backups/{filename}")
             async def delete_backup(
                 filename: str,
-                current_user: User = Depends(
-                    require_permission(Permission.SYSTEM_CONFIG)
-                ),
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
             ):
                 """Delete a backup."""
                 success = await self.backup_manager.delete_backup_by_name(filename)
@@ -4087,9 +3757,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             async def restore_backup(
                 request: Request,
                 backup: UploadFile,
-                current_user: User = Depends(
-                    require_permission(Permission.SYSTEM_CONFIG)
-                ),
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
             ):
                 """Restore from a backup file."""
                 import shutil
@@ -4097,9 +3765,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
 
                 # Check if backup manager is available
                 if not self.backup_manager:
-                    raise HTTPException(
-                        status_code=503, detail="Backup service not available"
-                    )
+                    raise HTTPException(status_code=503, detail="Backup service not available")
 
                 # Get client IP for audit logging
                 client_ip = request.client.host if request.client else "unknown"
@@ -4128,9 +3794,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         action="restore_initiated",
                         details={
                             "backup_file": backup.filename,
-                            "file_size": (
-                                backup.size if hasattr(backup, "size") else None
-                            ),
+                            "file_size": (backup.size if hasattr(backup, "size") else None),
                         },
                         timestamp=datetime.now(),
                         success=True,
@@ -4138,9 +3802,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                     await self.audit_logger.log_event_async(event)
 
                 # Save uploaded file temporarily
-                with tempfile.NamedTemporaryFile(
-                    delete=False, suffix=file_ext
-                ) as tmp_file:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
                     content = await backup.read()
                     tmp_file.write(content)
                     temp_path = tmp_file.name
@@ -4175,9 +3837,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                                 details={
                                     "backup_file": backup.filename,
                                     "restore_id": result.get("restore_id"),
-                                    "pre_restore_backup": result.get(
-                                        "pre_restore_backup"
-                                    ),
+                                    "pre_restore_backup": result.get("pre_restore_backup"),
                                 },
                                 timestamp=datetime.now(),
                                 success=True,
@@ -4186,9 +3846,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
 
                         # Verify audit log was properly recorded
                         if result.get("restore_id") and self.backup_manager:
-                            await self.backup_manager.verify_restore_audit_log(
-                                result["restore_id"]
-                            )
+                            await self.backup_manager.verify_restore_audit_log(result["restore_id"])
 
                         return {
                             "status": "success",
@@ -4229,9 +3887,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
 
             @self.app.get("/api/backups/schedules")
             async def get_backup_schedules(
-                current_user: User = Depends(
-                    require_permission(Permission.SYSTEM_CONFIG)
-                ),
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
             ):
                 """Get backup schedules."""
                 return await self.backup_manager.get_schedules()
@@ -4239,9 +3895,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             @self.app.post("/api/backups/schedules")
             async def create_backup_schedule(
                 schedule_data: Dict[str, Any],
-                current_user: User = Depends(
-                    require_permission(Permission.SYSTEM_CONFIG)
-                ),
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
             ):
                 """Create a new backup schedule."""
                 schedule = await self.backup_manager.create_schedule(schedule_data)
@@ -4251,14 +3905,10 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             async def update_backup_schedule(
                 schedule_id: int,
                 schedule_data: Dict[str, Any],
-                current_user: User = Depends(
-                    require_permission(Permission.SYSTEM_CONFIG)
-                ),
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
             ):
                 """Update a backup schedule."""
-                success = await self.backup_manager.update_schedule(
-                    schedule_id, schedule_data
-                )
+                success = await self.backup_manager.update_schedule(schedule_id, schedule_data)
                 if success:
                     return {"status": "success"}
                 raise HTTPException(status_code=404, detail="Schedule not found")
@@ -4266,9 +3916,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             @self.app.delete("/api/backups/schedules/{schedule_id}")
             async def delete_backup_schedule(
                 schedule_id: int,
-                current_user: User = Depends(
-                    require_permission(Permission.SYSTEM_CONFIG)
-                ),
+                current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
             ):
                 """Delete a backup schedule."""
                 success = await self.backup_manager.delete_schedule(schedule_id)
@@ -4286,9 +3934,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 severity: Optional[str] = None,
                 range: str = "7days",
                 search: Optional[str] = None,
-                current_user: User = Depends(
-                    require_permission(Permission.SYSTEM_LOGS)
-                ),
+                current_user: User = Depends(require_permission(Permission.SYSTEM_LOGS)),
             ):
                 """Get audit logs."""
                 logs, total_pages = await self.audit_logger.get_logs(
@@ -4303,9 +3949,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             @self.app.post("/api/audit-logs/export")
             async def export_audit_logs(
                 export_options: Dict[str, Any],
-                current_user: User = Depends(
-                    require_permission(Permission.SYSTEM_LOGS)
-                ),
+                current_user: User = Depends(require_permission(Permission.SYSTEM_LOGS)),
             ):
                 """Export audit logs."""
                 file_path = await self.audit_logger.export_logs(
@@ -4327,9 +3971,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
             @self.app.delete("/api/audit-logs/clear")
             async def clear_audit_logs(
                 before_date: Optional[str] = None,
-                current_user: User = Depends(
-                    require_permission(Permission.SYSTEM_LOGS_CLEAR)
-                ),
+                current_user: User = Depends(require_permission(Permission.SYSTEM_LOGS_CLEAR)),
             ):
                 """Clear audit logs before specified date or all logs."""
                 try:
@@ -4337,13 +3979,9 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                     if before_date:
                         from datetime import datetime
 
-                        date_obj = datetime.fromisoformat(
-                            before_date.replace("Z", "+00:00")
-                        )
+                        date_obj = datetime.fromisoformat(before_date.replace("Z", "+00:00"))
 
-                    deleted_count = await self.audit_logger.clear_logs(
-                        before_date=date_obj
-                    )
+                    deleted_count = await self.audit_logger.clear_logs(before_date=date_obj)
 
                     # Log the clear action
                     if self.audit_logger:
@@ -4369,9 +4007,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
 
                     return {"message": f"Cleared {deleted_count} audit log entries"}
                 except Exception as e:
-                    raise HTTPException(
-                        status_code=500, detail=f"Failed to clear logs: {str(e)}"
-                    )
+                    raise HTTPException(status_code=500, detail=f"Failed to clear logs: {str(e)}")
 
     def setup_plugin_routes(self):
         """Setup plugin system API routes."""
@@ -4394,9 +4030,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                     )
                     await device.update()
                     self.device_manager.devices[device_info["device_ip"]] = device
-                    logger.info(
-                        f"Connected to saved device: {device_info['alias']} ({device_info['device_ip']})"
-                    )
+                    logger.info(f"Connected to saved device: {device_info['alias']} ({device_info['device_ip']})")
                 except Exception as e:
                     logger.warning(
                         f"Could not connect to saved device {device_info['alias']} ({device_info['device_ip']}): {e}"
@@ -4436,9 +4070,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                 await self.db_manager.store_device_reading(device_data)
 
                 # Emit real-time update via Socket.IO
-                await self.sio.emit(
-                    "device_update", device_data.dict(), room=f"device_{device_data.ip}"
-                )
+                await self.sio.emit("device_update", device_data.dict(), room=f"device_{device_data.ip}")
 
             polling_duration_ms = (time.time() - polling_start_time) * 1000
 
@@ -4523,8 +4155,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
                         "performance_monitoring": True,
                         "error_message": str(e),
                         "error_type": type(e).__name__,
-                        "polling_duration_ms": (time.time() - polling_start_time)
-                        * 1000,
+                        "polling_duration_ms": (time.time() - polling_start_time) * 1000,
                         "system_component": "device_polling",
                     },
                     timestamp=datetime.now(),
@@ -4635,9 +4266,7 @@ if __name__ == "__main__":
                     if cert_path.exists() and key_path.exists():
                         ssl_enabled = "true"
                         await temp_db.set_system_config("ssl.enabled", "true")
-                        logger.info(
-                            "SSL auto-enabled - certificate and key files found"
-                        )
+                        logger.info("SSL auto-enabled - certificate and key files found")
 
             await temp_db.close()
 
@@ -4645,11 +4274,7 @@ if __name__ == "__main__":
                 "enabled": ssl_enabled and ssl_enabled.lower() == "true",
                 "cert_path": ssl_cert_path or "",
                 "key_path": ssl_key_path or "",
-                "port": (
-                    int(ssl_port)
-                    if ssl_port and ssl_port.isdigit()
-                    else int(os.getenv("HTTPS_PORT", "5273"))
-                ),
+                "port": (int(ssl_port) if ssl_port and ssl_port.isdigit() else int(os.getenv("HTTPS_PORT", "5273"))),
             }
         except Exception as e:
             logger.error(f"Error getting SSL config: {e}")
@@ -4698,9 +4323,7 @@ if __name__ == "__main__":
             )
 
             # Configure HTTP server
-            http_config = uvicorn.Config(
-                app=app_instance.app, host="0.0.0.0", port=5272, log_level="info"
-            )
+            http_config = uvicorn.Config(app=app_instance.app, host="0.0.0.0", port=5272, log_level="info")
 
             # Start HTTPS server in a separate thread
             https_server = uvicorn.Server(https_config)
@@ -4711,9 +4334,7 @@ if __name__ == "__main__":
             http_server = uvicorn.Server(http_config)
             http_server.run()
         else:
-            logger.warning(
-                f"SSL enabled but files not found - cert: {cert_path}, key: {key_path}"
-            )
+            logger.warning(f"SSL enabled but files not found - cert: {cert_path}, key: {key_path}")
             logger.info("Starting server without SSL on port 5272")
             uvicorn.run(app=app_instance.app, host="0.0.0.0", port=5272)
     else:

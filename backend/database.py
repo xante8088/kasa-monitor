@@ -69,15 +69,12 @@ class DatabaseManager:
         """Initialize database connections and create tables."""
         # Initialize SQLite with retry logic
         await self._initialize_sqlite()
-        
+
         # Initialize InfluxDB if configured
         if self.use_influx:
             await self._initialize_influxdb()
-    
-    @retry_async(
-        config=DATABASE_RETRY_CONFIG,
-        operation_name="sqlite_initialization"
-    )
+
+    @retry_async(config=DATABASE_RETRY_CONFIG, operation_name="sqlite_initialization")
     async def _initialize_sqlite(self):
         """Initialize SQLite connection with retry logic."""
         try:
@@ -85,19 +82,19 @@ class DatabaseManager:
             db_dir = os.path.dirname(self.sqlite_path)
             if db_dir and not os.path.exists(db_dir):
                 os.makedirs(db_dir, exist_ok=True)
-                
+
             self.sqlite_conn = await aiosqlite.connect(self.sqlite_path)
-            
+
             # Configure SQLite for better performance and reliability
             await self.sqlite_conn.execute("PRAGMA journal_mode=WAL")
             await self.sqlite_conn.execute("PRAGMA synchronous=NORMAL")
             await self.sqlite_conn.execute("PRAGMA cache_size=10000")
             await self.sqlite_conn.execute("PRAGMA temp_store=MEMORY")
             await self.sqlite_conn.execute("PRAGMA busy_timeout=30000")  # 30 second timeout
-            
+
             await self._create_sqlite_tables()
             logger.info("SQLite database initialized successfully")
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize SQLite database: {e}")
             # Clean up partial connection
@@ -108,29 +105,26 @@ class DatabaseManager:
                     pass
                 self.sqlite_conn = None
             raise
-    
-    @retry_async(
-        config=NETWORK_RETRY_CONFIG,
-        operation_name="influxdb_initialization"
-    )
+
+    @retry_async(config=NETWORK_RETRY_CONFIG, operation_name="influxdb_initialization")
     async def _initialize_influxdb(self):
         """Initialize InfluxDB connection with retry logic."""
         try:
             self.influx_client = InfluxDBClientAsync(
-                url=self.influx_url, 
-                token=self.influx_token, 
+                url=self.influx_url,
+                token=self.influx_token,
                 org=self.influx_org,
                 timeout=10000,  # 10 second timeout
-                enable_gzip=True
+                enable_gzip=True,
             )
-            
+
             # Test the connection
             health = await self.influx_client.health()
             if health.status != "pass":
                 raise ConnectionError(f"InfluxDB health check failed: {health.message}")
-                
+
             logger.info("InfluxDB client initialized successfully")
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize InfluxDB client: {e}")
             # Clean up partial connection
@@ -276,21 +270,18 @@ class DatabaseManager:
         """Store device reading in both SQLite and InfluxDB with retry logic."""
         # Store in SQLite with retry
         await self._store_sqlite_reading(device_data)
-        
+
         # Store in InfluxDB if available
         if self.use_influx and self.influx_client:
             await self._store_influx_reading(device_data)
-    
-    @retry_async(
-        config=DATABASE_RETRY_CONFIG,
-        operation_name="store_sqlite_reading"
-    )
+
+    @retry_async(config=DATABASE_RETRY_CONFIG, operation_name="store_sqlite_reading")
     async def _store_sqlite_reading(self, device_data: DeviceData):
         """Store device reading in SQLite with retry logic."""
         try:
             if not self.sqlite_conn:
                 raise ConnectionError("SQLite connection not available")
-                
+
             # Update device info in SQLite
             await self.sqlite_conn.execute(
                 """
@@ -331,7 +322,7 @@ class DatabaseManager:
             )
 
             await self.sqlite_conn.commit()
-            
+
         except Exception as e:
             # Rollback on error
             if self.sqlite_conn:
@@ -341,17 +332,14 @@ class DatabaseManager:
                     pass
             logger.error(f"Failed to store SQLite reading for {device_data.ip}: {e}")
             raise
-    
-    @retry_async(
-        config=NETWORK_RETRY_CONFIG,
-        operation_name="store_influx_reading"
-    )
+
+    @retry_async(config=NETWORK_RETRY_CONFIG, operation_name="store_influx_reading")
     async def _store_influx_reading(self, device_data: DeviceData):
         """Store device reading in InfluxDB with retry logic."""
         try:
             if not self.influx_client:
                 raise ConnectionError("InfluxDB client not available")
-                
+
             point = (
                 Point("device_reading")
                 .tag("device_ip", device_data.ip)
@@ -371,7 +359,7 @@ class DatabaseManager:
 
             write_api = self.influx_client.write_api()
             await write_api.write(bucket=self.influx_bucket, record=point)
-            
+
         except Exception as e:
             logger.error(f"Failed to store InfluxDB reading for {device_data.ip}: {e}")
             # Don't re-raise for InfluxDB failures - SQLite is the primary store
@@ -392,14 +380,10 @@ class DatabaseManager:
 
         # Use InfluxDB if available for better time-series queries
         if self.use_influx and self.influx_client:
-            return await self._get_influx_device_history(
-                device_ip, start_time, end_time, interval
-            )
+            return await self._get_influx_device_history(device_ip, start_time, end_time, interval)
         else:
             # Enhanced SQLite implementation with aggregation
-            return await self._get_sqlite_device_history(
-                device_ip, start_time, end_time, interval
-            )
+            return await self._get_sqlite_device_history(device_ip, start_time, end_time, interval)
 
     async def _get_influx_device_history(
         self, device_ip: str, start_time: datetime, end_time: datetime, interval: str
@@ -525,25 +509,17 @@ class DatabaseManager:
 
                 # Round values appropriately
                 if field in ["current_power_w"]:
-                    data_by_time[timestamp][field] = (
-                        round(value, 2) if value is not None else None
-                    )
+                    data_by_time[timestamp][field] = round(value, 2) if value is not None else None
                 elif field == "voltage":
-                    data_by_time[timestamp][field] = (
-                        round(value, 1) if value is not None else None
-                    )
+                    data_by_time[timestamp][field] = round(value, 1) if value is not None else None
                 elif field == "current":
-                    data_by_time[timestamp][field] = (
-                        round(value, 3) if value is not None else None
-                    )
+                    data_by_time[timestamp][field] = round(value, 3) if value is not None else None
                 elif field in [
                     "today_energy_kwh",
                     "month_energy_kwh",
                     "total_energy_kwh",
                 ]:
-                    data_by_time[timestamp][field] = (
-                        round(value, 3) if value is not None else None
-                    )
+                    data_by_time[timestamp][field] = round(value, 3) if value is not None else None
                 else:
                     data_by_time[timestamp][field] = value
 
@@ -726,11 +702,7 @@ class DatabaseManager:
         """,
             (
                 rate.name,
-                (
-                    rate.rate_type.value
-                    if hasattr(rate.rate_type, "value")
-                    else rate.rate_type
-                ),
+                (rate.rate_type.value if hasattr(rate.rate_type, "value") else rate.rate_type),
                 rate_config,
                 rate.currency,
             ),
@@ -762,9 +734,7 @@ class DatabaseManager:
                     "ip": row[0],
                     "name": row[1],  # This is alias in device_info table
                     "type": row[2],
-                    "is_active": bool(
-                        row[3]
-                    ),  # This is is_monitored in device_info table
+                    "is_active": bool(row[3]),  # This is is_monitored in device_info table
                     "last_seen": row[4],
                 }
             )
@@ -831,9 +801,7 @@ class DatabaseManager:
                 device_data[device_ip]["total_kwh"] += daily_kwh
 
             if power_w:
-                device_data[device_ip]["peak_demand_kw"] = max(
-                    device_data[device_ip]["peak_demand_kw"], power_w / 1000
-                )
+                device_data[device_ip]["peak_demand_kw"] = max(device_data[device_ip]["peak_demand_kw"], power_w / 1000)
 
         # Calculate costs for each device
         total_cost = 0
@@ -945,9 +913,7 @@ class DatabaseManager:
             )
         return devices
 
-    async def update_device_monitoring(
-        self, device_ip: str, is_monitored: bool
-    ) -> bool:
+    async def update_device_monitoring(self, device_ip: str, is_monitored: bool) -> bool:
         """Enable or disable monitoring for a device."""
         try:
             await self.sqlite_conn.execute(
@@ -968,9 +934,7 @@ class DatabaseManager:
         """Update a device's IP address."""
         try:
             # Check if new IP already exists
-            cursor = await self.sqlite_conn.execute(
-                "SELECT COUNT(*) FROM device_info WHERE device_ip = ?", (new_ip,)
-            )
+            cursor = await self.sqlite_conn.execute("SELECT COUNT(*) FROM device_info WHERE device_ip = ?", (new_ip,))
             count = await cursor.fetchone()
             if count[0] > 0:
                 return False  # New IP already exists
@@ -1016,19 +980,13 @@ class DatabaseManager:
         """Remove a device and all its data from the database."""
         try:
             # Delete device readings
-            await self.sqlite_conn.execute(
-                "DELETE FROM device_readings WHERE device_ip = ?", (device_ip,)
-            )
+            await self.sqlite_conn.execute("DELETE FROM device_readings WHERE device_ip = ?", (device_ip,))
 
             # Delete device costs
-            await self.sqlite_conn.execute(
-                "DELETE FROM device_costs WHERE device_ip = ?", (device_ip,)
-            )
+            await self.sqlite_conn.execute("DELETE FROM device_costs WHERE device_ip = ?", (device_ip,))
 
             # Delete device info
-            await self.sqlite_conn.execute(
-                "DELETE FROM device_info WHERE device_ip = ?", (device_ip,)
-            )
+            await self.sqlite_conn.execute("DELETE FROM device_info WHERE device_ip = ?", (device_ip,))
 
             await self.sqlite_conn.commit()
             return True
@@ -1054,9 +1012,7 @@ class DatabaseManager:
             print(f"Error updating device notes: {e}")
             return False
 
-    async def create_admin_user(
-        self, username: str, email: str, full_name: str, password: str
-    ) -> bool:
+    async def create_admin_user(self, username: str, email: str, full_name: str, password: str) -> bool:
         """Create the initial admin user."""
         try:
             # Check if any users exist
@@ -1218,9 +1174,7 @@ class DatabaseManager:
                     if key == "permissions":
                         values.append(json.dumps(value))
                     elif key == "role":
-                        values.append(
-                            value.value if isinstance(value, UserRole) else value
-                        )
+                        values.append(value.value if isinstance(value, UserRole) else value)
                     else:
                         values.append(value)
 
@@ -1246,9 +1200,7 @@ class DatabaseManager:
     async def delete_user(self, user_id: int) -> bool:
         """Delete a user (soft delete - set inactive)."""
         try:
-            await self.sqlite_conn.execute(
-                "UPDATE users SET is_active = 0 WHERE id = ?", (user_id,)
-            )
+            await self.sqlite_conn.execute("UPDATE users SET is_active = 0 WHERE id = ?", (user_id,))
             await self.sqlite_conn.commit()
             return True
         except Exception as e:
@@ -1258,9 +1210,7 @@ class DatabaseManager:
     async def is_setup_required(self) -> bool:
         """Check if initial setup is required (no admin users exist)."""
         try:
-            cursor = await self.sqlite_conn.execute(
-                "SELECT COUNT(*) FROM users WHERE is_admin = 1 AND is_active = 1"
-            )
+            cursor = await self.sqlite_conn.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1 AND is_active = 1")
             count = await cursor.fetchone()
             return count[0] == 0
         except Exception:
@@ -1285,9 +1235,7 @@ class DatabaseManager:
     async def get_system_config(self, key: str, default: str = None) -> Optional[str]:
         """Get a system configuration value."""
         try:
-            cursor = await self.sqlite_conn.execute(
-                "SELECT value FROM system_config WHERE key = ?", (key,)
-            )
+            cursor = await self.sqlite_conn.execute("SELECT value FROM system_config WHERE key = ?", (key,))
             row = await cursor.fetchone()
             return row[0] if row else default
         except Exception as e:
@@ -1297,9 +1245,7 @@ class DatabaseManager:
     async def get_all_system_config(self) -> Dict[str, str]:
         """Get all system configuration values."""
         try:
-            cursor = await self.sqlite_conn.execute(
-                "SELECT key, value FROM system_config"
-            )
+            cursor = await self.sqlite_conn.execute("SELECT key, value FROM system_config")
             rows = await cursor.fetchall()
             return {row[0]: row[1] for row in rows}
         except Exception as e:
@@ -1348,9 +1294,7 @@ class DatabaseManager:
     async def count_admin_users(self) -> int:
         """Count the number of admin users."""
         try:
-            cursor = await self.sqlite_conn.execute(
-                "SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = 1"
-            )
+            cursor = await self.sqlite_conn.execute("SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = 1")
             count = await cursor.fetchone()
             return count[0] if count else 0
         except Exception as e:
@@ -1393,9 +1337,7 @@ class DatabaseManager:
     async def get_temp_totp_secret(self, user_id: int) -> Optional[str]:
         """Get temporary TOTP secret."""
         try:
-            cursor = await self.sqlite_conn.execute(
-                "SELECT temp_totp_secret FROM users WHERE id = ?", (user_id,)
-            )
+            cursor = await self.sqlite_conn.execute("SELECT temp_totp_secret FROM users WHERE id = ?", (user_id,))
             row = await cursor.fetchone()
             return row[0] if row and row[0] else None
         except Exception as e:
@@ -1424,9 +1366,7 @@ class DatabaseManager:
     async def disable_totp(self, user_id: int) -> bool:
         """Disable 2FA for user."""
         try:
-            cursor = await self.sqlite_conn.execute(
-                "SELECT totp_secret FROM users WHERE id = ?", (user_id,)
-            )
+            cursor = await self.sqlite_conn.execute("SELECT totp_secret FROM users WHERE id = ?", (user_id,))
             row = await cursor.fetchone()
             if not row or not row[0]:
                 return False  # 2FA not enabled
