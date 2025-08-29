@@ -83,46 +83,49 @@ export function DataExportModal({
   const loadDevices = async () => {
     try {
       const token = safeStorage.getItem('token');
-      const response = await fetch('/api/exports/devices', {
+      // Use the standard devices endpoint
+      const response = await fetch('/api/devices', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
-        const data = await response.json();
-        setAvailableDevices(data.devices);
+        const devices = await response.json();
+        // Transform to export format
+        const exportDevices = devices.map((device: any) => ({
+          id: device.ip,
+          name: device.alias || device.model,
+          type: device.device_type
+        }));
+        setAvailableDevices(exportDevices);
       }
     } catch (error) {
       safeConsoleError('Failed to load devices', error);
+      // Provide empty fallback
+      setAvailableDevices([]);
     }
   };
 
   const loadMetrics = async () => {
-    try {
-      const token = safeStorage.getItem('token');
-      const response = await fetch('/api/exports/metrics', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setAvailableMetrics(data.metrics);
-      }
-    } catch (error) {
-      safeConsoleError('Failed to load metrics', error);
-    }
+    // Use predefined metrics since there's no dedicated endpoint
+    const defaultMetrics = [
+      { id: 'power', name: 'Power (W)', unit: 'W' },
+      { id: 'voltage', name: 'Voltage (V)', unit: 'V' },
+      { id: 'current', name: 'Current (A)', unit: 'A' },
+      { id: 'energy', name: 'Energy (kWh)', unit: 'kWh' },
+      { id: 'cost', name: 'Cost ($)', unit: '$' },
+      { id: 'uptime', name: 'Uptime', unit: 'hours' },
+      { id: 'on_time', name: 'On Time', unit: 'hours' }
+    ];
+    setAvailableMetrics(defaultMetrics);
   };
 
   const loadFormats = async () => {
-    try {
-      const token = safeStorage.getItem('token');
-      const response = await fetch('/api/exports/formats', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setAvailableFormats(data);
-      }
-    } catch (error) {
-      safeConsoleError('Failed to load formats', error);
-    }
+    // Use predefined formats since there's no dedicated endpoint
+    const defaultFormats = [
+      { id: 'csv', name: 'CSV', extension: '.csv', icon: 'FileText' },
+      { id: 'json', name: 'JSON', extension: '.json', icon: 'Code' },
+      { id: 'excel', name: 'Excel', extension: '.xlsx', icon: 'FileSpreadsheet' }
+    ];
+    setAvailableFormats(defaultFormats);
   };
 
   const getDateRange = () => {
@@ -169,24 +172,25 @@ export function DataExportModal({
     try {
       const token = safeStorage.getItem('token');
       const range = getDateRange();
-      const params = new URLSearchParams({
-        devices: selectedDevices.join(','),
-        start_date: range.start,
-        end_date: range.end,
-        aggregation: aggregation,
-        limit: '10'
-      });
-
-      const response = await fetch(`/api/exports/preview?${params}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setPreviewData(data.preview_data);
-      } else {
-        setError('Failed to load preview');
-      }
+      
+      // Since there's no preview endpoint, create a simple preview
+      const previewInfo = {
+        devices: selectedDevices.length,
+        metrics: selectedMetrics.length,
+        dateRange: `${range.start} to ${range.end}`,
+        format: format,
+        aggregation: aggregation
+      };
+      
+      // Set preview data directly
+      const preview = [
+        `Devices: ${selectedDevices.length} selected`,
+        `Metrics: ${selectedMetrics.join(', ') || 'All metrics'}`,
+        `Date range: ${previewInfo.dateRange}`,
+        `Format: ${previewInfo.format.toUpperCase()}`,
+        `Aggregation: ${aggregation}`
+      ];
+      setPreviewData(preview);
     } catch (error) {
       setError('Failed to load preview');
     } finally {
@@ -202,60 +206,69 @@ export function DataExportModal({
       const token = safeStorage.getItem('token');
       const range = getDateRange();
       
-      const exportRequest = {
-        devices: selectedDevices,
-        date_range: range,
-        format: format,
-        aggregation: aggregation,
-        metrics: selectedMetrics,
-        options: {
-          include_metadata: includeMetadata,
-          compression: compression !== 'none' ? compression : undefined
+      // Determine which export endpoint to use based on selected metrics
+      const hasEnergyMetrics = selectedMetrics.some(m => 
+        ['energy', 'cost', 'power'].includes(m)
+      );
+      
+      const endpoint = hasEnergyMetrics ? '/api/export/energy' : '/api/export/devices';
+      
+      // Build request params as query string (backend expects query params)
+      const params = new URLSearchParams();
+      params.append('format', format === 'excel' ? 'excel' : 'csv');
+      
+      if (hasEnergyMetrics) {
+        // Energy export endpoint parameters
+        if (selectedDevices.length === 1) {
+          params.append('device_ip', selectedDevices[0]);
         }
-      };
+        params.append('start_date', range.start);
+        params.append('end_date', range.end);
+      } else {
+        // Device export endpoint parameters
+        params.append('include_energy', String(hasEnergyMetrics));
+      }
 
-      const response = await fetch('/api/exports/create', {
+      const response = await fetch(`${endpoint}?${params}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(exportRequest)
+          'Authorization': `Bearer ${token}`
+        }
       });
 
       if (response.ok) {
-        const result = await response.json();
+        // Backend returns the file directly, not JSON
+        const blob = await response.blob();
         
-        if (result.status === 'completed') {
-          // Download immediately
-          const downloadResponse = await fetch(result.download_url, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          
-          if (downloadResponse.ok) {
-            const blob = await downloadResponse.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = result.filename;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
-            
-            // Show success message and close modal
-            setError(''); // Clear any previous errors
-            onClose();
-          } else {
-            setError('Failed to download export file. Please try again.');
-          }
-        } else if (result.status === 'processing') {
-          setError('Export started successfully. Large exports may take a few minutes to complete.');
-        } else {
-          setError('Export started in background. Check export history for progress.');
-        }
+        // Determine filename based on format
+        const extension = format === 'excel' ? '.xlsx' : '.csv';
+        const timestamp = new Date().toISOString().split('T')[0];
+        const filename = `kasa-export-${timestamp}${extension}`;
+        
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        
+        // Show success message and close modal
+        setError(''); // Clear any previous errors
+        onClose();
       } else {
-        const errorData = await response.json();
+        // Handle error responses
+        let errorMessage = 'Export failed';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorMessage;
+        } catch {
+          // If response is not JSON, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        
         if (response.status === 403) {
           setError('You do not have permission to export data. Please contact your administrator.');
         } else if (response.status === 429) {
@@ -263,7 +276,7 @@ export function DataExportModal({
         } else if (response.status === 401) {
           setError('Authentication expired. Please log in again.');
         } else {
-          setError(errorData.detail || `Export failed with error ${response.status}`);
+          setError(`${errorMessage} (Error ${response.status})`);
         }
       }
     } catch (error) {
