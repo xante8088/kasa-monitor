@@ -107,24 +107,24 @@ export function DataExportModal({
   const loadMetrics = async () => {
     // Use predefined metrics since there's no dedicated endpoint
     const defaultMetrics = [
-      { id: 'power', name: 'Power (W)', unit: 'W' },
-      { id: 'voltage', name: 'Voltage (V)', unit: 'V' },
-      { id: 'current', name: 'Current (A)', unit: 'A' },
-      { id: 'energy', name: 'Energy (kWh)', unit: 'kWh' },
-      { id: 'cost', name: 'Cost ($)', unit: '$' },
-      { id: 'uptime', name: 'Uptime', unit: 'hours' },
-      { id: 'on_time', name: 'On Time', unit: 'hours' }
+      { id: 'power', name: 'Power (W)', description: 'Current power consumption in watts' },
+      { id: 'voltage', name: 'Voltage (V)', description: 'Current voltage reading in volts' },
+      { id: 'current', name: 'Current (A)', description: 'Current amperage reading' },
+      { id: 'energy', name: 'Energy (kWh)', description: 'Total energy consumption in kilowatt-hours' },
+      { id: 'cost', name: 'Cost ($)', description: 'Estimated electricity cost in dollars' },
+      { id: 'uptime', name: 'Uptime', description: 'Total device uptime in hours' },
+      { id: 'on_time', name: 'On Time', description: 'Total time device has been powered on' }
     ];
     setAvailableMetrics(defaultMetrics);
   };
 
   const loadFormats = async () => {
     // Use predefined formats since there's no dedicated endpoint
-    const defaultFormats = [
-      { id: 'csv', name: 'CSV', extension: '.csv', icon: 'FileText' },
-      { id: 'json', name: 'JSON', extension: '.json', icon: 'Code' },
-      { id: 'excel', name: 'Excel', extension: '.xlsx', icon: 'FileSpreadsheet' }
-    ];
+    const defaultFormats: Record<string, ExportFormat> = {
+      'csv': { name: 'CSV', extension: '.csv', mime_type: 'text/csv' },
+      'json': { name: 'JSON', extension: '.json', mime_type: 'application/json' },
+      'excel': { name: 'Excel', extension: '.xlsx', mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }
+    };
     setAvailableFormats(defaultFormats);
   };
 
