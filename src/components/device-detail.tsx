@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import axios from 'axios'
+import axios from '@/lib/axios-config'
 import { ArrowLeft, Power, Zap, Activity, TrendingUp } from 'lucide-react'
 import { PowerChart } from './charts/power-chart'
 import { VoltageChart } from './charts/voltage-chart'

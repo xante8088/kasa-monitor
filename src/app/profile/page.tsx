@@ -5,7 +5,7 @@ import { AppLayout } from '@/components/app-layout'
 import { useAuth } from '@/contexts/auth-context'
 import { User, Mail, Shield, Trash2, Save, AlertTriangle, CheckCircle, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import axios from 'axios'
+import axios from '@/lib/axios-config'
 import { safeConsoleError, safeStorage } from '@/lib/security-utils'
 
 export default function ProfilePage() {

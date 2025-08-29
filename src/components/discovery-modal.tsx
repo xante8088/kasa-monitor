@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { X, Search, User, Lock } from 'lucide-react'
-import axios from 'axios'
+import axios from '@/lib/axios-config'
 import { useQueryClient } from '@tanstack/react-query'
 
 interface DiscoveryModalProps {

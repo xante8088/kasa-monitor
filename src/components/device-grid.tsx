@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import axios from 'axios'
+import axios from '@/lib/axios-config'
 import { Power, Wifi, Zap } from 'lucide-react'
 import { DeviceCard } from './device-card'
 

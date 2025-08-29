@@ -3,7 +3,7 @@
 import { Power, Zap, Activity } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import axios from 'axios'
+import axios from '@/lib/axios-config'
 import { io, Socket } from 'socket.io-client'
 import { CompactExportButton } from './export-button'
 import { DataExportModal } from './data-export-modal'

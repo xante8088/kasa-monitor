@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Power } from 'lucide-react'
-import axios from 'axios'
+import axios from '@/lib/axios-config'
 import { safeConsoleError, safeStorage, createSafeApiUrl } from '@/lib/security-utils'
 
 interface DeviceControlsProps {
