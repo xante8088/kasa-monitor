@@ -115,7 +115,9 @@ export function ChartContainer({
         throw new Error(`Failed to fetch chart data: ${response.statusText}`)
       }
       
-      return response.json()
+      const result = await response.json()
+      // Handle both array response and object with data property
+      return Array.isArray(result) ? result : (result.data || [])
     },
     // Use history-optimized configuration for better performance
     ...queryConfig.history,
@@ -125,7 +127,9 @@ export function ChartContainer({
   })
 
   // Filter data by time range (client-side backup if API doesn't support filtering)
-  const filteredData = rawData ? filterDataByTimeRange(rawData, timeRange) : []
+  // Ensure rawData is an array before passing to filterDataByTimeRange
+  const dataArray = Array.isArray(rawData) ? rawData : []
+  const filteredData = filterDataByTimeRange(dataArray, timeRange)
 
   const handleTimePeriodChange = useCallback((newPeriod: TimePeriodState) => {
     setTimePeriod(newPeriod)

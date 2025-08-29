@@ -188,7 +188,8 @@ export function filterDataByTimeRange(
   data: ChartDataPoint[], 
   timeRange: ChartTimeRange
 ): ChartDataPoint[] {
-  if (!data || data.length === 0) {
+  // Ensure data is an array
+  if (!data || !Array.isArray(data) || data.length === 0) {
     return []
   }
 
