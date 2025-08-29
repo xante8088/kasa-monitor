@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import axios from 'axios'
+import axios from '@/lib/axios-config'
 import { DollarSign, TrendingUp, Calendar, Zap } from 'lucide-react'
 import { useState } from 'react'
 

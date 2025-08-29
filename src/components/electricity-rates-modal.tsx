@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, DollarSign, Clock, Save, Plus, Trash2, Info } from 'lucide-react'
-import axios from 'axios'
+import axios from '@/lib/axios-config'
 import { safeConsoleError } from '@/lib/security-utils'
 
 interface ElectricityRatesModalProps {

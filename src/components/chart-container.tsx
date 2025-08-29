@@ -110,7 +110,10 @@ export function ChartContainer({
         url.searchParams.set('time_period', apiParams.time_period)
       }
 
-      const response = await fetch(url.toString())
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+      const response = await fetch(url.toString(), {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      })
       if (!response.ok) {
         throw new Error(`Failed to fetch chart data: ${response.statusText}`)
       }
