@@ -275,7 +275,7 @@ jobs:
           echo "has_checklist=true" >> $GITHUB_OUTPUT
       
       - name: Comment on PR with documentation status
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
