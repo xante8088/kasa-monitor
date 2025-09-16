@@ -54,7 +54,7 @@
     "autoprefixer": "^10.4.19",
     "conventional-changelog-conventionalcommits": "^9.1.0",
     "eslint": "^9.35.0",
-    "eslint-config-next": "^15.5.2",
+    "eslint-config-next": "^15.5.3",
     "postcss": "^8.4.38",
     "semantic-release": "^24.2.7",
     "tailwindcss": "^4.1.12",
