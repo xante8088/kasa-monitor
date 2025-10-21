@@ -1504,6 +1504,12 @@ export default function SystemConfigPage() {
 
                           try {
                             const token = localStorage.getItem('token');
+                            if (!token) {
+                              setError('Not authenticated. Please log in again.');
+                              setSaving(false);
+                              return;
+                            }
+
                             const response = await fetch('/api/readings/clear', {
                               method: 'POST',
                               headers: {
@@ -1515,6 +1521,8 @@ export default function SystemConfigPage() {
                             if (response.ok) {
                               const data = await response.json();
                               setSuccess(`Successfully cleared ${data.details.readings_deleted} device readings and ${data.details.costs_deleted} cost records. ${data.details.influxdb_cleared ? 'InfluxDB data also cleared.' : ''}`);
+                            } else if (response.status === 401) {
+                              setError('Authentication failed. Your session may have expired. Please log out and log in again.');
                             } else {
                               const errorData = await response.json().catch(() => ({}));
                               setError(errorData.detail || errorData.message || 'Failed to clear device readings');
