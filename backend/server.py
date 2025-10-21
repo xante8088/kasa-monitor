@@ -1656,7 +1656,7 @@ class KasaMonitorApp:
             return costs
 
         @self.app.post("/api/readings/clear")
-        async def clear_device_readings(user: dict = Depends(self.get_current_user)):
+        async def clear_device_readings(user: User = Depends(require_auth)):
             """Clear all device readings while preserving settings.
 
             Requires admin privileges. This will delete:
@@ -1671,7 +1671,7 @@ class KasaMonitorApp:
             - System settings
             """
             # Verify user has admin role
-            if user.get("role") != "admin":
+            if user.role != UserRole.ADMIN:
                 raise HTTPException(
                     status_code=403,
                     detail="Only administrators can clear device readings"
