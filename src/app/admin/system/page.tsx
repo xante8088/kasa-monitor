@@ -1401,7 +1401,7 @@ export default function SystemConfigPage() {
         {/* System Settings */}
         <div className="bg-white shadow-lg rounded-lg p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">System Settings</h2>
-          
+
           <div className="space-y-4">
             <div>
               <label htmlFor="database_path" className="block text-sm font-medium text-gray-700">
@@ -1445,6 +1445,95 @@ export default function SystemConfigPage() {
               <label htmlFor="influxdb_enabled" className="ml-2 text-sm text-gray-900">
                 Enable InfluxDB for time-series data
               </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Database Management */}
+        <div className="bg-white shadow-lg rounded-lg p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Database Management</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Manage your device readings and historical data
+          </p>
+
+          <div className="space-y-4">
+            <div className="border-t pt-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <h3 className="text-sm font-medium text-red-800">
+                      Clear All Device Readings
+                    </h3>
+                    <div className="mt-2 text-sm text-red-700">
+                      <p>This action will permanently delete:</p>
+                      <ul className="list-disc list-inside mt-2 space-y-1">
+                        <li>All device sensor readings</li>
+                        <li>All historical energy data</li>
+                        <li>All calculated costs</li>
+                        <li>InfluxDB time-series data (if configured)</li>
+                      </ul>
+                      <p className="mt-3 font-semibold">This will preserve:</p>
+                      <ul className="list-disc list-inside mt-2 space-y-1">
+                        <li>Device information and configuration</li>
+                        <li>Electricity rates</li>
+                        <li>User accounts and settings</li>
+                        <li>System configuration</li>
+                      </ul>
+                    </div>
+                    <div className="mt-4">
+                      <button
+                        onClick={async () => {
+                          if (!confirm('Are you sure you want to clear ALL device readings? This action cannot be undone!')) {
+                            return;
+                          }
+
+                          const confirmation = prompt('Type "CLEAR ALL DATA" to confirm:');
+                          if (confirmation !== 'CLEAR ALL DATA') {
+                            setError('Confirmation text did not match. Operation cancelled.');
+                            return;
+                          }
+
+                          setSaving(true);
+                          setError('');
+                          setSuccess('');
+
+                          try {
+                            const token = localStorage.getItem('token');
+                            const response = await fetch('/api/readings/clear', {
+                              method: 'POST',
+                              headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                              }
+                            });
+
+                            if (response.ok) {
+                              const data = await response.json();
+                              setSuccess(`Successfully cleared ${data.details.readings_deleted} device readings and ${data.details.costs_deleted} cost records. ${data.details.influxdb_cleared ? 'InfluxDB data also cleared.' : ''}`);
+                            } else {
+                              const errorData = await response.json().catch(() => ({}));
+                              setError(errorData.detail || errorData.message || 'Failed to clear device readings');
+                            }
+                          } catch (err) {
+                            setError('Connection error while clearing readings');
+                          } finally {
+                            setSaving(false);
+                          }
+                        }}
+                        disabled={saving}
+                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
+                      >
+                        {saving ? 'Clearing...' : 'Clear All Readings'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

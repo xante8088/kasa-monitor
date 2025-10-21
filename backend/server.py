@@ -144,6 +144,10 @@ try:
     from cache_manager import CacheManager
     from data_aggregation import DataAggregator
     from data_export import BulkOperations, DataExporter
+    from data_compaction import DataCompactionService
+    from data_compaction_api import router as compaction_router, compaction_service as compaction_api_service
+    from compaction_scheduler import CompactionScheduler
+    from unified_data_query import UnifiedDataQuery
 
     data_management_available = True
 except ImportError:
@@ -363,9 +367,29 @@ class KasaMonitorApp:
         self.data_exporter = None
         self.data_aggregator = None
         self.cache_manager = None
+        self.data_compaction_service = None
+        self.compaction_scheduler = None
+        self.unified_data_query = None
         if data_management_available:
             self.data_exporter = DataExporter(self.db_manager)
             self.data_aggregator = DataAggregator(self.db_manager)
+
+            # Initialize data compaction service
+            self.data_compaction_service = DataCompactionService(
+                self.db_manager,
+                getattr(self, 'backup_manager', None) if monitoring_available else None
+            )
+            compaction_api_service.set_service(self.data_compaction_service)
+
+            # Initialize compaction scheduler
+            self.compaction_scheduler = CompactionScheduler(
+                self.scheduler,
+                self.data_compaction_service
+            )
+
+            # Initialize unified data query service
+            self.unified_data_query = UnifiedDataQuery(self.db_manager)
+
             redis_url = os.getenv("REDIS_URL")
             if redis_url:
                 self.cache_manager = CacheManager(redis_url=redis_url)
@@ -443,6 +467,11 @@ class KasaMonitorApp:
         if self.data_aggregator:
             await self.data_aggregator.start()
             logger.info("Data aggregation service started")
+
+        # Initialize compaction scheduler if available
+        if self.compaction_scheduler:
+            await self.compaction_scheduler.initialize()
+            logger.info("Data compaction scheduler initialized")
 
         # Initialize and load plugins if available
         if self.plugin_loader:
@@ -1626,11 +1655,100 @@ class KasaMonitorApp:
             costs = await self.db_manager.calculate_costs(start_date, end_date)
             return costs
 
+        @self.app.post("/api/readings/clear")
+        async def clear_device_readings(user: dict = Depends(self.get_current_user)):
+            """Clear all device readings while preserving settings.
+
+            Requires admin privileges. This will delete:
+            - All device readings (sensor data)
+            - All calculated costs
+            - InfluxDB time-series data (if configured)
+
+            Preserves:
+            - Device information and configuration
+            - Electricity rates
+            - Users and authentication
+            - System settings
+            """
+            # Verify user has admin role
+            if user.get("role") != "admin":
+                raise HTTPException(
+                    status_code=403,
+                    detail="Only administrators can clear device readings"
+                )
+
+            result = await self.db_manager.clear_all_device_readings()
+
+            if result["success"]:
+                return {
+                    "status": "success",
+                    "message": "All device readings have been cleared",
+                    "details": {
+                        "readings_deleted": result["sqlite_readings_deleted"],
+                        "costs_deleted": result["sqlite_costs_deleted"],
+                        "influxdb_cleared": result["influxdb_cleared"]
+                    }
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": "Failed to clear device readings",
+                    "errors": result["errors"]
+                }
+
         @self.app.get("/api/devices/saved")
         async def get_saved_devices():
             """Get all saved devices from database."""
             devices = await self.db_manager.get_saved_devices()
             return devices
+
+        @self.app.get("/api/devices/{device_id}/energy-data")
+        async def get_device_energy_data(
+            device_id: int,
+            start_date: Optional[datetime] = Query(None),
+            end_date: Optional[datetime] = Query(None),
+            granularity: Optional[str] = Query(None),
+            max_points: int = Query(1000, le=10000)
+        ):
+            """
+            Get energy data for a device using unified query service.
+            Automatically uses raw, compacted, or aggregated data based on the time range.
+            """
+            if not self.unified_data_query:
+                # Fallback to basic query if unified service not available
+                return {"error": "Unified data query service not available"}
+
+            try:
+                from unified_data_query import DataGranularity
+
+                # Convert granularity string to enum if provided
+                data_granularity = None
+                if granularity:
+                    try:
+                        data_granularity = DataGranularity(granularity)
+                    except ValueError:
+                        return {"error": f"Invalid granularity: {granularity}"}
+
+                # Get energy data
+                data = await self.unified_data_query.get_energy_data(
+                    device_id=device_id,
+                    start_date=start_date,
+                    end_date=end_date,
+                    granularity=data_granularity,
+                    max_points=max_points
+                )
+
+                return {
+                    "device_id": device_id,
+                    "start_date": start_date.isoformat() if start_date else None,
+                    "end_date": end_date.isoformat() if end_date else None,
+                    "data_points": len(data),
+                    "data": data
+                }
+
+            except Exception as e:
+                logger.error(f"Error fetching energy data: {e}")
+                return {"error": str(e)}
 
         @self.app.put("/api/devices/{device_ip}/monitoring")
         async def update_device_monitoring(
@@ -3574,6 +3692,9 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment"""
         """Set up data management routes if available."""
         if not data_management_available:
             return
+
+        # Include compaction API routes
+        self.app.include_router(compaction_router)
 
         from fastapi.responses import StreamingResponse
 

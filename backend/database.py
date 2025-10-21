@@ -779,7 +779,8 @@ class DatabaseManager:
         # Convert dict back to ElectricityRate model
         rate = ElectricityRate(**rate_dict)
 
-        # Get detailed consumption data for cost calculation
+        # Get the first and last reading for each device to calculate actual consumption
+        # Since today_energy_kwh is cumulative for the day, we need to handle day boundaries
         cursor = await self.sqlite_conn.execute(
             """
             SELECT
@@ -787,7 +788,8 @@ class DatabaseManager:
                 timestamp,
                 current_power_w,
                 today_energy_kwh,
-                month_energy_kwh
+                month_energy_kwh,
+                DATE(timestamp) as reading_date
             FROM device_readings
             WHERE timestamp BETWEEN ? AND ?
             ORDER BY device_ip, timestamp
@@ -797,10 +799,12 @@ class DatabaseManager:
 
         rows = await cursor.fetchall()
 
-        # Group by device and calculate costs
+        # Group by device and calculate actual consumption
         device_data = {}
+        device_daily_readings = {}  # Track readings by device and date
+
         for row in rows:
-            device_ip, timestamp, power_w, daily_kwh, monthly_kwh = row
+            device_ip, timestamp, power_w, daily_kwh, monthly_kwh, reading_date = row
 
             if device_ip not in device_data:
                 device_data[device_ip] = {
@@ -809,21 +813,38 @@ class DatabaseManager:
                     "peak_demand_kw": 0,
                     "costs": [],
                 }
+                device_daily_readings[device_ip] = {}
 
-            if daily_kwh:
-                device_data[device_ip]["readings"].append(
-                    {
-                        "timestamp": timestamp,
-                        "kwh": daily_kwh,
-                        "monthly_kwh": monthly_kwh,
-                    }
-                )
-                device_data[device_ip]["total_kwh"] += daily_kwh
+            # Track the maximum daily reading for each date (since it's cumulative)
+            if reading_date not in device_daily_readings[device_ip]:
+                device_daily_readings[device_ip][reading_date] = {
+                    "max_daily_kwh": 0,
+                    "timestamp": None,
+                    "monthly_kwh": None
+                }
+
+            if daily_kwh and daily_kwh > device_daily_readings[device_ip][reading_date]["max_daily_kwh"]:
+                device_daily_readings[device_ip][reading_date]["max_daily_kwh"] = daily_kwh
+                device_daily_readings[device_ip][reading_date]["timestamp"] = timestamp
+                device_daily_readings[device_ip][reading_date]["monthly_kwh"] = monthly_kwh
 
             if power_w:
                 device_data[device_ip]["peak_demand_kw"] = max(
                     device_data[device_ip]["peak_demand_kw"], power_w / 1000
                 )
+
+        # Now calculate the actual consumption by summing the maximum daily readings
+        for device_ip, daily_data in device_daily_readings.items():
+            for date, data in daily_data.items():
+                if data["max_daily_kwh"] > 0:
+                    device_data[device_ip]["readings"].append(
+                        {
+                            "timestamp": data["timestamp"],
+                            "kwh": data["max_daily_kwh"],
+                            "monthly_kwh": data["monthly_kwh"],
+                        }
+                    )
+                    device_data[device_ip]["total_kwh"] += data["max_daily_kwh"]
 
         # Calculate costs for each device
         total_cost = 0
@@ -856,13 +877,26 @@ class DatabaseManager:
                 }
             )
 
+        # Calculate total energy across all devices
+        total_energy = sum(data["total_kwh"] for data in device_data.values())
+
+        # Calculate effective rate per kWh for display
+        rate_per_kwh = None
+        if hasattr(rate, 'base_rate'):
+            rate_per_kwh = rate.base_rate
+        elif total_energy > 0:
+            # Calculate effective rate from actual cost
+            rate_per_kwh = round(total_cost / total_energy, 4)
+
         return {
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
             "total_cost": total_cost,
+            "total_energy": total_energy,  # Add total energy for frontend
             "currency": rate.currency,
             "rate_type": rate.rate_type,
             "rate_name": rate.name,
+            "rate_per_kwh": rate_per_kwh,  # Add rate per kWh for display
             "device_costs": sorted(device_costs, key=lambda x: x["cost"], reverse=True),
         }
 
@@ -1434,3 +1468,91 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error disabling TOTP: {e}")
             return False
+
+    async def clear_all_device_readings(self) -> Dict[str, Any]:
+        """Clear all device readings from both SQLite and InfluxDB while preserving settings.
+
+        This will delete:
+        - All records in device_readings table
+        - All records in device_costs table
+        - All data in InfluxDB bucket (if configured)
+
+        This will preserve:
+        - Device information (device_info table)
+        - Electricity rates (electricity_rates table)
+        - Users and authentication (users, user_sessions tables)
+        - System configuration (system_config table)
+
+        Returns:
+            Dict with status, counts of deleted records, and any errors
+        """
+        result = {
+            "success": False,
+            "sqlite_readings_deleted": 0,
+            "sqlite_costs_deleted": 0,
+            "influxdb_cleared": False,
+            "errors": []
+        }
+
+        try:
+            # Count records before deletion for reporting
+            cursor = await self.sqlite_conn.execute(
+                "SELECT COUNT(*) FROM device_readings"
+            )
+            readings_count = await cursor.fetchone()
+            result["sqlite_readings_deleted"] = readings_count[0] if readings_count else 0
+
+            cursor = await self.sqlite_conn.execute(
+                "SELECT COUNT(*) FROM device_costs"
+            )
+            costs_count = await cursor.fetchone()
+            result["sqlite_costs_deleted"] = costs_count[0] if costs_count else 0
+
+            # Delete all device readings from SQLite
+            await self.sqlite_conn.execute("DELETE FROM device_readings")
+            logger.info(f"Deleted {result['sqlite_readings_deleted']} device readings from SQLite")
+
+            # Delete all device costs from SQLite
+            await self.sqlite_conn.execute("DELETE FROM device_costs")
+            logger.info(f"Deleted {result['sqlite_costs_deleted']} device cost records from SQLite")
+
+            # Commit SQLite changes
+            await self.sqlite_conn.commit()
+
+            # Clear InfluxDB data if available
+            if self.use_influx and self.influx_client:
+                try:
+                    delete_api = self.influx_client.delete_api()
+                    # Delete all data from the bucket
+                    start = "1970-01-01T00:00:00Z"
+                    stop = datetime.now(timezone.utc).isoformat()
+
+                    await delete_api.delete(
+                        start=start,
+                        stop=stop,
+                        predicate='_measurement="device_reading"',
+                        bucket=self.influx_bucket,
+                        org=self.influx_org
+                    )
+                    result["influxdb_cleared"] = True
+                    logger.info("Cleared all device readings from InfluxDB")
+                except Exception as e:
+                    error_msg = f"Error clearing InfluxDB data: {str(e)}"
+                    logger.error(error_msg)
+                    result["errors"].append(error_msg)
+
+            result["success"] = True
+            logger.info(f"Successfully cleared all device readings. SQLite: {result['sqlite_readings_deleted']} readings, {result['sqlite_costs_deleted']} costs. InfluxDB: {'cleared' if result['influxdb_cleared'] else 'not configured'}")
+
+        except Exception as e:
+            error_msg = f"Error clearing device readings: {str(e)}"
+            logger.error(error_msg)
+            result["errors"].append(error_msg)
+
+            # Attempt to rollback SQLite changes
+            try:
+                await self.sqlite_conn.rollback()
+            except:
+                pass
+
+        return result

@@ -99,7 +99,7 @@ export function CostSummary() {
             <span className="text-sm font-medium text-blue-800">Total Energy</span>
           </div>
           <p className="text-2xl font-bold text-blue-900">
-            {costs.device_costs?.reduce((sum: number, d: any) => sum + (d.total_kwh || 0), 0).toFixed(2)} kWh
+            {(costs.total_energy || 0).toFixed(2)} kWh
           </p>
         </div>
 
@@ -109,7 +109,9 @@ export function CostSummary() {
             <span className="text-sm font-medium text-purple-800">Rate</span>
           </div>
           <p className="text-2xl font-bold text-purple-900">
-            {currencySymbol}{costs.rate_per_kwh}/kWh
+            {costs.rate_per_kwh
+              ? `${currencySymbol}${costs.rate_per_kwh.toFixed(4)}/kWh`
+              : costs.rate_type || 'Variable'}
           </p>
         </div>
 
