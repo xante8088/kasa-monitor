@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import axios from '@/lib/axios-config'
+import { apiClient, ApiError } from '@/lib/api-client'
 import { ArrowLeft, Power, Zap, Activity, TrendingUp } from 'lucide-react'
 import { PowerChart } from './charts/power-chart'
 import { VoltageChart } from './charts/voltage-chart'
@@ -24,8 +24,7 @@ export function DeviceDetail({ deviceIp, onBack }: DeviceDetailProps) {
   const { data: device, isLoading, refetch } = useQuery({
     queryKey: ['device', deviceIp],
     queryFn: async () => {
-      const response = await axios.get(`/api/device/${deviceIp}`)
-      return response.data
+      return apiClient.get(`/api/device/${deviceIp}`)
     },
     refetchInterval: 5000,
   })
@@ -35,8 +34,7 @@ export function DeviceDetail({ deviceIp, onBack }: DeviceDetailProps) {
   const { data: stats } = useQuery({
     queryKey: ['device-stats', deviceIp],
     queryFn: async () => {
-      const response = await axios.get(`/api/device/${deviceIp}/stats`)
-      return response.data
+      return apiClient.get(`/api/device/${deviceIp}/stats`)
     },
     refetchInterval: 60000,
   })

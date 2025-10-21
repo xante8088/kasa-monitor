@@ -5,8 +5,8 @@ import { AppLayout } from '@/components/app-layout'
 import { useAuth } from '@/contexts/auth-context'
 import { User, Mail, Shield, Trash2, Save, AlertTriangle, CheckCircle, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import axios from '@/lib/axios-config'
-import { safeConsoleError, safeStorage } from '@/lib/security-utils'
+import { apiClient, ApiError } from '@/lib/api-client'
+import { safeConsoleError } from '@/lib/security-utils'
 
 export default function ProfilePage() {
   const { user, logout } = useAuth()
@@ -39,13 +39,14 @@ export default function ProfilePage() {
 
   const checkTwoFAStatus = async () => {
     try {
-      const token = safeStorage.getItem('token')
-      const response = await axios.get('/api/auth/2fa/status', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      setTwoFAEnabled(response.data.enabled)
+      const data = await apiClient.get<{ enabled: boolean }>('/api/auth/2fa/status')
+      setTwoFAEnabled(data.enabled)
     } catch (error) {
-      safeConsoleError('Failed to check 2FA status', error)
+      if (error instanceof ApiError) {
+        safeConsoleError(`Failed to check 2FA status: ${error.message}`, error)
+      } else {
+        safeConsoleError('Failed to check 2FA status', error)
+      }
     }
   }
 
@@ -53,29 +54,33 @@ export default function ProfilePage() {
     try {
       setLoading(true)
       setMessage(null)
-      
-      const token = safeStorage.getItem('token')
+
       const updates: any = {}
-      
+
       if (fullName !== user?.full_name) updates.full_name = fullName
       if (email !== user?.email) updates.email = email
-      
+
       if (Object.keys(updates).length === 0) {
         setMessage({ type: 'error', text: 'No changes to save' })
         return
       }
-      
-      const response = await axios.put('/api/auth/profile', updates, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      
+
+      await apiClient.put('/api/auth/profile', updates)
+
       setMessage({ type: 'success', text: 'Profile updated successfully' })
       // Update user context if needed
     } catch (error: any) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.detail || 'Failed to update profile' 
-      })
+      if (error instanceof ApiError) {
+        if (error.status === 401) {
+          setMessage({ type: 'error', text: 'Authentication failed. Please log in again.' })
+        } else if (error.status === 403) {
+          setMessage({ type: 'error', text: 'You do not have permission to update your profile.' })
+        } else {
+          setMessage({ type: 'error', text: error.message || 'Failed to update profile' })
+        }
+      } else {
+        setMessage({ type: 'error', text: 'Network error. Please check your connection.' })
+      }
     } finally {
       setLoading(false)
     }
@@ -86,33 +91,37 @@ export default function ProfilePage() {
       setMessage({ type: 'error', text: 'New passwords do not match' })
       return
     }
-    
+
     if (newPassword.length < 8) {
       setMessage({ type: 'error', text: 'Password must be at least 8 characters long' })
       return
     }
-    
+
     try {
       setLoading(true)
       setMessage(null)
-      
-      const token = safeStorage.getItem('token')
-      const response = await axios.post('/api/auth/change-password', {
+
+      await apiClient.post('/api/auth/change-password', {
         current_password: currentPassword,
         new_password: newPassword
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       })
-      
+
       setMessage({ type: 'success', text: 'Password changed successfully' })
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
     } catch (error: any) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.detail || 'Failed to change password' 
-      })
+      if (error instanceof ApiError) {
+        if (error.status === 401) {
+          setMessage({ type: 'error', text: 'Authentication failed. Please log in again.' })
+        } else if (error.status === 403) {
+          setMessage({ type: 'error', text: 'Current password is incorrect.' })
+        } else {
+          setMessage({ type: 'error', text: error.message || 'Failed to change password' })
+        }
+      } else {
+        setMessage({ type: 'error', text: 'Network error. Please check your connection.' })
+      }
     } finally {
       setLoading(false)
     }
@@ -122,19 +131,23 @@ export default function ProfilePage() {
     try {
       setLoading(true)
       setMessage(null)
-      
-      const token = safeStorage.getItem('token')
-      const response = await axios.post('/api/auth/2fa/setup', {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      
-      setTwoFAQRCode(response.data.qr_code)
+
+      const data = await apiClient.post<{ qr_code: string }>('/api/auth/2fa/setup', {})
+
+      setTwoFAQRCode(data.qr_code)
       setShowTwoFASetup(true)
     } catch (error: any) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.detail || 'Failed to setup 2FA' 
-      })
+      if (error instanceof ApiError) {
+        if (error.status === 401) {
+          setMessage({ type: 'error', text: 'Authentication failed. Please log in again.' })
+        } else if (error.status === 403) {
+          setMessage({ type: 'error', text: 'You do not have permission to setup 2FA.' })
+        } else {
+          setMessage({ type: 'error', text: error.message || 'Failed to setup 2FA' })
+        }
+      } else {
+        setMessage({ type: 'error', text: 'Network error. Please check your connection.' })
+      }
     } finally {
       setLoading(false)
     }
@@ -144,23 +157,27 @@ export default function ProfilePage() {
     try {
       setLoading(true)
       setMessage(null)
-      
-      const token = safeStorage.getItem('token')
-      const response = await axios.post('/api/auth/2fa/verify', {
+
+      await apiClient.post('/api/auth/2fa/verify', {
         token: twoFAToken
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       })
-      
+
       setTwoFAEnabled(true)
       setShowTwoFASetup(false)
       setTwoFAToken('')
       setMessage({ type: 'success', text: '2FA enabled successfully' })
     } catch (error: any) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.detail || 'Invalid verification code' 
-      })
+      if (error instanceof ApiError) {
+        if (error.status === 401) {
+          setMessage({ type: 'error', text: 'Authentication failed. Please log in again.' })
+        } else if (error.status === 400) {
+          setMessage({ type: 'error', text: 'Invalid verification code' })
+        } else {
+          setMessage({ type: 'error', text: error.message || 'Invalid verification code' })
+        }
+      } else {
+        setMessage({ type: 'error', text: 'Network error. Please check your connection.' })
+      }
     } finally {
       setLoading(false)
     }
@@ -170,19 +187,23 @@ export default function ProfilePage() {
     try {
       setLoading(true)
       setMessage(null)
-      
-      const token = safeStorage.getItem('token')
-      const response = await axios.post('/api/auth/2fa/disable', {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      
+
+      await apiClient.post('/api/auth/2fa/disable', {})
+
       setTwoFAEnabled(false)
       setMessage({ type: 'success', text: '2FA disabled successfully' })
     } catch (error: any) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.detail || 'Failed to disable 2FA' 
-      })
+      if (error instanceof ApiError) {
+        if (error.status === 401) {
+          setMessage({ type: 'error', text: 'Authentication failed. Please log in again.' })
+        } else if (error.status === 403) {
+          setMessage({ type: 'error', text: 'You do not have permission to disable 2FA.' })
+        } else {
+          setMessage({ type: 'error', text: error.message || 'Failed to disable 2FA' })
+        }
+      } else {
+        setMessage({ type: 'error', text: 'Network error. Please check your connection.' })
+      }
     } finally {
       setLoading(false)
     }
@@ -193,24 +214,28 @@ export default function ProfilePage() {
       setMessage({ type: 'error', text: 'Please type the confirmation text exactly' })
       return
     }
-    
+
     try {
       setLoading(true)
       setMessage(null)
-      
-      const token = safeStorage.getItem('token')
-      const response = await axios.delete('/api/auth/account', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      
+
+      await apiClient.delete('/api/auth/account')
+
       // Log out and redirect to login
       logout()
       router.push('/login')
     } catch (error: any) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.detail || 'Failed to delete account' 
-      })
+      if (error instanceof ApiError) {
+        if (error.status === 401) {
+          setMessage({ type: 'error', text: 'Authentication failed. Please log in again.' })
+        } else if (error.status === 403) {
+          setMessage({ type: 'error', text: 'You do not have permission to delete this account.' })
+        } else {
+          setMessage({ type: 'error', text: error.message || 'Failed to delete account' })
+        }
+      } else {
+        setMessage({ type: 'error', text: 'Network error. Please check your connection.' })
+      }
     } finally {
       setLoading(false)
     }

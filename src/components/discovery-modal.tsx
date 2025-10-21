@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { X, Search, User, Lock } from 'lucide-react'
-import axios from '@/lib/axios-config'
+import { apiClient, ApiError } from '@/lib/api-client'
 import { useQueryClient } from '@tanstack/react-query'
 
 interface DiscoveryModalProps {
@@ -20,31 +20,36 @@ export function DiscoveryModal({ onClose }: DiscoveryModalProps) {
   const handleDiscover = async () => {
     setDiscovering(true)
     setResult(null)
-    
+
     try {
-      const credentials = useAuth && username && password 
+      const credentials = useAuth && username && password
         ? { username, password }
         : undefined
-      
-      // Get auth token from localStorage
-      const token = localStorage.getItem('token')
-      
-      const response = await axios.post('/api/discover', credentials, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : ''
-        }
-      })
-      const count = response.data.discovered
-      
+
+      // Use apiClient which handles auth automatically
+      const response = await apiClient.post<{ discovered: number }>('/api/discover', credentials)
+      const count = response.discovered
+
       setResult(`Successfully discovered ${count} device${count !== 1 ? 's' : ''}!`)
-      
+
       // Invalidate devices query to refresh the list
       queryClient.invalidateQueries({ queryKey: ['devices'] })
-      
+
       // Auto-close after success
       setTimeout(onClose, 2000)
     } catch (error) {
-      setResult('Failed to discover devices. Please check your network connection.')
+      // Check if it's an ApiError with specific status
+      if (error instanceof ApiError) {
+        if (error.status === 401) {
+          setResult('Authentication failed. Please log in again.')
+        } else if (error.status === 403) {
+          setResult('You do not have permission to discover devices.')
+        } else {
+          setResult(error.message || 'Failed to discover devices.')
+        }
+      } else {
+        setResult('Failed to discover devices. Please check your network connection.')
+      }
     } finally {
       setDiscovering(false)
     }

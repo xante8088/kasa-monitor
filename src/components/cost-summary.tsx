@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import axios from '@/lib/axios-config'
+import { apiClient, ApiError } from '@/lib/api-client'
 import { DollarSign, TrendingUp, Calendar, Zap } from 'lucide-react'
 import { useState } from 'react'
 
@@ -13,7 +13,7 @@ export function CostSummary() {
     queryFn: async () => {
       const endDate = new Date()
       const startDate = new Date()
-      
+
       switch (timeRange) {
         case '7d':
           startDate.setDate(startDate.getDate() - 7)
@@ -28,14 +28,12 @@ export function CostSummary() {
           startDate.setMonth(0, 1)
           break
       }
-      
-      const response = await axios.get('/api/costs', {
-        params: {
-          start_date: startDate.toISOString(),
-          end_date: endDate.toISOString(),
-        }
+
+      const params = new URLSearchParams({
+        start_date: startDate.toISOString(),
+        end_date: endDate.toISOString(),
       })
-      return response.data
+      return apiClient.get(`/api/costs?${params.toString()}`)
     },
     refetchInterval: 300000, // Refresh every 5 minutes
   })

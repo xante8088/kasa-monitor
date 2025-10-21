@@ -3,7 +3,7 @@
 import { Power, Zap, Activity } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import axios from '@/lib/axios-config'
+import { apiClient, ApiError } from '@/lib/api-client'
 import { io, Socket } from 'socket.io-client'
 import { CompactExportButton } from './export-button'
 import { DataExportModal } from './data-export-modal'
@@ -28,8 +28,7 @@ export function DeviceCard({ device, onClick }: DeviceCardProps) {
   const { data: deviceData } = useQuery({
     queryKey: ['device', device.ip],
     queryFn: async () => {
-      const response = await axios.get(`/api/device/${device.ip}`)
-      return response.data
+      return apiClient.get(`/api/device/${device.ip}`)
     },
     refetchInterval: 30000,
   })

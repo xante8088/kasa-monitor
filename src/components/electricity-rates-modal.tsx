@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, DollarSign, Clock, Save, Plus, Trash2, Info } from 'lucide-react'
-import axios from '@/lib/axios-config'
+import { apiClient, ApiError } from '@/lib/api-client'
 import { safeConsoleError } from '@/lib/security-utils'
 
 interface ElectricityRatesModalProps {
@@ -73,9 +73,9 @@ export function ElectricityRatesModal({ onClose }: ElectricityRatesModalProps) {
   const loadRates = async () => {
     try {
       setLoading(true)
-      const response = await axios.get('/api/rates')
-      if (response.data.length > 0) {
-        const rate = response.data[0]
+      const data = await apiClient.get<any[]>('/api/rates')
+      if (data.length > 0) {
+        const rate = data[0]
         setFormData({
           ...formData,
           ...rate,
@@ -85,7 +85,11 @@ export function ElectricityRatesModal({ onClose }: ElectricityRatesModalProps) {
         })
       }
     } catch (error) {
-      safeConsoleError('Failed to load rates', error)
+      if (error instanceof ApiError) {
+        safeConsoleError(`Failed to load rates: ${error.message}`, error)
+      } else {
+        safeConsoleError('Failed to load rates', error)
+      }
     } finally {
       setLoading(false)
     }
@@ -94,11 +98,22 @@ export function ElectricityRatesModal({ onClose }: ElectricityRatesModalProps) {
   const handleSave = async () => {
     setSaving(true)
     try {
-      await axios.post('/api/rates', formData)
+      await apiClient.post('/api/rates', formData)
       setTimeout(onClose, 1000)
     } catch (error) {
-      safeConsoleError('Failed to save rates', error)
-      alert('Failed to save rates. Please check your configuration.')
+      if (error instanceof ApiError) {
+        if (error.status === 401) {
+          alert('Authentication failed. Please log in again.')
+        } else if (error.status === 403) {
+          alert('You do not have permission to save rates.')
+        } else {
+          alert(error.message || 'Failed to save rates. Please check your configuration.')
+        }
+        safeConsoleError(`Failed to save rates: ${error.message}`, error)
+      } else {
+        alert('Network error. Please check your connection.')
+        safeConsoleError('Failed to save rates', error)
+      }
     } finally {
       setSaving(false)
     }

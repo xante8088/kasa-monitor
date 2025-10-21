@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { Power } from 'lucide-react'
-import axios from '@/lib/axios-config'
-import { safeConsoleError, safeStorage, createSafeApiUrl } from '@/lib/security-utils'
+import { apiClient, ApiError } from '@/lib/api-client'
+import { safeConsoleError, createSafeApiUrl } from '@/lib/security-utils'
 
 interface DeviceControlsProps {
   deviceIp: string
@@ -20,21 +20,26 @@ export function DeviceControls({ deviceIp, isOn, onUpdate }: DeviceControlsProps
     setError(null)
     try {
       const action = isOn ? 'off' : 'on'
-      const token = safeStorage.getItem('token')
-      
+
       // Use safe API URL construction to prevent injection
       const safeUrl = createSafeApiUrl(`/api/device/${encodeURIComponent(deviceIp)}/control`, { action })
-      
-      await axios.post(safeUrl, {}, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+
+      await apiClient.post(safeUrl, {})
       setTimeout(onUpdate, 500) // Give device time to update
     } catch (error: any) {
-      safeConsoleError('Failed to control device', error)
-      const errorMessage = error.response?.data?.detail || error.message || 'Failed to control device'
-      setError(errorMessage)
+      if (error instanceof ApiError) {
+        if (error.status === 401) {
+          setError('Authentication failed. Please log in again.')
+        } else if (error.status === 403) {
+          setError('You do not have permission to control this device.')
+        } else {
+          setError(error.message || 'Failed to control device')
+        }
+        safeConsoleError(`Failed to control device: ${error.message}`, error)
+      } else {
+        setError('Network error. Please check your connection.')
+        safeConsoleError('Failed to control device', error)
+      }
       // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000)
     } finally {
