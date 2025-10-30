@@ -67,7 +67,7 @@ jobs:
         outputs: type=docker,dest=/tmp/kasa-monitor-cached.tar
     
     - name: Upload build artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: kasa-monitor-cached
         path: /tmp/kasa-monitor-cached.tar
@@ -97,7 +97,7 @@ jobs:
         outputs: type=docker,dest=/tmp/kasa-monitor-no-cache.tar
     
     - name: Upload build artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: kasa-monitor-no-cache
         path: /tmp/kasa-monitor-no-cache.tar
