@@ -321,7 +321,7 @@ jobs:
       
       - name: Upload documentation report
         if: github.event.inputs.generate_report == 'true' || github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: wiki-quality-report
           path: wiki-quality-report.md
