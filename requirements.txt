@@ -33,3 +33,4 @@ psycopg2-binary>=2.9.0
 # Backup & Compression
 py7zr>=0.20.0
 cryptography>=41.0.0
+urllib3>=2.6.3 # not directly required, pinned by Snyk to avoid a vulnerability
