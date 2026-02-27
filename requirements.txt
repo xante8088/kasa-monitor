@@ -8,7 +8,7 @@ python-socketio>=5.14.0
 bcrypt>=4.0.0
 pyjwt>=2.8.0
 python-multipart>=0.0.6
-cryptography>=41.0.0
+cryptography>=46.0.5
 pydantic>=2.5.0
 
 # Data Management & Export
@@ -32,4 +32,4 @@ psycopg2-binary>=2.9.0
 
 # Backup & Compression
 py7zr>=0.20.0
-cryptography>=41.0.0
+cryptography>=46.0.5
