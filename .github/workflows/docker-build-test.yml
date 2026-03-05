@@ -112,13 +112,13 @@ jobs:
     
     steps:
     - name: Download cached build
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v7
       with:
         name: kasa-monitor-cached
         path: /tmp/
     
     - name: Download no-cache build
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v7
       with:
         name: kasa-monitor-no-cache
         path: /tmp/
