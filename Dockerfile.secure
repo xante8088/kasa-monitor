@@ -35,7 +35,7 @@ COPY --chown=nodejs:nodejs next.config.js tailwind.config.js tsconfig.json postc
 RUN npm run build
 
 # Stage 2: Python Backend Base
-FROM python:3.14.0-slim-bookworm AS backend-base
+FROM python:3.14.1-slim-bookworm AS backend-base
 
 # Security updates
 RUN apt-get update && \
@@ -61,7 +61,7 @@ RUN python -m pip install --upgrade pip==24.3.1 && \
     rm -rf /root/.cache/pip
 
 # Stage 3: Final Runtime Image
-FROM python:3.14.0-slim-bookworm AS runtime
+FROM python:3.14.1-slim-bookworm AS runtime
 
 # Security labels
 LABEL security.scan="true" \
